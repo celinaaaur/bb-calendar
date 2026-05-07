@@ -25,12 +25,13 @@ function InstagramGrid({ posts, clientColor }) {
   return (
     <div style={{ background: '#fff', borderRadius: 16, padding: 20, border: '1px solid #ede8e0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <div style={{
-          width: 34, height: 34, borderRadius: '50%',
-          background: `linear-gradient(135deg, #2C1A0E, ${clientColor || '#C9A96E'})`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: 12, fontFamily: 'Georgia, serif', fontWeight: 'bold'
-        }}>IG</div>
+       <div style={{ width: 34, height: 34, borderRadius: '50%',
+  background: `linear-gradient(135deg, #2C1A0E, ${clientColor || '#C9A96E'})`,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: '#fff', fontSize: 12, fontFamily: 'Georgia, serif', fontWeight: 'bold',
+  flexShrink: 0 }}>
+  IG
+</div>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Georgia, serif' }}>Instagram Preview</div>
           <div style={{ fontSize: 10, color: '#aaa' }}>Next 9 scheduled posts</div>
