@@ -2,29 +2,65 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 
 const style = document.createElement('style')
-style.textContent = "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=DM+Sans:wght@300;400;500;600;700&display=swap');"
+style.textContent = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #F5F0E8; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #D4C9B0; border-radius: 4px; }
+  textarea:focus, input:focus, select:focus { outline: none; }
+  button { cursor: pointer; }
+`
 document.head.appendChild(style)
 
-const F = { display: "'Playfair Display', Georgia, serif", body: "'DM Sans', system-ui, sans-serif" }
+const F = {
+  display: "'DM Serif Display', Georgia, serif",
+  body: "'DM Sans', system-ui, sans-serif"
+}
+
+const PALETTE = {
+  cream: '#F5F0E8',
+  creamDark: '#EDE5D4',
+  creamMid: '#FAF6EE',
+  border: '#D4C9B0',
+  borderLight: '#E8E0D0',
+  espresso: '#2C1F0E',
+  espressoLight: '#5C4A30',
+  caramel: '#C4893A',
+  caramelLight: '#F0E8D5',
+  muted: '#8A7560',
+  mutedLight: '#B8A898',
+}
 
 const fmt = (str) => {
   if (!str) return ''
   const d = new Date(str)
-  return d.toLocaleDateString('en-PH', { weekday:'short', month:'short', day:'numeric' }).toUpperCase() + ' · ' + d.toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit' })
+  return d.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase() + ' · ' + d.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
 }
 const fmtShort = (str) => {
   if (!str) return ''
-  return new Date(str).toLocaleDateString('en-PH', { month:'short', day:'numeric' })
+  return new Date(str).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
 }
 const fmtTime = (str) => {
   if (!str) return ''
-  return new Date(str).toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit' })
+  return new Date(str).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+}
+const fmtAgo = (str) => {
+  if (!str) return ''
+  const diff = Date.now() - new Date(str).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return m + 'm ago'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + 'h ago'
+  return fmtShort(str)
 }
 
 const STATUS = {
-  pending:   { label: 'AWAITING APPROVAL',   color: '#A0620A', bg: '#FFF6E6', dot: '#D4860A', border: '#F5C87A' },
+  pending:   { label: 'AWAITING APPROVAL',   color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
   approved:  { label: 'APPROVED',            color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F', border: '#7ECBA1' },
-  revision:  { label: 'REVISIONS REQUESTED', color: '#9B2B20', bg: '#FEECEA', dot: '#C0392B', border: '#F4A59F' },
+  revision:  { label: 'REVISIONS REQUESTED', color: '#7A2018', bg: '#FEECEA', dot: '#C0392B', border: '#F4A59F' },
   published: { label: 'PUBLISHED',           color: '#444',    bg: '#F2F2F2', dot: '#888',    border: '#CCC'    },
   archived:  { label: 'ARCHIVED',            color: '#777',    bg: '#F5F5F5', dot: '#AAA',    border: '#DDD'    },
 }
@@ -32,39 +68,41 @@ const STATUS = {
 const FORMATS = ['post', 'carousel', 'reel', 'story']
 
 const statusLine = (status) => {
-  if (status === 'pending') return 'AWAITING CLIENT APPROVAL'
-  if (status === 'approved') return 'APPROVED — READY TO SCHEDULE'
-  if (status === 'revision') return 'AWAITING REVISED VERSION FROM BROWN BUTTER'
-  if (status === 'published') return 'PUBLISHED'
-  if (status === 'archived') return 'ARCHIVED'
+  if (status === 'pending') return 'Awaiting client approval'
+  if (status === 'approved') return 'Approved — ready to schedule'
+  if (status === 'revision') return 'Client requested revisions'
+  if (status === 'published') return 'Published'
+  if (status === 'archived') return 'Archived'
   return ''
 }
 
 function Badge({ status }) {
   const s = STATUS[status] || STATUS.pending
-  return <span style={{ fontFamily:F.body, fontSize:9, fontWeight:700, letterSpacing:1, padding:'3px 7px', borderRadius:3, background:s.bg, color:s.color, border:'1px solid '+s.border }}>{s.label}</span>
-}
-
-function Avatar({ name, size }) {
-  const sz = size || 24
-  const colors = ['#2A7D4F','#B07D2A','#B03A2E','#2471A3','#6C3483','#117A65']
-  const color = colors[name ? name.charCodeAt(0) % colors.length : 0]
-  const initials = name ? name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : '?'
   return (
-    <div style={{ width:sz, height:sz, borderRadius:'50%', background:color, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:sz*0.38, fontWeight:700, fontFamily:F.body, flexShrink:0 }}>{initials}</div>
+    <span style={{
+      fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em',
+      padding: '3px 8px', borderRadius: 3,
+      background: s.bg, color: s.color, border: '0.5px solid ' + s.border,
+      textTransform: 'uppercase', whiteSpace: 'nowrap'
+    }}>{s.label}</span>
   )
 }
 
 function IGGrid({ posts }) {
-  const grid = [...posts].filter(p => p.status !== 'archived').sort((a,b) => new Date(a.scheduled_at)-new Date(b.scheduled_at)).slice(0,9)
+  const grid = [...posts].filter(p => p.status !== 'archived')
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+    .slice(0, 9)
   while (grid.length < 9) grid.push(null)
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2 }}>
-      {grid.map((p,i) => (
-        <div key={i} style={{ aspectRatio:'1', background: p?(p.image_url?'transparent':'hsl('+(20+i*15)+',18%,'+(88-i*2)+'%)'):'#EEE', position:'relative', overflow:'hidden' }}>
-          {p?.image_url && <img src={p.image_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
-          {p && !p.image_url && <div style={{ padding:3, fontSize:6, color:'#888', lineHeight:1.3 }}>{p.caption.slice(0,35)}</div>}
-          {p && <div style={{ position:'absolute', top:2, right:2, width:6, height:6, borderRadius:'50%', background:STATUS[p.status]?.dot||'#ccc', border:'1px solid #fff' }} />}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2 }}>
+      {grid.map((p, i) => (
+        <div key={i} style={{
+          aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative',
+          background: p ? (p.image_url ? 'transparent' : `hsl(${28 + i * 8},20%,${86 - i * 2}%)`) : '#E8E0D0'
+        }}>
+          {p?.image_url && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          {p && !p.image_url && <div style={{ padding: 3, fontSize: 6, color: PALETTE.muted, lineHeight: 1.3 }}>{p.caption?.slice(0, 30)}</div>}
+          {p && <div style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.8)' }} />}
         </div>
       ))}
     </div>
@@ -76,29 +114,36 @@ function CalendarView({ posts, onSelect }) {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const firstDay = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month+1, 0).getDate()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
   const cells = []
   for (let i = 0; i < firstDay; i++) cells.push(null)
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
   return (
-    <div style={{ padding:'20px 24px' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:20 }}>
-        <button onClick={() => { if(month===0){setMonth(11);setYear(year-1)}else setMonth(month-1) }} style={{ background:'none', border:'1px solid #E0D8CE', borderRadius:6, padding:'6px 14px', cursor:'pointer', fontFamily:F.body, fontSize:13, color:'#555' }}>Prev</button>
-        <span style={{ fontFamily:F.display, fontWeight:700, fontSize:18, color:'#1A0E00', flex:1, textAlign:'center' }}>{MONTHS[month]} {year}</span>
-        <button onClick={() => { if(month===11){setMonth(0);setYear(year+1)}else setMonth(month+1) }} style={{ background:'none', border:'1px solid #E0D8CE', borderRadius:6, padding:'6px 14px', cursor:'pointer', fontFamily:F.body, fontSize:13, color:'#555' }}>Next</button>
+    <div style={{ padding: '20px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <button onClick={() => { if (month === 0) { setMonth(11); setYear(year - 1) } else setMonth(month - 1) }}
+          style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 6, padding: '6px 14px', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Prev</button>
+        <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 18, color: PALETTE.espresso, flex: 1, textAlign: 'center' }}>{MONTHS[month]} {year}</span>
+        <button onClick={() => { if (month === 11) { setMonth(0); setYear(year + 1) } else setMonth(month + 1) }}
+          style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 6, padding: '6px 14px', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Next</button>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:1, background:'#E0D8CE' }}>
-        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} style={{ background:'#F5F0E8', padding:'7px 4px', textAlign:'center', fontFamily:F.body, fontSize:10, fontWeight:700, color:'#999', letterSpacing:0.8 }}>{d}</div>)}
-        {cells.map((day,i) => {
-          const dayPosts = day ? posts.filter(p => { const d=new Date(p.scheduled_at); return d.getFullYear()===year && d.getMonth()===month && d.getDate()===day }) : []
-          const isToday = day && now.getFullYear()===year && now.getMonth()===month && now.getDate()===day
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1, background: PALETTE.border }}>
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+          <div key={d} style={{ background: PALETTE.creamDark, padding: '7px 4px', textAlign: 'center', fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{d}</div>
+        ))}
+        {cells.map((day, i) => {
+          const dayPosts = day ? posts.filter(p => {
+            const d = new Date(p.scheduled_at)
+            return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day
+          }) : []
+          const isToday = day && now.getFullYear() === year && now.getMonth() === month && now.getDate() === day
           return (
-            <div key={i} style={{ background:'#fff', minHeight:80, padding:5, borderTop: isToday?'2px solid #C9A96E':'none' }}>
-              {day && <div style={{ fontFamily:F.body, fontSize:11, fontWeight:isToday?700:400, color:isToday?'#C9A96E':'#888', marginBottom:3 }}>{day}</div>}
+            <div key={i} style={{ background: '#fff', minHeight: 80, padding: 5, borderTop: isToday ? '2px solid ' + PALETTE.caramel : 'none' }}>
+              {day && <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: isToday ? 500 : 400, color: isToday ? PALETTE.caramel : PALETTE.mutedLight, marginBottom: 3 }}>{day}</div>}
               {dayPosts.map(p => (
-                <div key={p.id} onClick={() => onSelect(p)} style={{ background:STATUS[p.status]?.bg||'#F5F0E8', borderLeft:'2px solid '+(STATUS[p.status]?.dot||'#ccc'), padding:'2px 4px', marginBottom:2, borderRadius:2, cursor:'pointer', fontFamily:F.body, fontSize:9, color:'#333', lineHeight:1.4 }}>
-                  {fmtTime(p.scheduled_at)} — {p.caption.slice(0,18)}...
+                <div key={p.id} onClick={() => onSelect(p)} style={{ background: STATUS[p.status]?.bg || PALETTE.cream, borderLeft: '2px solid ' + (STATUS[p.status]?.dot || '#ccc'), padding: '2px 4px', marginBottom: 2, borderRadius: 2, cursor: 'pointer', fontFamily: F.body, fontSize: 9, color: PALETTE.espresso, lineHeight: 1.4 }}>
+                  {fmtTime(p.scheduled_at)} — {p.caption?.slice(0, 18)}...
                 </div>
               ))}
             </div>
@@ -109,11 +154,98 @@ function CalendarView({ posts, onSelect }) {
   )
 }
 
+// ── Notifications panel ──────────────────────────────────────────────────────
+function NotificationsPanel({ notifications, onClose, onMarkAllRead }) {
+  const unread = notifications.filter(n => !n.read).length
+  return (
+    <div style={{ position: 'absolute', top: 48, right: 16, width: 300, background: '#fff', borderRadius: 10, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.16)', zIndex: 300, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+      <div style={{ padding: '12px 16px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso }}>Notifications</span>
+        {unread > 0 && (
+          <button onClick={onMarkAllRead} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500 }}>Mark all read</button>
+        )}
+      </div>
+      <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+        {notifications.length === 0
+          ? <div style={{ padding: '24px 16px', textAlign: 'center', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic' }}>All caught up.</div>
+          : notifications.map((n, i) => (
+            <div key={i} style={{ padding: '11px 16px', borderBottom: '0.5px solid ' + PALETTE.borderLight, background: n.read ? '#fff' : PALETTE.creamMid, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: n.read ? 'transparent' : PALETTE.caramel, flexShrink: 0, marginTop: 5, border: n.read ? '0.5px solid ' + PALETTE.border : 'none' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{n.message}</div>
+                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{n.client} · {fmtAgo(n.created_at)}</div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  )
+}
+
+// ── Right panel ──────────────────────────────────────────────────────────────
 function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
+  const [editing, setEditing] = useState(false)
+  const [editCaption, setEditCaption] = useState(post.caption)
+  const [editScheduled, setEditScheduled] = useState(post.scheduled_at ? new Date(post.scheduled_at).toISOString().slice(0, 16) : '')
+  const [editFormat, setEditFormat] = useState(post.format || 'post')
+  const [editSlideCount, setEditSlideCount] = useState(post.slide_count || '')
+  const [editDesigner, setEditDesigner] = useState(post.designer || '')
+  const [editCampaign, setEditCampaign] = useState(post.campaign || '')
+  const [editImageUrl, setEditImageUrl] = useState(post.image_url || null)
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef()
+
   const client = clients.find(c => c.id === post.client_id)
+
+  useEffect(() => {
+    setEditCaption(post.caption)
+    setEditScheduled(post.scheduled_at ? new Date(post.scheduled_at).toISOString().slice(0, 16) : '')
+    setEditFormat(post.format || 'post')
+    setEditSlideCount(post.slide_count || '')
+    setEditDesigner(post.designer || '')
+    setEditCampaign(post.campaign || '')
+    setEditImageUrl(post.image_url || null)
+    setEditing(false)
+  }, [post.id])
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const filename = Date.now() + '.' + ext
+    const { error } = await supabase.storage.from('post-assets').upload(filename, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('post-assets').getPublicUrl(filename)
+      setEditImageUrl(data.publicUrl)
+    } else {
+      const reader = new FileReader()
+      reader.onload = ev => setEditImageUrl(ev.target.result)
+      reader.readAsDataURL(file)
+    }
+    setUploading(false)
+  }
+
+  const saveEdit = async () => {
+    if (!editCaption.trim() || !editDesigner.trim() || !editScheduled) return
+    setSaving(true)
+    await supabase.from('posts').update({
+      caption: editCaption.trim(),
+      scheduled_at: new Date(editScheduled).toISOString(),
+      format: editFormat,
+      slide_count: editFormat === 'carousel' && editSlideCount ? parseInt(editSlideCount) : null,
+      designer: editDesigner.trim(),
+      campaign: editCampaign.trim() || null,
+      image_url: editImageUrl,
+    }).eq('id', post.id)
+    setSaving(false)
+    setEditing(false)
+    onRefresh()
+  }
 
   const sendComment = async () => {
     if (!newComment.trim()) return
@@ -146,122 +278,241 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendComment()
   }
 
-  const formatLabel = post.format ? (post.format.charAt(0).toUpperCase() + post.format.slice(1)) + (post.slide_count ? ' · ' + post.slide_count + ' slides' : '') : 'Post'
+  const formatLabel = post.format
+    ? post.format.charAt(0).toUpperCase() + post.format.slice(1) + (post.slide_count ? ' · ' + post.slide_count + ' slides' : '')
+    : 'Post'
+
+  const inputStyle = {
+    width: '100%', padding: '8px 10px', borderRadius: 6,
+    border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid,
+    fontSize: 12, color: PALETTE.espresso, fontFamily: F.body
+  }
+
+  const labelStyle = {
+    fontFamily: F.body, fontSize: 9, fontWeight: 500,
+    letterSpacing: '0.1em', color: PALETTE.mutedLight,
+    textTransform: 'uppercase', marginBottom: 6, display: 'block'
+  }
 
   return (
-    <div style={{ width:340, background:'#fff', borderLeft:'1px solid #EDE8E0', display:'flex', flexDirection:'column', flexShrink:0, overflow:'hidden' }}>
+    <div style={{ width: 340, background: '#fff', borderLeft: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
+
       {/* Header */}
-      <div style={{ padding:'14px 18px', borderBottom:'1px solid #EDE8E0', display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexShrink:0 }}>
-        <div>
+      <div style={{ padding: '14px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
-          <div style={{ fontFamily:F.display, fontStyle:'italic', fontSize:13, color:'#1A0E00', marginTop:6, lineHeight:1.4 }}>{post.caption.slice(0,60)}{post.caption.length>60?'...':''}</div>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 13, color: PALETTE.espresso, marginTop: 7, lineHeight: 1.4 }}>
+            {post.caption?.slice(0, 60)}{post.caption?.length > 60 ? '…' : ''}
+          </div>
         </div>
-        <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:'#bbb', lineHeight:1, flexShrink:0, marginLeft:8, marginTop:2 }}>x</button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, color: PALETTE.mutedLight, lineHeight: 1, flexShrink: 0, padding: 2, marginTop: 2, transition: 'color 0.15s' }}
+          onMouseEnter={e => e.currentTarget.style.color = PALETTE.espresso}
+          onMouseLeave={e => e.currentTarget.style.color = PALETTE.mutedLight}
+        >✕</button>
       </div>
 
-      {/* Asset */}
-      <div style={{ flexShrink:0 }}>
-        {post.image_url
-          ? <img src={post.image_url} alt="" style={{ width:'100%', objectFit:'cover', maxHeight:200 }} />
-          : <div style={{ width:'100%', height:120, background:'#F5F0E8', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <span style={{ fontFamily:F.display, color:'#C9A96E', fontSize:18, fontWeight:700, fontStyle:'italic' }}>BB</span>
+      {/* Image */}
+      <div style={{ flexShrink: 0 }}>
+        {editing
+          ? <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight }}>
+              <span style={labelStyle}>Asset {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0 }}>uploading...</span>}</span>
+              {editImageUrl
+                ? <div style={{ position: 'relative' }}>
+                    <img src={editImageUrl} alt="" style={{ width: '100%', borderRadius: 6, maxHeight: 130, objectFit: 'cover', display: 'block' }} />
+                    <button onClick={() => setEditImageUrl(null)} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 12 }}>✕</button>
+                  </div>
+                : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '14px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+                    <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Replace image</div>
+                  </div>
+              }
+              <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
             </div>
+          : post.image_url
+            ? <img src={post.image_url} alt="" style={{ width: '100%', objectFit: 'cover', maxHeight: 180, display: 'block' }} />
+            : <div style={{ width: '100%', height: 80, background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No image</span>
+              </div>
         }
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:'flex', borderBottom:'1px solid #EDE8E0', flexShrink:0 }}>
-        {[['details','Details'],['discussion','Discussion '+(comments.length>0?'('+comments.length+')':'')]].map(([k,l]) => (
-          <button key={k} onClick={() => setActiveTab(k)} style={{ flex:1, padding:'10px 0', border:'none', cursor:'pointer', background:'transparent', fontFamily:F.body, fontSize:11, fontWeight:activeTab===k?700:400, color:activeTab===k?'#1A0E00':'#999', borderBottom: activeTab===k?'2px solid #C9A96E':'2px solid transparent', transition:'all 0.15s' }}>{l}</button>
+      {/* Tabs — Discussion renamed to Comments */}
+      <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+        {[
+          ['details', 'Details'],
+          ['comments', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]
+        ].map(([k, l]) => (
+          <button key={k} onClick={() => setActiveTab(k)} style={{
+            flex: 1, padding: '11px 0', border: 'none', background: 'transparent',
+            fontFamily: F.body, fontSize: 11, fontWeight: activeTab === k ? 500 : 400,
+            color: activeTab === k ? PALETTE.espresso : PALETTE.muted,
+            borderBottom: activeTab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent',
+            transition: 'all 0.15s', letterSpacing: '0.03em'
+          }}>{l}</button>
         ))}
       </div>
 
-      <div style={{ flex:1, overflow:'auto', padding:18 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
 
         {activeTab === 'details' && (
           <div>
-            {/* Details */}
-            <div style={{ marginBottom:20 }}>
-              <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, letterSpacing:1.2, color:'#bbb', marginBottom:12 }}>DETAILS</div>
-              {[
-                ['PLATFORM', 'Instagram'],
-                ['FORMAT', formatLabel],
-                post.designer ? ['DESIGNER', post.designer] : null,
-                post.campaign ? ['CAMPAIGN', post.campaign] : null,
-                ['SCHEDULED', fmt(post.scheduled_at)],
-              ].filter(Boolean).map(([label, value]) => (
-                <div key={label} style={{ display:'grid', gridTemplateColumns:'90px 1fr', gap:8, marginBottom:10, alignItems:'center' }}>
-                  <span style={{ fontFamily:F.body, fontSize:10, fontWeight:600, color:'#bbb', letterSpacing:0.8 }}>{label}</span>
-                  <span style={{ fontFamily:F.body, fontSize:12, color:'#333' }}>{value}</span>
-                </div>
-              ))}
+            {/* Edit toggle */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase' }}>Details</span>
+              {!editing
+                ? <button onClick={() => setEditing(true)} style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 5, padding: '4px 12px', fontFamily: F.body, fontSize: 11, color: PALETTE.muted, transition: 'all 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamDark; e.currentTarget.style.color = PALETTE.espresso }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = PALETTE.muted }}
+                  >Edit</button>
+                : <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => setEditing(false)} style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 5, padding: '4px 10px', fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>Cancel</button>
+                    <button onClick={saveEdit} disabled={saving || !editCaption.trim() || !editDesigner.trim()} style={{ background: PALETTE.espresso, border: 'none', borderRadius: 5, padding: '4px 12px', fontFamily: F.body, fontSize: 11, color: PALETTE.cream, opacity: saving || !editCaption.trim() || !editDesigner.trim() ? 0.5 : 1, transition: 'opacity 0.15s' }}>
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+              }
             </div>
 
-            <div style={{ height:1, background:'#EDE8E0', marginBottom:20 }} />
-
-            {/* Version History */}
-            {versions.length > 0 && (
-              <div style={{ marginBottom:20 }}>
-                <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, letterSpacing:1.2, color:'#bbb', marginBottom:12 }}>VERSION HISTORY</div>
-                {versions.sort((a,b) => b.version_number - a.version_number).map(v => (
-                  <div key={v.id} style={{ display:'flex', gap:14, marginBottom:14, paddingBottom:14, borderBottom:'1px dashed #EDE8E0' }}>
-                    <div style={{ fontFamily:F.display, fontStyle:'italic', fontWeight:700, fontSize:16, color:'#9B2B20', flexShrink:0, width:28 }}>v{v.version_number}</div>
+            {editing ? (
+              /* ── Edit form ── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={labelStyle}>Format</label>
+                    <select value={editFormat} onChange={e => setEditFormat(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+                      {FORMATS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
+                    </select>
+                  </div>
+                  {editFormat === 'carousel' && (
                     <div>
-                      <div style={{ fontFamily:F.body, fontSize:10, color:'#aaa', marginBottom:3 }}>{fmtShort(v.created_at)} · {v.author}</div>
-                      <div style={{ fontFamily:F.body, fontSize:12, color:'#333', lineHeight:1.5 }}>{v.note}</div>
+                      <label style={labelStyle}>Slides</label>
+                      <input type="number" min="2" max="20" value={editSlideCount} onChange={e => setEditSlideCount(e.target.value)} placeholder="e.g. 4" style={{ ...inputStyle }} />
                     </div>
+                  )}
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, color: !editDesigner.trim() ? '#C0392B' : PALETTE.mutedLight }}>
+                    Designer <span style={{ color: '#C0392B' }}>*</span>
+                  </label>
+                  <input value={editDesigner} onChange={e => setEditDesigner(e.target.value)} placeholder="Required" style={{ ...inputStyle, borderColor: !editDesigner.trim() ? '#F4A59F' : PALETTE.border }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Campaign (optional)</label>
+                  <input value={editCampaign} onChange={e => setEditCampaign(e.target.value)} placeholder="e.g. Summer Menu" style={{ ...inputStyle }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Caption</label>
+                  <textarea value={editCaption} onChange={e => setEditCaption(e.target.value)} rows={4}
+                    style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+                  <div style={{ fontFamily: F.body, fontSize: 9, color: editCaption.length > 2200 ? '#C0392B' : PALETTE.mutedLight, textAlign: 'right', marginTop: 2 }}>{editCaption.length} / 2,200</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Scheduled</label>
+                  <input type="datetime-local" value={editScheduled} onChange={e => setEditScheduled(e.target.value)} style={{ ...inputStyle }} />
+                </div>
+              </div>
+            ) : (
+              /* ── Read view ── */
+              <div style={{ marginBottom: 20 }}>
+                {[
+                  ['Platform', 'Instagram'],
+                  ['Format', formatLabel],
+                  ['Designer', post.designer],
+                  post.campaign ? ['Campaign', post.campaign] : null,
+                  ['Scheduled', fmt(post.scheduled_at)],
+                ].filter(Boolean).map(([label, value]) => (
+                  <div key={label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 10, alignItems: 'start' }}>
+                    <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', paddingTop: 1 }}>{label}</span>
+                    <span style={{ fontFamily: F.body, fontSize: 12, color: value ? PALETTE.espresso : PALETTE.mutedLight, fontStyle: value ? 'normal' : 'italic' }}>{value || 'Not set'}</span>
                   </div>
                 ))}
               </div>
             )}
 
-            <div style={{ height:1, background:'#EDE8E0', marginBottom:20 }} />
+            <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
 
-            {/* Status actions */}
-            {post.status !== 'archived' && (
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, letterSpacing:1.2, color:'#bbb', marginBottom:10 }}>UPDATE STATUS</div>
-                <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:14 }}>
-                  {['pending','approved','revision','published'].map(k => {
-                    const v = STATUS[k]
-                    return (
-                      <button key={k} onClick={() => updateStatus(k)} style={{ padding:'8px 12px', borderRadius:7, border:'1.5px solid '+(post.status===k?v.dot:'#EDE8E0'), cursor:'pointer', background:post.status===k?v.bg:'#fff', color:post.status===k?v.color:'#888', fontWeight:post.status===k?700:400, fontSize:11, fontFamily:F.body, textAlign:'left', transition:'all 0.15s' }}>
-                        {k.charAt(0).toUpperCase()+k.slice(1).replace('revision','Revisions requested').replace('published','Mark as published').replace('pending','Reset to pending').replace('approved','Mark as approved')}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div style={{ fontFamily:F.body, fontSize:9, letterSpacing:1, color:'#bbb', textAlign:'center' }}>{statusLine(post.status)}</div>
+            {/* Version history */}
+            {versions.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 12, textTransform: 'uppercase' }}>Version History</div>
+                {versions.sort((a, b) => b.version_number - a.version_number).map(v => (
+                  <div key={v.id} style={{ display: 'flex', gap: 12, marginBottom: 14, paddingBottom: 14, borderBottom: '0.5px dashed ' + PALETTE.borderLight }}>
+                    <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: '#9B2B20', flexShrink: 0, width: 26 }}>v{v.version_number}</div>
+                    <div>
+                      <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3 }}>{fmtShort(v.created_at)} · {v.author}</div>
+                      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{v.note}</div>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
               </div>
             )}
 
+            {/* Status */}
+            {post.status !== 'archived' && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 10, textTransform: 'uppercase' }}>Update Status</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+                  {['pending', 'approved', 'revision', 'published'].map(k => {
+                    const s = STATUS[k]
+                    const labels = { pending: 'Reset to pending', approved: 'Mark as approved', revision: 'Request revisions', published: 'Mark as published' }
+                    return (
+                      <button key={k} onClick={() => updateStatus(k)} style={{
+                        padding: '8px 12px', borderRadius: 6,
+                        border: '0.5px solid ' + (post.status === k ? s.dot : PALETTE.borderLight),
+                        background: post.status === k ? s.bg : '#fff',
+                        color: post.status === k ? s.color : PALETTE.muted,
+                        fontWeight: post.status === k ? 500 : 400,
+                        fontSize: 11, fontFamily: F.body, textAlign: 'left', transition: 'all 0.15s'
+                      }}
+                        onMouseEnter={e => { if (post.status !== k) e.currentTarget.style.background = PALETTE.creamMid }}
+                        onMouseLeave={e => { if (post.status !== k) e.currentTarget.style.background = '#fff' }}
+                      >{labels[k]}</button>
+                    )
+                  })}
+                </div>
+                <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, textAlign: 'center', letterSpacing: '0.05em' }}>{statusLine(post.status)}</div>
+              </div>
+            )}
+
+            <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 14 }} />
+
             {/* Archive / Delete */}
-            <div style={{ display:'flex', gap:8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               {post.status !== 'archived' && (
-                <button onClick={archivePost} style={{ flex:1, padding:'8px 0', borderRadius:7, border:'1px solid #E0D8CE', background:'#fff', cursor:'pointer', fontFamily:F.body, fontSize:11, fontWeight:600, color:'#888' }}>Archive</button>
+                <button onClick={archivePost} style={{ flex: 1, padding: '8px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.muted, transition: 'all 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                >Archive</button>
               )}
-              <button onClick={deletePost} style={{ flex:1, padding:'8px 0', borderRadius:7, border:'none', background:'#FEECEA', cursor:'pointer', fontFamily:F.body, fontSize:11, fontWeight:700, color:'#9B2B20' }}>Delete Post</button>
+              <button onClick={deletePost} style={{ flex: 1, padding: '8px 0', borderRadius: 6, border: 'none', background: '#FEECEA', fontFamily: F.body, fontSize: 11, color: '#9B2B20', fontWeight: 500 }}>Delete post</button>
             </div>
           </div>
         )}
 
-        {activeTab === 'discussion' && (
+        {activeTab === 'comments' && (
           <div>
-            {comments.length === 0 && <p style={{ fontFamily:F.body, fontSize:12, color:'#ccc', fontStyle:'italic', margin:'0 0 16px' }}>No comments yet.</p>}
-            {comments.map(c => (
-              <div key={c.id} style={{ marginBottom:16, paddingBottom:16, borderBottom:'1px dashed #EDE8E0' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                  <span style={{ fontFamily:F.body, fontSize:12, fontWeight:700, color:'#1A0E00' }}>{c.author}{c.author_type==='client' && client ? ' ('+client.name+')' : ''}</span>
-                  <span style={{ fontFamily:F.body, fontSize:10, color:'#bbb' }}>{fmtShort(c.created_at)}</span>
+            {comments.length === 0
+              ? <p style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', margin: '0 0 16px', lineHeight: 1.6 }}>No comments yet.</p>
+              : comments.map(c => (
+                <div key={c.id} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '0.5px dashed ' + PALETTE.borderLight }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, alignItems: 'baseline' }}>
+                    <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 500, color: PALETTE.espresso }}>
+                      {c.author_type === 'agency' ? 'Brown Butter' : c.author + (client ? ' (' + client.name + ')' : '')}
+                    </span>
+                    <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmtShort(c.created_at)}</span>
+                  </div>
+                  <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.65 }}>{c.text}</p>
                 </div>
-                <p style={{ margin:0, fontFamily:F.body, fontSize:13, color:'#444', lineHeight:1.6 }}>{c.text}</p>
-              </div>
-            ))}
-            <div style={{ background:'#FAFAF8', border:'1px solid #EDE8E0', borderRadius:8, padding:'10px 12px', marginTop:8 }}>
-              <textarea value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={handleKeyDown} placeholder="Leave a note for the team..." rows={3} style={{ width:'100%', border:'none', background:'transparent', fontSize:13, color:'#333', resize:'none', outline:'none', fontFamily:F.body, lineHeight:1.6, boxSizing:'border-box' }} />
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
-                <span style={{ fontFamily:'monospace', fontSize:10, color:'#ccc' }}>Cmd + Enter to send</span>
-                <button onClick={sendComment} disabled={saving || !newComment.trim()} style={{ padding:'7px 16px', borderRadius:6, border:'1px solid #E0D8CE', background:'#fff', cursor:'pointer', fontFamily:F.body, fontSize:12, fontWeight:600, color:'#555', opacity: saving||!newComment.trim()?0.5:1 }}>Post comment</button>
+              ))
+            }
+            <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: '10px 14px', marginTop: 8 }}>
+              <textarea value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={handleKeyDown} placeholder="Leave a note..." rows={3}
+                style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, color: PALETTE.espresso, resize: 'none', fontFamily: F.body, lineHeight: 1.6 }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid ' + PALETTE.borderLight }}>
+                <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>⌘ + Enter to send</span>
+                <button onClick={sendComment} disabled={saving || !newComment.trim()} style={{ padding: '6px 14px', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: newComment.trim() ? PALETTE.espresso : '#fff', color: newComment.trim() ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, opacity: saving ? 0.5 : 1, transition: 'all 0.15s' }}>
+                  Post comment
+                </button>
               </div>
             </div>
           </div>
@@ -271,6 +522,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   )
 }
 
+// ── Compose / Edit modal ─────────────────────────────────────────────────────
 function ComposeModal({ clients, onClose, onSaved }) {
   const [clientId, setClientId] = useState(clients[0]?.id || '')
   const [caption, setCaption] = useState('')
@@ -302,98 +554,122 @@ function ComposeModal({ clients, onClose, onSaved }) {
     setUploading(false)
   }
 
+  const canSave = caption.trim() && scheduledAt && clientId && designer.trim()
+
   const handleSave = async () => {
-    if (!caption.trim() || !scheduledAt || !clientId) return
+    if (!canSave) return
     setSaving(true)
     await supabase.from('posts').insert({
       client_id: clientId, caption: caption.trim(),
       scheduled_at: new Date(scheduledAt).toISOString(),
       image_url: imageUrl, platform: 'instagram', status: 'pending',
-      format, slide_count: format==='carousel'&&slideCount ? parseInt(slideCount) : null,
-      designer: designer||null, campaign: campaign||null
+      format, slide_count: format === 'carousel' && slideCount ? parseInt(slideCount) : null,
+      designer: designer.trim(), campaign: campaign.trim() || null
     })
     setSaving(false)
     onSaved()
     onClose()
   }
 
+  const fieldLabel = (text, required) => (
+    <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 7 }}>
+      {text} {required && <span style={{ color: '#C0392B' }}>*</span>}
+    </div>
+  )
+
+  const inputStyle = {
+    width: '100%', padding: '9px 12px', borderRadius: 8,
+    border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid,
+    fontSize: 13, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box'
+  }
+
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:520, maxHeight:'92vh', overflow:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-        <div style={{ padding:'16px 22px', borderBottom:'1px solid #EDE8E0', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#1A0E00', borderRadius:'14px 14px 0 0' }}>
-          <span style={{ fontFamily:F.display, color:'#C9A96E', fontWeight:700, fontSize:16 }}>New Post</span>
-          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#C9A96E', fontSize:20, lineHeight:1 }}>x</button>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, maxHeight: '92vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
+        <div style={{ padding: '16px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, borderRadius: '14px 14px 0 0' }}>
+          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>New Post</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.caramel, fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ padding:22, display:'flex', flexDirection:'column', gap:14 }}>
+        <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           <div>
-            <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#bbb', letterSpacing:1.2, marginBottom:7 }}>CLIENT</div>
-            <select value={clientId} onChange={e => setClientId(e.target.value)} style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0D8CE', background:'#FAFAF8', fontSize:13, color:'#1A0E00', outline:'none', fontFamily:F.body }}>
+            {fieldLabel('Client', true)}
+            <select value={clientId} onChange={e => setClientId(e.target.value)} style={{ ...inputStyle }}>
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#bbb', letterSpacing:1.2, marginBottom:7 }}>FORMAT</div>
-              <select value={format} onChange={e => setFormat(e.target.value)} style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0D8CE', background:'#FAFAF8', fontSize:13, color:'#1A0E00', outline:'none', fontFamily:F.body }}>
-                {FORMATS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase()+f.slice(1)}</option>)}
+              {fieldLabel('Format')}
+              <select value={format} onChange={e => setFormat(e.target.value)} style={{ ...inputStyle }}>
+                {FORMATS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
               </select>
             </div>
-            {format==='carousel' && (
+            {format === 'carousel' && (
               <div>
-                <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#bbb', letterSpacing:1.2, marginBottom:7 }}>SLIDES</div>
-                <input type="number" min="2" max="20" value={slideCount} onChange={e => setSlideCount(e.target.value)} placeholder="e.g. 4" style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0D8CE', background:'#FAFAF8', fontSize:13, color:'#1A0E00', outline:'none', fontFamily:F.body, boxSizing:'border-box' }} />
+                {fieldLabel('Slides')}
+                <input type="number" min="2" max="20" value={slideCount} onChange={e => setSlideCount(e.target.value)} placeholder="e.g. 4" style={{ ...inputStyle }} />
               </div>
             )}
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#bbb', letterSpacing:1.2, marginBottom:7 }}>DESIGNER (optional)</div>
-              <input value={designer} onChange={e => setDesigner(e.target.value)} placeholder="e.g. Jonas T." style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0D8CE', background:'#FAFAF8', fontSize:13, color:'#1A0E00', outline:'none', fontFamily:F.body, boxSizing:'border-box' }} />
+              {fieldLabel('Designer', true)}
+              <input value={designer} onChange={e => setDesigner(e.target.value)} placeholder="e.g. Saoirse L." style={{ ...inputStyle, borderColor: !designer.trim() ? '#F4A59F' : PALETTE.border }} />
             </div>
             <div>
-              <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#bbb', letterSpacing:1.2, marginBottom:7 }}>CAMPAIGN (optional)</div>
-              <input value={campaign} onChange={e => setCampaign(e.target.value)} placeholder="e.g. Summer Menu" style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0D8CE', background:'#FAFAF8', fontSize:13, color:'#1A0E00', outline:'none', fontFamily:F.body, boxSizing:'border-box' }} />
+              {fieldLabel('Campaign (optional)')}
+              <input value={campaign} onChange={e => setCampaign(e.target.value)} placeholder="e.g. Summer Menu" style={{ ...inputStyle }} />
             </div>
           </div>
 
           <div>
-            <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#bbb', letterSpacing:1.2, marginBottom:7 }}>ASSET {uploading && <span style={{ color:'#C9A96E', fontWeight:400 }}>Uploading...</span>}</div>
+            {fieldLabel('Asset')}
+            {uploading && <span style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Uploading...</span>}
             {imageUrl
-              ? <div style={{ position:'relative' }}>
-                  <img src={imageUrl} alt="" style={{ width:'100%', borderRadius:8, maxHeight:180, objectFit:'cover' }} />
-                  <button onClick={() => setImageUrl(null)} style={{ position:'absolute', top:8, right:8, background:'rgba(0,0,0,0.6)', border:'none', borderRadius:'50%', width:24, height:24, cursor:'pointer', color:'#fff', fontSize:13 }}>x</button>
+              ? <div style={{ position: 'relative' }}>
+                  <img src={imageUrl} alt="" style={{ width: '100%', borderRadius: 8, maxHeight: 180, objectFit: 'cover' }} />
+                  <button onClick={() => setImageUrl(null)} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 24, height: 24, color: '#fff', fontSize: 13 }}>✕</button>
                 </div>
-              : <div onClick={() => fileRef.current.click()} style={{ border:'2px dashed #D4C9B8', borderRadius:8, padding:'18px 0', textAlign:'center', cursor:'pointer', background:'#FAFAF8' }}>
-                  <div style={{ fontFamily:F.body, fontSize:22, color:'#C9A96E', marginBottom:4 }}>+</div>
-                  <div style={{ fontFamily:F.body, fontSize:12, color:'#aaa' }}>Click to upload image</div>
+              : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 8, padding: '18px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+                  <div style={{ fontFamily: F.body, fontSize: 22, color: PALETTE.caramel, marginBottom: 4 }}>+</div>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Click to upload image</div>
                 </div>
             }
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display:'none' }} />
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
           </div>
 
           <div>
-            <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#bbb', letterSpacing:1.2, marginBottom:7 }}>CAPTION</div>
-            <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write your caption..." rows={4} style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0D8CE', background:'#FAFAF8', fontSize:13, color:'#1A0E00', resize:'none', outline:'none', fontFamily:F.body, lineHeight:1.6, boxSizing:'border-box' }} />
-            <div style={{ fontFamily:F.body, fontSize:10, color:caption.length>2200?'#C0392B':'#ccc', textAlign:'right', marginTop:2 }}>{caption.length} / 2,200</div>
+            {fieldLabel('Caption', true)}
+            <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write your caption..." rows={4}
+              style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }} />
+            <div style={{ fontFamily: F.body, fontSize: 9, color: caption.length > 2200 ? '#C0392B' : PALETTE.mutedLight, textAlign: 'right', marginTop: 2 }}>{caption.length} / 2,200</div>
           </div>
 
           <div>
-            <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#bbb', letterSpacing:1.2, marginBottom:7 }}>SCHEDULE DATE AND TIME</div>
-            <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid #E0D8CE', background:'#FAFAF8', fontSize:13, color:'#1A0E00', boxSizing:'border-box', outline:'none', fontFamily:F.body }} />
+            {fieldLabel('Schedule date and time', true)}
+            <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={{ ...inputStyle }} />
           </div>
 
-          <button onClick={handleSave} disabled={saving || !caption.trim() || !scheduledAt} style={{ padding:'11px 0', borderRadius:8, border:'none', cursor:caption.trim()&&scheduledAt?'pointer':'not-allowed', background:caption.trim()&&scheduledAt?'#1A0E00':'#E0D8CE', color:caption.trim()&&scheduledAt?'#C9A96E':'#aaa', fontWeight:700, fontSize:13, fontFamily:F.body }}>
+          <button onClick={handleSave} disabled={saving || !canSave} style={{
+            padding: '12px 0', borderRadius: 8, border: 'none',
+            background: canSave ? PALETTE.espresso : PALETTE.creamDark,
+            color: canSave ? PALETTE.cream : PALETTE.mutedLight,
+            fontFamily: F.body, fontSize: 13, fontWeight: 500,
+            cursor: canSave ? 'pointer' : 'not-allowed', transition: 'all 0.15s'
+          }}>
             {saving ? 'Saving...' : 'Send to Client for Review'}
           </button>
+          {!designer.trim() && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', textAlign: 'center', marginTop: -8 }}>Designer name is required</div>}
         </div>
       </div>
     </div>
   )
 }
 
+// ── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [clients, setClients] = useState([])
   const [posts, setPosts] = useState([])
@@ -405,6 +681,11 @@ export default function Dashboard() {
   const [selectedPost, setSelectedPost] = useState(null)
   const [composing, setComposing] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [seenIds, setSeenIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('bb_seen_notifs') || '[]')) } catch { return new Set() }
+  })
 
   const fetchAll = async () => {
     const [c, p, cm, v] = await Promise.all([
@@ -420,13 +701,45 @@ export default function Dashboard() {
     setLoading(false)
   }
 
+  // Build notifications from posts and comments
+  useEffect(() => {
+    const notifs = []
+    posts.forEach(p => {
+      const client = clients.find(c => c.id === p.client_id)
+      const clientName = client?.name || 'Unknown client'
+      const caption = p.caption?.slice(0, 40) + (p.caption?.length > 40 ? '…' : '')
+      if (p.status === 'approved') {
+        notifs.push({ id: 'post-approved-' + p.id, message: `"${caption}" was approved`, client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-approved-' + p.id) })
+      }
+      if (p.status === 'revision') {
+        notifs.push({ id: 'post-revision-' + p.id, message: `"${caption}" — revisions requested`, client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-revision-' + p.id) })
+      }
+    })
+    comments.filter(c => c.author_type === 'client').forEach(c => {
+      const post = posts.find(p => p.id === c.post_id)
+      const client = clients.find(cl => cl.id === post?.client_id)
+      notifs.push({ id: 'comment-' + c.id, message: `${c.author} left a comment: "${c.text?.slice(0, 40)}…"`, client: client?.name || 'Client', created_at: c.created_at, read: seenIds.has('comment-' + c.id) })
+    })
+    notifs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    setNotifications(notifs)
+  }, [posts, comments, clients, seenIds])
+
+  const markAllRead = () => {
+    const allIds = notifications.map(n => n.id)
+    const newSeen = new Set([...seenIds, ...allIds])
+    setSeenIds(newSeen)
+    try { localStorage.setItem('bb_seen_notifs', JSON.stringify([...newSeen])) } catch {}
+  }
+
   useEffect(() => {
     fetchAll()
-    const s1 = supabase.channel('dash-posts').on('postgres_changes',{event:'*',schema:'public',table:'posts'},fetchAll).subscribe()
-    const s2 = supabase.channel('dash-comments').on('postgres_changes',{event:'*',schema:'public',table:'comments'},fetchAll).subscribe()
-    const s3 = supabase.channel('dash-versions').on('postgres_changes',{event:'*',schema:'public',table:'versions'},fetchAll).subscribe()
+    const s1 = supabase.channel('dash-posts').on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, fetchAll).subscribe()
+    const s2 = supabase.channel('dash-comments').on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, fetchAll).subscribe()
+    const s3 = supabase.channel('dash-versions').on('postgres_changes', { event: '*', schema: 'public', table: 'versions' }, fetchAll).subscribe()
     return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe() }
   }, [])
+
+  const unreadCount = notifications.filter(n => !n.read).length
 
   const activePosts = posts.filter(p => p.status !== 'archived')
   const archivedPosts = posts.filter(p => p.status === 'archived')
@@ -435,143 +748,210 @@ export default function Dashboard() {
   const filteredPosts = filter === 'archived' || filter === 'active' ? clientFiltered : clientFiltered.filter(p => p.status === filter)
 
   const counts = {
-    active: activePosts.filter(p => selectedClient==='all'||p.client_id===selectedClient).length,
-    pending: activePosts.filter(p => p.status==='pending'&&(selectedClient==='all'||p.client_id===selectedClient)).length,
-    approved: activePosts.filter(p => p.status==='approved'&&(selectedClient==='all'||p.client_id===selectedClient)).length,
-    revision: activePosts.filter(p => p.status==='revision'&&(selectedClient==='all'||p.client_id===selectedClient)).length,
-    published: activePosts.filter(p => p.status==='published'&&(selectedClient==='all'||p.client_id===selectedClient)).length,
-    archived: archivedPosts.filter(p => selectedClient==='all'||p.client_id===selectedClient).length,
+    active: activePosts.filter(p => selectedClient === 'all' || p.client_id === selectedClient).length,
+    pending: activePosts.filter(p => p.status === 'pending' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
+    approved: activePosts.filter(p => p.status === 'approved' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
+    revision: activePosts.filter(p => p.status === 'revision' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
+    published: activePosts.filter(p => p.status === 'published' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
+    archived: archivedPosts.filter(p => selectedClient === 'all' || p.client_id === selectedClient).length,
   }
 
+  const pageTitle = filter === 'active' ? "Today's pass" : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : 'Published'
+
   return (
-    <div style={{ minHeight:'100vh', background:'#F5F2ED', fontFamily:F.body, display:'flex', flexDirection:'column' }}>
-      <div style={{ background:'#1A0E00', height:52, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 22px', flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <span style={{ fontFamily:F.display, fontWeight:700, color:'#C9A96E', fontSize:16 }}>Brown Butter</span>
-          <span style={{ color:'#5a3a22', fontSize:11 }}>|</span>
-          <span style={{ fontFamily:F.body, fontSize:10, color:'#7a5a3a', letterSpacing:1.2 }}>CONTENT CALENDAR</span>
+    <div style={{ minHeight: '100vh', background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => showNotifications && setShowNotifications(false)}>
+
+      {/* Top bar */}
+      <div style={{ background: PALETTE.espresso, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>Brown Butter</span>
+          <span style={{ color: PALETTE.espressoLight, fontSize: 12 }}>|</span>
+          <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          {counts.pending > 0 && <span style={{ fontFamily:F.body, fontSize:11, color:'#8a6a4a' }}>{counts.pending} awaiting approval</span>}
-          <button onClick={() => setComposing(true)} style={{ padding:'6px 14px', borderRadius:6, border:'none', cursor:'pointer', background:'#C9A96E', color:'#1A0E00', fontWeight:700, fontSize:11, fontFamily:F.body }}>+ New Post</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Notification bell */}
+          <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.caramel : '#7a5a3a', fontSize: 16, lineHeight: 1, padding: '4px 6px', borderRadius: 6, transition: 'color 0.15s' }}>
+            🔔
+            {unreadCount > 0 && (
+              <span style={{ position: 'absolute', top: 0, right: 0, background: '#C0392B', color: '#fff', borderRadius: '50%', width: 14, height: 14, fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.body, fontWeight: 700, border: '1.5px solid ' + PALETTE.espresso }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setComposing(true)} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: PALETTE.caramel, color: PALETTE.espresso, fontFamily: F.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.03em', transition: 'background 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#D4993A'}
+            onMouseLeave={e => e.currentTarget.style.background = PALETTE.caramel}
+          >+ New Post</button>
         </div>
+        {showNotifications && (
+          <NotificationsPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkAllRead={markAllRead} />
+        )}
       </div>
 
-      <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
         {/* Sidebar */}
-        <div style={{ width:210, background:'#FAFAF8', borderRight:'1px solid #EDE8E0', display:'flex', flexDirection:'column', flexShrink:0, overflow:'auto' }}>
-          <div style={{ padding:'16px 14px 8px' }}>
-            <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#C9A96E', letterSpacing:1.2, marginBottom:8 }}>CLIENTS</div>
-            {[{id:'all',name:'All Clients',brand_color:'#C9A96E'}, ...clients].map(c => (
-              <button key={c.id} onClick={() => setSelectedClient(c.id)} style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:6, border:'none', cursor:'pointer', background:selectedClient===c.id?'#F0EBE0':'transparent', color:selectedClient===c.id?'#1A0E00':'#666', fontWeight:selectedClient===c.id?700:400, fontSize:12, fontFamily:F.body, marginBottom:1, display:'flex', alignItems:'center', gap:7 }}>
-                <div style={{ width:7, height:7, borderRadius:'50%', background:c.brand_color||'#C9A96E', flexShrink:0 }} />
+        <div style={{ width: 200, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
+          <div style={{ padding: '18px 14px 8px' }}>
+            <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Clients</div>
+            {[{ id: 'all', name: 'All Clients', brand_color: PALETTE.caramel }, ...clients].map(c => (
+              <button key={c.id} onClick={() => setSelectedClient(c.id)} style={{
+                width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5,
+                border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent',
+                color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted,
+                fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body,
+                marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s'
+              }}
+                onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
+              >
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} />
                 {c.name}
               </button>
             ))}
           </div>
-          <div style={{ height:1, background:'#EDE8E0', margin:'8px 14px' }} />
-          <div style={{ padding:'8px 14px' }}>
-            <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#C9A96E', letterSpacing:1.2, marginBottom:8 }}>VIEW</div>
-            {[['queue','Queue'],['grid','Grid Preview'],['calendar','Calendar']].map(([k,l]) => (
-              <button key={k} onClick={() => setView(k)} style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:6, border:'none', cursor:'pointer', background:view===k?'#F0EBE0':'transparent', color:view===k?'#1A0E00':'#666', fontWeight:view===k?700:400, fontSize:12, fontFamily:F.body, marginBottom:1 }}>{l}</button>
+
+          <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
+
+          <div style={{ padding: '8px 14px' }}>
+            <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
+            {[['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar']].map(([k, l]) => (
+              <button key={k} onClick={() => setView(k)} style={{
+                width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5,
+                border: 'none', background: view === k ? PALETTE.creamDark : 'transparent',
+                color: view === k ? PALETTE.espresso : PALETTE.muted,
+                fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s'
+              }}
+                onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
+              >{l}</button>
             ))}
           </div>
-          <div style={{ height:1, background:'#EDE8E0', margin:'8px 14px' }} />
-          <div style={{ padding:'8px 14px' }}>
-            <div style={{ fontFamily:F.body, fontSize:9, fontWeight:700, color:'#C9A96E', letterSpacing:1.2, marginBottom:8 }}>FILTER</div>
-            {[['active','Everything',counts.active,'#C9A96E'],['pending','Awaiting approval',counts.pending,'#D4860A'],['revision','Revisions requested',counts.revision,'#C0392B'],['approved','Approved',counts.approved,'#2A7D4F'],['published','Published',counts.published,'#888'],['archived','Archived',counts.archived,'#bbb']].map(([k,l,n,dot]) => (
-              <button key={k} onClick={() => setFilter(k)} style={{ width:'100%', textAlign:'left', padding:'7px 9px', borderRadius:6, border:'none', cursor:'pointer', background:filter===k?'#F0EBE0':'transparent', color:filter===k?'#1A0E00':'#666', fontWeight:filter===k?700:400, fontSize:12, fontFamily:F.body, marginBottom:1, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                  {k!=='active' && <div style={{ width:6, height:6, borderRadius:'50%', background:dot }} />}
+
+          <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
+
+          <div style={{ padding: '8px 14px' }}>
+            <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Filter</div>
+            {[
+              ['active', 'Everything', counts.active, PALETTE.caramel],
+              ['pending', 'Awaiting approval', counts.pending, '#C4893A'],
+              ['revision', 'Revisions requested', counts.revision, '#C0392B'],
+              ['approved', 'Approved', counts.approved, '#2A7D4F'],
+              ['published', 'Published', counts.published, '#888'],
+              ['archived', 'Archived', counts.archived, '#bbb'],
+            ].map(([k, l, n, dot]) => (
+              <button key={k} onClick={() => setFilter(k)} style={{
+                width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5,
+                border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent',
+                color: filter === k ? PALETTE.espresso : PALETTE.muted,
+                fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body,
+                marginBottom: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s'
+              }}
+                onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  {k !== 'active' && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />}
                   {l}
                 </div>
-                {n>0 && <span style={{ fontSize:10, fontWeight:700, color:filter===k?'#C9A96E':'#ccc' }}>{n}</span>}
+                {n > 0 && <span style={{ fontSize: 10, color: filter === k ? PALETTE.caramel : PALETTE.mutedLight, fontWeight: 500 }}>{n}</span>}
               </button>
             ))}
           </div>
-          <div style={{ margin:'12px 14px 0', borderRadius:8, overflow:'hidden', border:'1px solid #EDE8E0' }}>
-            <div style={{ padding:'7px 10px', background:'#F0EBE0', fontFamily:F.body, fontSize:9, fontWeight:700, color:'#999', letterSpacing:0.8 }}>IG GRID PREVIEW</div>
-            <IGGrid posts={selectedClient==='all'?posts:posts.filter(p=>p.client_id===selectedClient)} />
+
+          <div style={{ margin: '12px 14px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
+            <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>IG Grid Preview</div>
+            <IGGrid posts={selectedClient === 'all' ? posts : posts.filter(p => p.client_id === selectedClient)} />
           </div>
         </div>
 
-        {/* Center */}
-        <div style={{ flex:1, overflow:'auto', minWidth:0 }}>
-          <div style={{ padding:'18px 24px 12px', borderBottom:'1px solid #EDE8E0', background:'#FAFAF8' }}>
-            <div style={{ fontFamily:F.display, fontStyle:'italic', fontWeight:700, fontSize:24, color:'#1A0E00' }}>
-              {filter==='active'?"Today's pass":filter==='archived'?'Archived':filter==='pending'?'Awaiting Approval':filter==='revision'?'Revisions Requested':filter==='approved'?'Approved':'Published'}
-            </div>
-            <div style={{ fontFamily:F.body, fontSize:12, color:'#999', marginTop:4 }}>
-              {(counts[filter]||0)} post{(counts[filter]||0)!==1?'s':''} · {selectedClient==='all'?'All clients':clients.find(c=>c.id===selectedClient)?.name}
+        {/* Main content */}
+        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
+          <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
+            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
+            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
+              {counts[filter] || 0} post{(counts[filter] || 0) !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
             </div>
           </div>
 
           {loading
-            ? <div style={{ padding:48, textAlign:'center', fontFamily:F.body, color:'#aaa' }}>Loading...</div>
-            : view==='calendar'
+            ? <div style={{ padding: 48, textAlign: 'center', fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight }}>Loading...</div>
+            : view === 'calendar'
               ? <CalendarView posts={filteredPosts} onSelect={setSelectedPost} />
-              : filteredPosts.length===0
-                ? <div style={{ padding:60, textAlign:'center' }}>
-                    <div style={{ fontFamily:F.display, color:'#bbb', fontSize:16, fontStyle:'italic', marginBottom:16 }}>No posts here yet</div>
-                    <button onClick={() => setComposing(true)} style={{ padding:'9px 20px', borderRadius:7, border:'none', cursor:'pointer', background:'#1A0E00', color:'#C9A96E', fontWeight:700, fontSize:12, fontFamily:F.body }}>Create First Post</button>
+              : filteredPosts.length === 0
+                ? <div style={{ padding: 60, textAlign: 'center' }}>
+                    <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18, marginBottom: 18 }}>No posts here yet</div>
+                    <button onClick={() => setComposing(true)} style={{ padding: '9px 22px', borderRadius: 7, border: 'none', background: PALETTE.espresso, color: PALETTE.caramel, fontFamily: F.body, fontSize: 12, fontWeight: 500 }}>Create First Post</button>
                   </div>
-                : view==='grid'
-                  ? <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px,1fr))', gap:12, padding:20 }}>
+                : view === 'grid'
+                  ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 12, padding: 20 }}>
                       {filteredPosts.map(post => (
-                        <div key={post.id} onClick={() => setSelectedPost(post)} style={{ background:'#fff', borderRadius:8, overflow:'hidden', border:'1.5px solid '+(selectedPost?.id===post.id?'#C9A96E':'#EDE8E0'), cursor:'pointer', transition:'all 0.15s' }}
-                          onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 6px 18px rgba(0,0,0,0.08)' }}
-                          onMouseLeave={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none' }}
+                        <div key={post.id} onClick={() => setSelectedPost(post)} style={{ background: '#fff', borderRadius: 8, overflow: 'hidden', border: '0.5px solid ' + (selectedPost?.id === post.id ? PALETTE.caramel : PALETTE.border), cursor: 'pointer', transition: 'all 0.15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(44,31,14,0.08)' }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}
                         >
-                          <div style={{ height:120, background:post.image_url?'transparent':'#F5F0E8', overflow:'hidden' }}>
-                            {post.image_url?<img src={post.image_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />:<div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', fontFamily:F.display, color:'#C9A96E', fontSize:16, fontWeight:700, fontStyle:'italic' }}>BB</div>}
+                          <div style={{ height: 120, background: post.image_url ? 'transparent' : PALETTE.creamDark, overflow: 'hidden' }}>
+                            {post.image_url
+                              ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 16 }}>BB</div>
+                            }
                           </div>
-                          <div style={{ padding:'10px 12px' }}>
+                          <div style={{ padding: '10px 12px' }}>
                             <Badge status={post.status} />
-                            <p style={{ margin:'6px 0 4px', fontFamily:F.body, fontSize:11, color:'#333', lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{post.caption}</p>
-                            <div style={{ fontFamily:F.body, fontSize:10, color:'#aaa' }}>{fmtShort(post.scheduled_at)}</div>
+                            <p style={{ margin: '6px 0 4px', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
+                            <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmtShort(post.scheduled_at)}</div>
                           </div>
                         </div>
                       ))}
                     </div>
-                  : <div>
-                      {filteredPosts.map(post => {
-                        const postComments = comments.filter(c => c.post_id===post.id)
-                        const isSelected = selectedPost?.id===post.id
-                        const client = clients.find(c => c.id===post.client_id)
-                        const formatLabel = post.format ? post.format.charAt(0).toUpperCase()+post.format.slice(1) : 'Post'
-                        return (
-                          <div key={post.id} onClick={() => setSelectedPost(post)} style={{ display:'flex', alignItems:'center', gap:14, padding:'12px 20px', borderBottom:'1px solid #EDE8E0', cursor:'pointer', background:isSelected?'#FDF8F0':'#fff', transition:'background 0.1s', borderLeft:isSelected?'3px solid #C9A96E':'3px solid transparent' }}
-                            onMouseEnter={e => { if(!isSelected) e.currentTarget.style.background='#FAFAF8' }}
-                            onMouseLeave={e => { if(!isSelected) e.currentTarget.style.background='#fff' }}
-                          >
-                            <div style={{ width:50, height:50, borderRadius:6, overflow:'hidden', flexShrink:0, background:'#F0EBE0' }}>
-                              {post.image_url?<img src={post.image_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />:<div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', fontFamily:F.display, color:'#C9A96E', fontSize:14, fontStyle:'italic' }}>BB</div>}
+                  : filteredPosts.map(post => {
+                      const postComments = comments.filter(c => c.post_id === post.id)
+                      const isSelected = selectedPost?.id === post.id
+                      const client = clients.find(c => c.id === post.client_id)
+                      const formatLabel = post.format ? post.format.charAt(0).toUpperCase() + post.format.slice(1) : 'Post'
+                      const hasUnread = postComments.some(c => c.author_type === 'client' && !seenIds.has('comment-' + c.id))
+                      return (
+                        <div key={post.id} onClick={() => setSelectedPost(post)} style={{
+                          display: 'flex', alignItems: 'center', gap: 14, padding: '13px 22px',
+                          borderBottom: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer',
+                          background: isSelected ? '#FDF8F0' : '#fff',
+                          borderLeft: isSelected ? '2px solid ' + PALETTE.caramel : '2px solid transparent',
+                          transition: 'background 0.1s'
+                        }}
+                          onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = PALETTE.creamMid }}
+                          onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = '#fff' }}
+                        >
+                          <div style={{ width: 50, height: 50, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark }}>
+                            {post.image_url
+                              ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>
+                            }
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+                              <Badge status={post.status} />
+                              <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{formatLabel}</span>
+                              {client && selectedClient === 'all' && <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>· {client.name}</span>}
+                              {hasUnread && <span style={{ fontFamily: F.body, fontSize: 9, background: PALETTE.caramelLight, color: PALETTE.caramel, padding: '1px 6px', borderRadius: 3, fontWeight: 500 }}>New comment</span>}
                             </div>
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5, flexWrap:'wrap' }}>
-                                <Badge status={post.status} />
-                                <span style={{ fontFamily:F.body, fontSize:10, color:'#bbb' }}>{formatLabel}</span>
-                                {client && selectedClient==='all' && <span style={{ fontFamily:F.body, fontSize:10, color:'#bbb' }}>· {client.name}</span>}
-                              </div>
-                              <p style={{ margin:0, fontFamily:F.body, fontSize:13, color:'#1A0E00', lineHeight:1.5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{post.caption}</p>
-                              <div style={{ marginTop:5, display:'flex', gap:12 }}>
-                                <span style={{ fontFamily:F.body, fontSize:10, color:'#aaa' }}>{fmt(post.scheduled_at)}</span>
-                                {postComments.length>0 && <span style={{ fontFamily:F.body, fontSize:10, color:'#C9A96E', fontWeight:600 }}>{postComments.length} comment{postComments.length!==1?'s':''}</span>}
-                              </div>
+                            <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
+                            <div style={{ marginTop: 5, display: 'flex', gap: 12, alignItems: 'center' }}>
+                              <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmt(post.scheduled_at)}</span>
+                              {postComments.length > 0 && <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500 }}>{postComments.length} comment{postComments.length !== 1 ? 's' : ''}</span>}
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
+                        </div>
+                      )
+                    })
           }
         </div>
 
-        {/* Right Panel */}
+        {/* Right panel */}
         {selectedPost && (
           <RightPanel
-            post={posts.find(p => p.id===selectedPost.id)||selectedPost}
-            comments={comments.filter(c => c.post_id===selectedPost.id)}
-            versions={versions.filter(v => v.post_id===selectedPost.id)}
+            post={posts.find(p => p.id === selectedPost.id) || selectedPost}
+            comments={comments.filter(c => c.post_id === selectedPost.id)}
+            versions={versions.filter(v => v.post_id === selectedPost.id)}
             clients={clients}
             onRefresh={fetchAll}
             onClose={() => setSelectedPost(null)}
