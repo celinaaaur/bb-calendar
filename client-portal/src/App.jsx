@@ -212,7 +212,7 @@ function IGMockup({ post, client }) {
                     <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
                     <span style={{ color: '#333' }}>{post.caption?.slice(0, 90)}{post.caption?.length > 90 ? '…' : ''}</span>
                   </div>
-                  {comments && (
+                 {post.scheduled_at && (
                     <div style={{ fontFamily: F.body, fontSize: 8, color: '#999', marginTop: 3 }}>
                       {fmtShort(post.scheduled_at)}
                     </div>
