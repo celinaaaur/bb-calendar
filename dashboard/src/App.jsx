@@ -354,8 +354,11 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
               </div>
               <div style={{ padding: '0 10px 10px' }}>
                 <div style={{ fontFamily: F.body, fontSize: 11, color: '#111', lineHeight: 1.5 }}>
-                  <span style={{ fontWeight: 600 }}>{client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'}</span>{' '}
-                  {post.caption}
+  <span style={{ fontWeight: 600 }}>{client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'}</span>{' '}
+  {post.caption.split('\n').map((line, i, arr) => (
+    <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+  ))}
+</div>
                 </div>
                 {post.scheduled_at && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>}
               </div>
