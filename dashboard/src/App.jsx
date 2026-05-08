@@ -311,29 +311,57 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
         >✕</button>
       </div>
 
-      {/* Image */}
-      <div style={{ flexShrink: 0 }}>
-        {editing
-          ? <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight }}>
-              <span style={labelStyle}>Asset {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0 }}>uploading...</span>}</span>
-              {editImageUrl
-                ? <div style={{ position: 'relative' }}>
-                    <img src={editImageUrl} alt="" style={{ width: '100%', borderRadius: 6, maxHeight: 130, objectFit: 'cover', display: 'block' }} />
-                    <button onClick={() => setEditImageUrl(null)} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 12 }}>✕</button>
-                  </div>
-                : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '14px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
-                    <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Replace image</div>
+    {/* IG card mockup (editing shows upload, otherwise shows card) */}
+      {editing
+        ? <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+            <span style={labelStyle}>Asset {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0 }}>uploading...</span>}</span>
+            {editImageUrl
+              ? <div style={{ position: 'relative' }}>
+                  <img src={editImageUrl} alt="" style={{ width: '100%', borderRadius: 6, maxHeight: 130, objectFit: 'cover', display: 'block' }} />
+                  <button onClick={() => setEditImageUrl(null)} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 12 }}>✕</button>
+                </div>
+              : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '14px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Replace image</div>
+                </div>
+            }
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+          </div>
+        : <div style={{ padding: '12px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+            <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>
+                  {(client?.name || 'BB').slice(0, 2).toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: '#111' }}>{client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'}</div>
+                  {post.campaign && <div style={{ fontFamily: F.body, fontSize: 9, color: '#999' }}>{post.campaign}</div>}
+                </div>
+                <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
+              </div>
+              {post.image_url
+                ? <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+                : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No image</span>
                   </div>
               }
-              <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
-            </div>
-          : post.image_url
-            ? <img src={post.image_url} alt="" style={{ width: '100%', objectFit: 'cover', maxHeight: 180, display: 'block' }} />
-            : <div style={{ width: '100%', height: 80, background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No image</span>
+              <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <div style={{ marginLeft: 'auto' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                </div>
               </div>
-        }
-      </div>
+              <div style={{ padding: '0 10px 10px' }}>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: '#111', lineHeight: 1.5 }}>
+                  <span style={{ fontWeight: 600 }}>{client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'}</span>{' '}
+                  {post.caption}
+                </div>
+                {post.scheduled_at && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>}
+              </div>
+            </div>
+          </div>
+      }
 
       {/* Tabs — Discussion renamed to Comments */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
@@ -414,6 +442,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
               /* ── Read view ── */
               <div style={{ marginBottom: 20 }}>
                 {[
+                  ['Client', client?.name],
                   ['Platform', 'Instagram'],
                   ['Format', formatLabel],
                   ['Designer', post.designer],
