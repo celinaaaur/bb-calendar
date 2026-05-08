@@ -43,12 +43,28 @@ const fmtShort = (str) => {
   return new Date(str).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
 }
 
+const weekRange = () => {
+  const now = new Date()
+  const day = now.getDay()
+  const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+  const f = (d) => d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }).toUpperCase()
+  return f(mon) + ' — ' + f(sun)
+}
+
+const greeting = () => {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
 const STATUS = {
-  pending:   { label: 'AWAITING APPROVAL', color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
-  approved:  { label: 'APPROVED',          color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F', border: '#7ECBA1' },
+  pending:   { label: 'AWAITING APPROVAL',   color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
+  approved:  { label: 'APPROVED',            color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F', border: '#7ECBA1' },
   revision:  { label: 'REVISIONS REQUESTED', color: '#7A2018', bg: '#FEECEA', dot: '#C0392B', border: '#F4A59F' },
-  published: { label: 'PUBLISHED',         color: '#444',    bg: '#F2F2F2', dot: '#888',    border: '#CCC'    },
-  archived:  { label: 'ARCHIVED',          color: '#777',    bg: '#F5F5F5', dot: '#AAA',    border: '#DDD'    },
+  published: { label: 'PUBLISHED',           color: '#444',    bg: '#F2F2F2', dot: '#888',    border: '#CCC'    },
+  archived:  { label: 'ARCHIVED',            color: '#777',    bg: '#F5F5F5', dot: '#AAA',    border: '#DDD'    },
 }
 
 const statusLine = (status) => {
@@ -132,49 +148,30 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
       borderLeft: '0.5px solid ' + PALETTE.border,
       display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden'
     }}>
-      {/* Header */}
-      <div style={{
-        padding: '16px 20px', borderBottom: '0.5px solid ' + PALETTE.borderLight,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0
-      }}>
+      <div style={{ padding: '16px 20px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
-          <div style={{
-            fontFamily: F.display, fontStyle: 'italic', fontSize: 14,
-            color: PALETTE.espresso, marginTop: 8, lineHeight: 1.4
-          }}>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 14, color: PALETTE.espresso, marginTop: 8, lineHeight: 1.4 }}>
             {post.caption?.slice(0, 55)}{post.caption?.length > 55 ? '…' : ''}
           </div>
         </div>
-        <button onClick={onClose} style={{
-          background: 'none', border: 'none', fontSize: 16, color: PALETTE.mutedLight,
-          lineHeight: 1, flexShrink: 0, padding: 2, marginTop: 2,
-          transition: 'color 0.15s'
-        }}
+        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, color: PALETTE.mutedLight, lineHeight: 1, flexShrink: 0, padding: 2, marginTop: 2, transition: 'color 0.15s' }}
           onMouseEnter={e => e.currentTarget.style.color = PALETTE.espresso}
           onMouseLeave={e => e.currentTarget.style.color = PALETTE.mutedLight}
         >✕</button>
       </div>
 
-      {/* Image */}
       <div style={{ flexShrink: 0 }}>
         {post.image_url
           ? <img src={post.image_url} alt="" style={{ width: '100%', objectFit: 'cover', maxHeight: 200, display: 'block' }} />
-          : <div style={{
-              width: '100%', height: 100, background: PALETTE.creamDark,
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 14, fontStyle: 'italic' }}>No image uploaded</span>
+          : <div style={{ width: '100%', height: 100, background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No image uploaded</span>
             </div>
         }
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-        {[
-          ['details', 'Details'],
-          ['discussion', 'Discussion' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]
-        ].map(([k, l]) => (
+        {[['details', 'Details'], ['discussion', 'Discussion' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]].map(([k, l]) => (
           <button key={k} onClick={() => setActiveTab(k)} style={{
             flex: 1, padding: '11px 0', border: 'none', background: 'transparent',
             fontFamily: F.body, fontSize: 11, fontWeight: activeTab === k ? 500 : 400,
@@ -185,7 +182,7 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
         {activeTab === 'details' && (
           <div>
             <div style={{ marginBottom: 20 }}>
@@ -197,7 +194,7 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
                 ['Scheduled', fmt(post.scheduled_at)],
               ].filter(Boolean).map(([label, value]) => (
                 <div key={label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 11, alignItems: 'start' }}>
-                  <span style={{ fontFamily: F.body, fontSize: 10, fontWeight: 400, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', paddingTop: 1 }}>{label}</span>
+                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', paddingTop: 1 }}>{label}</span>
                   <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{value}</span>
                 </div>
               ))}
@@ -225,21 +222,11 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
               <>
                 <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <button onClick={() => setStatus('revision')} style={{
-                    flex: 1, padding: '10px 8px', borderRadius: 6,
-                    border: '0.5px solid #D4A0A0', background: '#fff',
-                    color: '#9B2B20', fontWeight: 400, fontSize: 12, fontFamily: F.body,
-                    transition: 'all 0.15s'
-                  }}
+                  <button onClick={() => setStatus('revision')} style={{ flex: 1, padding: '10px 8px', borderRadius: 6, border: '0.5px solid #D4A0A0', background: '#fff', color: '#9B2B20', fontWeight: 400, fontSize: 12, fontFamily: F.body, transition: 'all 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#FEECEA'}
                     onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                   >Request revisions</button>
-                  <button onClick={() => setStatus('approved')} style={{
-                    flex: 1, padding: '10px 8px', borderRadius: 6,
-                    border: 'none', background: PALETTE.espresso,
-                    color: PALETTE.cream, fontWeight: 400, fontSize: 12, fontFamily: F.body,
-                    transition: 'all 0.15s'
-                  }}
+                  <button onClick={() => setStatus('approved')} style={{ flex: 1, padding: '10px 8px', borderRadius: 6, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontWeight: 400, fontSize: 12, fontFamily: F.body, transition: 'all 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.background = PALETTE.espressoLight}
                     onMouseLeave={e => e.currentTarget.style.background = PALETTE.espresso}
                   >+ Approve</button>
@@ -274,44 +261,18 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
                 <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.65 }}>{c.text}</p>
               </div>
             ))}
-            <input
-              value={authorName}
-              onChange={e => setAuthorName(e.target.value)}
-              placeholder="Your name (optional)"
-              style={{
-                width: '100%', padding: '8px 12px', borderRadius: 6,
-                border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid,
-                fontSize: 12, color: PALETTE.espresso, marginBottom: 8,
-                fontFamily: F.body
-              }}
+            <input value={authorName} onChange={e => setAuthorName(e.target.value)} placeholder="Your name (optional)"
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, marginBottom: 8, fontFamily: F.body }}
             />
             <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: '10px 14px' }}>
-              <textarea
-                value={newComment}
-                onChange={e => setNewComment(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Leave a note for the team..."
-                rows={3}
-                style={{
-                  width: '100%', border: 'none', background: 'transparent',
-                  fontSize: 13, color: PALETTE.espresso, resize: 'none',
-                  fontFamily: F.body, lineHeight: 1.6
-                }}
+              <textarea value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={handleKeyDown} placeholder="Leave a note for the team..." rows={3}
+                style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, color: PALETTE.espresso, resize: 'none', fontFamily: F.body, lineHeight: 1.6 }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid ' + PALETTE.borderLight }}>
                 <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>⌘ + Enter to send</span>
-                <button
-                  onClick={sendComment}
-                  disabled={saving || !newComment.trim()}
-                  style={{
-                    padding: '6px 16px', borderRadius: 5,
-                    border: '0.5px solid ' + PALETTE.border,
-                    background: newComment.trim() ? PALETTE.espresso : '#fff',
-                    color: newComment.trim() ? PALETTE.cream : PALETTE.muted,
-                    fontFamily: F.body, fontSize: 12, fontWeight: 400,
-                    opacity: saving ? 0.5 : 1, transition: 'all 0.15s'
-                  }}
-                >Post comment</button>
+                <button onClick={sendComment} disabled={saving || !newComment.trim()} style={{ padding: '6px 16px', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: newComment.trim() ? PALETTE.espresso : '#fff', color: newComment.trim() ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: 400, opacity: saving ? 0.5 : 1, transition: 'all 0.15s' }}>
+                  Post comment
+                </button>
               </div>
             </div>
           </div>
@@ -355,7 +316,6 @@ export default function ClientPortal() {
     return () => { s1.unsubscribe(); s2.unsubscribe() }
   }, [])
 
-  // Loading screen
   if (loading) return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
@@ -365,7 +325,6 @@ export default function ClientPortal() {
     </div>
   )
 
-  // Not found screen
   if (notFound) return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
@@ -382,8 +341,9 @@ export default function ClientPortal() {
   const counts = {
     all: activePosts.length,
     pending: activePosts.filter(p => p.status === 'pending').length,
-    approved: activePosts.filter(p => p.status === 'approved').length,
     revision: activePosts.filter(p => p.status === 'revision').length,
+    approved: activePosts.filter(p => p.status === 'approved').length,
+    scheduled: activePosts.filter(p => p.status === 'approved' || p.status === 'published').length,
   }
 
   const pageTitle = filter === 'all' ? 'Your Content'
@@ -391,57 +351,101 @@ export default function ClientPortal() {
     : filter === 'approved' ? 'Approved Posts'
     : 'Needs Changes'
 
+  const firstName = (client?.contact_name || client?.name || '').split(' ')[0]
+
   return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }}>
 
-      {/* Top bar */}
-      <div style={{
-        background: PALETTE.espresso, padding: '0 28px', height: 52,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        position: 'sticky', top: 0, zIndex: 100, flexShrink: 0
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: '50%',
-            background: brandColor,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 500, fontSize: 10, fontFamily: F.body
-          }}>
-            {client.name.slice(0, 2).toUpperCase()}
+      {/* ── Hero header ── */}
+      <div style={{ background: PALETTE.cream, borderBottom: '0.5px solid ' + PALETTE.border, padding: '28px 40px 24px', flexShrink: 0 }}>
+
+        {/* Brand name + greeting */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+            <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 22, color: PALETTE.espresso }}>{client.name}</span>
+            <span style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, fontWeight: 300, fontStyle: 'italic' }}>— this week on social</span>
           </div>
-          <div>
-            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: '#fff', lineHeight: 1.1 }}>{client.name}</div>
-            <div style={{ fontFamily: F.body, fontSize: 9, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 1 }}>
-              Content Review · Managed by Brown Butter
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: PALETTE.espresso }}>{greeting()}, {firstName}.</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 5 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: PALETTE.caramel, display: 'inline-block' }} />
+              <span style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Prepared by Brown Butter</span>
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {counts.pending > 0 && (
-            <span style={{
-              fontFamily: F.body, background: PALETTE.caramelLight, color: '#7A4F00',
-              padding: '4px 12px', borderRadius: 20, fontSize: 10, fontWeight: 500,
-              letterSpacing: '0.06em'
-            }}>{counts.pending} awaiting approval</span>
-          )}
-          {counts.revision > 0 && (
-            <span style={{
-              fontFamily: F.body, background: '#FEECEA', color: '#7A2018',
-              padding: '4px 12px', borderRadius: 20, fontSize: 10, fontWeight: 500,
-              letterSpacing: '0.06em'
-            }}>{counts.revision} needs changes</span>
-          )}
+
+        {/* Week label */}
+        <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 500 }}>
+          This week · {weekRange()}
+        </div>
+
+        {/* Headline + decorative stack */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div style={{ maxWidth: 540 }}>
+            <div style={{ fontFamily: F.display, fontSize: 52, lineHeight: 1.05, color: PALETTE.espresso, marginBottom: 16 }}>
+              <span style={{ color: PALETTE.caramel }}>{counts.pending}</span> post{counts.pending !== 1 ? 's' : ''} waiting<br />
+              on your approval.
+            </div>
+            <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.65, marginBottom: 28, maxWidth: 400 }}>
+              Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.
+            </div>
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: 40 }}>
+              {[
+                [counts.pending, 'Awaiting you'],
+                [counts.revision, 'Brown Butter revising'],
+                [counts.scheduled, 'Scheduled'],
+              ].map(([num, label]) => (
+                <div key={label}>
+                  <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 34, color: PALETTE.espresso, lineHeight: 1 }}>{num}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 5, fontWeight: 500 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Post stack illustration */}
+          <div style={{ flexShrink: 0, position: 'relative', width: 210, height: 210, marginBottom: 8 }}>
+            {[
+              { rotate: '-5deg', bottom: '14px', right: '8px', opacity: 0.3, z: 1 },
+              { rotate: '-2deg', bottom: '6px', right: '4px', opacity: 0.6, z: 2 },
+              { rotate: '1.5deg', bottom: '0px', right: '0px', opacity: 1,   z: 3 },
+            ].map((layer, i) => {
+              const pendingPosts = activePosts.filter(p => p.status === 'pending')
+              const p = pendingPosts[i] || pendingPosts[0]
+              const warmBg = `hsl(${14 + i * 5},${42 - i * 8}%,${50 - i * 4}%)`
+              return (
+                <div key={i} style={{
+                  position: 'absolute', bottom: layer.bottom, right: layer.right,
+                  width: 178, height: 178, borderRadius: 10,
+                  background: p?.image_url ? 'transparent' : warmBg,
+                  transform: `rotate(${layer.rotate})`,
+                  opacity: layer.opacity, zIndex: layer.z,
+                  overflow: 'hidden',
+                  boxShadow: '0 6px 24px rgba(44,31,14,0.10)'
+                }}>
+                  {p?.image_url && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  {i === 2 && (
+                    <div style={{
+                      position: 'absolute', bottom: 12, left: 14,
+                      fontFamily: F.body, fontSize: 9, fontWeight: 500,
+                      color: 'rgba(255,255,255,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase'
+                    }}>
+                      {pendingPosts[0]?.format?.toUpperCase() || 'POST'}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
+      {/* ── Body ── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* Sidebar */}
-        <div style={{
-          width: 192, background: PALETTE.cream,
-          borderRight: '0.5px solid ' + PALETTE.border,
-          display: 'flex', flexDirection: 'column', flexShrink: 0
-        }}>
+        <div style={{ width: 192, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           <div style={{ padding: '22px 16px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Filter</div>
             {[
@@ -473,9 +477,7 @@ export default function ClientPortal() {
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '0 16px' }} />
 
           <div style={{ margin: '18px 16px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
-            <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Feed Preview
-            </div>
+            <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
             <IGGrid posts={posts} />
           </div>
 
@@ -485,38 +487,31 @@ export default function ClientPortal() {
           </div>
         </div>
 
-        {/* Main content */}
+        {/* Main list */}
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
           <div style={{ padding: '22px 28px 16px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
-            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
+            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 24, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
             <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
               {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''} · Click any post to review
             </div>
           </div>
 
           {filteredPosts.length === 0
-            ? (
-              <div style={{ padding: 60, textAlign: 'center' }}>
+            ? <div style={{ padding: 60, textAlign: 'center' }}>
                 <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18 }}>No posts in this category</div>
               </div>
-            )
             : filteredPosts.map(post => {
                 const postComments = comments.filter(c => c.post_id === post.id)
                 const isSelected = selectedPost?.id === post.id
                 const formatLabel = post.format ? post.format.charAt(0).toUpperCase() + post.format.slice(1) : 'Post'
                 return (
-                  <div
-                    key={post.id}
-                    onClick={() => setSelectedPost(post)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 16,
-                      padding: '14px 24px',
-                      borderBottom: '0.5px solid ' + PALETTE.borderLight,
-                      cursor: 'pointer',
-                      background: isSelected ? '#FDF8F0' : '#fff',
-                      borderLeft: isSelected ? '2px solid ' + brandColor : '2px solid transparent',
-                      transition: 'background 0.1s'
-                    }}
+                  <div key={post.id} onClick={() => setSelectedPost(post)} style={{
+                    display: 'flex', alignItems: 'center', gap: 16, padding: '14px 24px',
+                    borderBottom: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer',
+                    background: isSelected ? '#FDF8F0' : '#fff',
+                    borderLeft: isSelected ? '2px solid ' + brandColor : '2px solid transparent',
+                    transition: 'background 0.1s'
+                  }}
                     onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = PALETTE.creamMid }}
                     onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = '#fff' }}
                   >
@@ -532,23 +527,13 @@ export default function ClientPortal() {
                         <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{formatLabel}</span>
                         {post.campaign && <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>· {post.campaign}</span>}
                       </div>
-                      <p style={{
-                        margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espresso,
-                        lineHeight: 1.55, display: '-webkit-box',
-                        WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300
-                      }}>{post.caption}</p>
+                      <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
                       <div style={{ marginTop: 6, display: 'flex', gap: 14, alignItems: 'center' }}>
                         <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmt(post.scheduled_at)}</span>
-                        {postComments.length > 0 && (
-                          <span style={{ fontFamily: F.body, fontSize: 10, color: brandColor, fontWeight: 500 }}>
-                            {postComments.length} comment{postComments.length !== 1 ? 's' : ''}
-                          </span>
-                        )}
+                        {postComments.length > 0 && <span style={{ fontFamily: F.body, fontSize: 10, color: brandColor, fontWeight: 500 }}>{postComments.length} comment{postComments.length !== 1 ? 's' : ''}</span>}
                       </div>
                     </div>
-                    {post.image_url && (
-                      <img src={post.image_url} alt="" style={{ width: 42, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0, opacity: 0.6 }} />
-                    )}
+                    {post.image_url && <img src={post.image_url} alt="" style={{ width: 42, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0, opacity: 0.6 }} />}
                   </div>
                 )
               })
