@@ -149,7 +149,9 @@ function IGMockup({ post, client }) {
         <div style={{ padding: '0 12px 12px' }}>
           <div style={{ fontFamily: F.body, fontSize: 13, color: '#111', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
-            {post.caption}
+           {post.caption.split('\n').map((line, i, arr) => (
+  <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+))}
           </div>
           {post.scheduled_at && (
             <div style={{ fontFamily: F.body, fontSize: 11, color: '#999', marginTop: 6 }}>
