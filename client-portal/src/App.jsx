@@ -108,6 +108,127 @@ function IGGrid({ posts }) {
   )
 }
 
+// ── Instagram phone mockup ───────────────────────────────────────────────────
+function IGMockup({ post, client }) {
+  const handle = client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '') || 'handle'
+  const formatType = post.format || 'post'
+  const isReel = formatType === 'reel'
+  const isCarousel = formatType === 'carousel'
+  const isStory = formatType === 'story'
+
+  // Derive avatar initials + color
+  const initials = (client?.name || 'BB').slice(0, 2).toUpperCase()
+  const avatarBg = client?.brand_color || PALETTE.caramel
+
+  return (
+    <div style={{ padding: '16px 20px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+      {/* Phone shell */}
+      <div style={{ width: 220, background: '#1A1A1A', borderRadius: 28, padding: 7, boxShadow: '0 8px 32px rgba(44,31,14,0.18)' }}>
+        {/* Notch */}
+        <div style={{ width: 60, height: 6, background: '#2A2A2A', borderRadius: 4, margin: '0 auto 6px' }} />
+
+        {/* Screen */}
+        <div style={{ background: '#fff', borderRadius: 22, overflow: 'hidden' }}>
+
+          {isStory
+            ? /* ── Story layout ── */
+              <div style={{ position: 'relative', background: '#000', aspectRatio: '9/16' }}>
+                {post.image_url
+                  ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  : <div style={{ width: '100%', height: '100%', background: `hsl(14,40%,45%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontFamily: F.display, fontStyle: 'italic', color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>No image</span>
+                    </div>
+                }
+                {/* Story header */}
+                <div style={{ position: 'absolute', top: 10, left: 0, right: 0, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: avatarBg, border: '2px solid ' + PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0 }}>{initials}</div>
+                  <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: '#fff' }}>{handle}</span>
+                  <span style={{ fontFamily: F.body, fontSize: 9, color: 'rgba(255,255,255,0.6)', marginLeft: 2 }}>· now</span>
+                </div>
+                {/* Progress bar */}
+                <div style={{ position: 'absolute', top: 6, left: 8, right: 8, height: 2, background: 'rgba(255,255,255,0.3)', borderRadius: 2 }}>
+                  <div style={{ width: '65%', height: '100%', background: '#fff', borderRadius: 2 }} />
+                </div>
+              </div>
+
+            : /* ── Feed / Reel layout ── */
+              <div>
+                {/* Post header */}
+                <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 7, borderBottom: '0.5px solid #f0f0f0' }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>{initials}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 600, color: '#111', lineHeight: 1.2 }}>{handle}</div>
+                    {post.campaign && <div style={{ fontFamily: F.body, fontSize: 8, color: '#888', lineHeight: 1.2 }}>{post.campaign}</div>}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#555', letterSpacing: 1, lineHeight: 1 }}>···</div>
+                </div>
+
+                {/* Image */}
+                <div style={{ position: 'relative', background: '#f0f0f0', aspectRatio: isReel ? '9/16' : '1' }}>
+                  {post.image_url
+                    ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    : <div style={{ width: '100%', height: '100%', background: `hsl(14,40%,78%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontFamily: F.display, fontStyle: 'italic', color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>No image</span>
+                      </div>
+                  }
+                  {/* Format badge */}
+                  {isReel && (
+                    <div style={{ position: 'absolute', top: 7, right: 8 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                  )}
+                  {isCarousel && (
+                    <div style={{ position: 'absolute', top: 7, right: 8 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><rect x="2" y="4" width="7" height="16" rx="1"/><rect x="10" y="4" width="7" height="16" rx="1"/><rect x="18" y="4" width="4" height="16" rx="1"/></svg>
+                    </div>
+                  )}
+                  {/* Carousel dots */}
+                  {isCarousel && post.slide_count > 1 && (
+                    <div style={{ position: 'absolute', bottom: 7, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 3 }}>
+                      {Array.from({ length: Math.min(post.slide_count, 5) }).map((_, i) => (
+                        <div key={i} style={{ width: i === 0 ? 6 : 4, height: i === 0 ? 6 : 4, borderRadius: '50%', background: i === 0 ? '#fff' : 'rgba(255,255,255,0.5)' }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Action icons */}
+                <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
+                  {/* Heart */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                  {/* Comment */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  {/* Share */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.8"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  {/* Save — pushed right */}
+                  <div style={{ marginLeft: 'auto' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                  </div>
+                </div>
+
+                {/* Caption */}
+                <div style={{ padding: '0 10px 10px' }}>
+                  <div style={{ fontFamily: F.body, fontSize: 8.5, color: '#111', lineHeight: 1.45 }}>
+                    <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
+                    <span style={{ color: '#333' }}>{post.caption?.slice(0, 90)}{post.caption?.length > 90 ? '…' : ''}</span>
+                  </div>
+                  {comments && (
+                    <div style={{ fontFamily: F.body, fontSize: 8, color: '#999', marginTop: 3 }}>
+                      {fmtShort(post.scheduled_at)}
+                    </div>
+                  )}
+                </div>
+              </div>
+          }
+        </div>
+
+        {/* Home indicator */}
+        <div style={{ width: 50, height: 4, background: '#3A3A3A', borderRadius: 4, margin: '6px auto 2px' }} />
+      </div>
+    </div>
+  )
+}
+
 function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
   const [newComment, setNewComment] = useState('')
   const [authorName, setAuthorName] = useState('')
@@ -148,10 +269,11 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
       borderLeft: '0.5px solid ' + PALETTE.border,
       display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden'
     }}>
+      {/* Header */}
       <div style={{ padding: '16px 20px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
-          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 14, color: PALETTE.espresso, marginTop: 8, lineHeight: 1.4 }}>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 13, color: PALETTE.espresso, marginTop: 8, lineHeight: 1.4 }}>
             {post.caption?.slice(0, 55)}{post.caption?.length > 55 ? '…' : ''}
           </div>
         </div>
@@ -161,17 +283,15 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
         >✕</button>
       </div>
 
-      <div style={{ flexShrink: 0 }}>
-        {post.image_url
-          ? <img src={post.image_url} alt="" style={{ width: '100%', objectFit: 'cover', maxHeight: 200, display: 'block' }} />
-          : <div style={{ width: '100%', height: 100, background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No image uploaded</span>
-            </div>
-        }
-      </div>
+      {/* ── Instagram mockup (replaces flat image) ── */}
+      <IGMockup post={post} client={client} />
 
+      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-        {[['details', 'Details'], ['discussion', 'Discussion' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]].map(([k, l]) => (
+        {[
+          ['details', 'Details'],
+          ['discussion', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]
+        ].map(([k, l]) => (
           <button key={k} onClick={() => setActiveTab(k)} style={{
             flex: 1, padding: '11px 0', border: 'none', background: 'transparent',
             fontFamily: F.body, fontSize: 11, fontWeight: activeTab === k ? 500 : 400,
@@ -358,8 +478,6 @@ export default function ClientPortal() {
 
       {/* ── Hero header ── */}
       <div style={{ background: PALETTE.cream, borderBottom: '0.5px solid ' + PALETTE.border, padding: '28px 40px 24px', flexShrink: 0 }}>
-
-        {/* Brand name + greeting */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
             <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 22, color: PALETTE.espresso }}>{client.name}</span>
@@ -374,12 +492,10 @@ export default function ClientPortal() {
           </div>
         </div>
 
-        {/* Week label */}
         <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 500 }}>
           This week · {weekRange()}
         </div>
 
-        {/* Headline + decorative stack */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div style={{ maxWidth: 540 }}>
             <div style={{ fontFamily: F.display, fontSize: 52, lineHeight: 1.05, color: PALETTE.espresso, marginBottom: 16 }}>
@@ -389,13 +505,8 @@ export default function ClientPortal() {
             <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.65, marginBottom: 28, maxWidth: 400 }}>
               Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.
             </div>
-            {/* Stats */}
             <div style={{ display: 'flex', gap: 40 }}>
-              {[
-                [counts.pending, 'Awaiting you'],
-                [counts.revision, 'Brown Butter revising'],
-                [counts.scheduled, 'Scheduled'],
-              ].map(([num, label]) => (
+              {[[counts.pending, 'Awaiting you'], [counts.revision, 'Brown Butter revising'], [counts.scheduled, 'Scheduled']].map(([num, label]) => (
                 <div key={label}>
                   <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 34, color: PALETTE.espresso, lineHeight: 1 }}>{num}</div>
                   <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 5, fontWeight: 500 }}>{label}</div>
@@ -404,36 +515,19 @@ export default function ClientPortal() {
             </div>
           </div>
 
-          {/* Post stack illustration */}
           <div style={{ flexShrink: 0, position: 'relative', width: 210, height: 210, marginBottom: 8 }}>
             {[
               { rotate: '-5deg', bottom: '14px', right: '8px', opacity: 0.3, z: 1 },
               { rotate: '-2deg', bottom: '6px', right: '4px', opacity: 0.6, z: 2 },
-              { rotate: '1.5deg', bottom: '0px', right: '0px', opacity: 1,   z: 3 },
+              { rotate: '1.5deg', bottom: '0px', right: '0px', opacity: 1, z: 3 },
             ].map((layer, i) => {
               const pendingPosts = activePosts.filter(p => p.status === 'pending')
               const p = pendingPosts[i] || pendingPosts[0]
               const warmBg = `hsl(${14 + i * 5},${42 - i * 8}%,${50 - i * 4}%)`
               return (
-                <div key={i} style={{
-                  position: 'absolute', bottom: layer.bottom, right: layer.right,
-                  width: 178, height: 178, borderRadius: 10,
-                  background: p?.image_url ? 'transparent' : warmBg,
-                  transform: `rotate(${layer.rotate})`,
-                  opacity: layer.opacity, zIndex: layer.z,
-                  overflow: 'hidden',
-                  boxShadow: '0 6px 24px rgba(44,31,14,0.10)'
-                }}>
+                <div key={i} style={{ position: 'absolute', bottom: layer.bottom, right: layer.right, width: 178, height: 178, borderRadius: 10, background: p?.image_url ? 'transparent' : warmBg, transform: `rotate(${layer.rotate})`, opacity: layer.opacity, zIndex: layer.z, overflow: 'hidden', boxShadow: '0 6px 24px rgba(44,31,14,0.10)' }}>
                   {p?.image_url && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                  {i === 2 && (
-                    <div style={{
-                      position: 'absolute', bottom: 12, left: 14,
-                      fontFamily: F.body, fontSize: 9, fontWeight: 500,
-                      color: 'rgba(255,255,255,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase'
-                    }}>
-                      {pendingPosts[0]?.format?.toUpperCase() || 'POST'}
-                    </div>
-                  )}
+                  {i === 2 && <div style={{ position: 'absolute', bottom: 12, left: 14, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{pendingPosts[0]?.format?.toUpperCase() || 'POST'}</div>}
                 </div>
               )
             })}
