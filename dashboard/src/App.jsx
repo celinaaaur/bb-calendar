@@ -33,6 +33,51 @@ const PALETTE = {
   mutedLight: '#B8A898',
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+
+const isVideo = (url) => {
+  if (!url) return false
+  const ext = url.split('?')[0].split('.').pop().toLowerCase()
+  return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext)
+}
+
+const isGif = (url) => {
+  if (!url) return false
+  return url.split('?')[0].toLowerCase().endsWith('.gif')
+}
+
+// Shared asset uploader logic
+const uploadAsset = async (file, onProgress) => {
+  if (file.size > MAX_FILE_SIZE) {
+    return { error: 'File is too large. Maximum size is 50MB.' }
+  }
+  const ext = file.name.split('.').pop()
+  const filename = Date.now() + '.' + ext
+  const { error } = await supabase.storage.from('post-assets').upload(filename, file, { upsert: true })
+  if (!error) {
+    const { data } = supabase.storage.from('post-assets').getPublicUrl(filename)
+    return { url: data.publicUrl }
+  }
+  return { error: 'Upload failed. Please try again.' }
+}
+
+// Asset preview — handles image, GIF, and video
+function AssetPreview({ url, onRemove, maxHeight = 180 }) {
+  if (!url) return null
+  const vid = isVideo(url)
+  return (
+    <div style={{ position: 'relative' }}>
+      {vid
+        ? <video src={url} controls style={{ width: '100%', borderRadius: 8, maxHeight, display: 'block', background: '#000' }} />
+        : <img src={url} alt="" style={{ width: '100%', borderRadius: 8, maxHeight, objectFit: 'cover', display: 'block' }} />
+      }
+      {onRemove && (
+        <button onClick={onRemove} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 24, height: 24, color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+      )}
+    </div>
+  )
+}
+
 const fmt = (str) => {
   if (!str) return ''
   const d = new Date(str)
@@ -76,7 +121,6 @@ const statusLine = (status) => {
   return ''
 }
 
-// Render caption with line breaks preserved
 function CaptionText({ text, handle, style: extraStyle }) {
   const lines = (text || '').split('\n')
   return (
@@ -113,7 +157,12 @@ function IGGrid({ posts }) {
           aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative',
           background: p ? (p.image_url ? 'transparent' : `hsl(${28 + i * 8},20%,${86 - i * 2}%)`) : '#E8E0D0'
         }}>
-          {p?.image_url && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          {p?.image_url && !isVideo(p.image_url) && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          {p?.image_url && isVideo(p.image_url) && (
+            <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          )}
           {p && !p.image_url && <div style={{ padding: 3, fontSize: 6, color: PALETTE.muted, lineHeight: 1.3 }}>{p.caption?.slice(0, 30)}</div>}
           {p && <div style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.8)' }} />}
         </div>
@@ -167,16 +216,13 @@ function CalendarView({ posts, onSelect }) {
   )
 }
 
-// ── Notifications panel ──────────────────────────────────────────────────────
 function NotificationsPanel({ notifications, onClose, onMarkAllRead }) {
   const unread = notifications.filter(n => !n.read).length
   return (
     <div style={{ position: 'absolute', top: 48, right: 16, width: 300, background: '#fff', borderRadius: 10, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.16)', zIndex: 300, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
       <div style={{ padding: '12px 16px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso }}>Notifications</span>
-        {unread > 0 && (
-          <button onClick={onMarkAllRead} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500 }}>Mark all read</button>
-        )}
+        {unread > 0 && <button onClick={onMarkAllRead} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500 }}>Mark all read</button>}
       </div>
       <div style={{ maxHeight: 340, overflowY: 'auto' }}>
         {notifications.length === 0
@@ -196,7 +242,6 @@ function NotificationsPanel({ notifications, onClose, onMarkAllRead }) {
   )
 }
 
-// ── Right panel ──────────────────────────────────────────────────────────────
 function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
@@ -210,6 +255,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   const [editCampaign, setEditCampaign] = useState(post.campaign || '')
   const [editImageUrl, setEditImageUrl] = useState(post.image_url || null)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
   const fileRef = useRef()
 
   const client = clients.find(c => c.id === post.client_id)
@@ -224,22 +270,19 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
     setEditCampaign(post.campaign || '')
     setEditImageUrl(post.image_url || null)
     setEditing(false)
+    setUploadError(null)
   }, [post.id])
 
   const handleFile = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    setUploadError(null)
     setUploading(true)
-    const ext = file.name.split('.').pop()
-    const filename = Date.now() + '.' + ext
-    const { error } = await supabase.storage.from('post-assets').upload(filename, file, { upsert: true })
-    if (!error) {
-      const { data } = supabase.storage.from('post-assets').getPublicUrl(filename)
-      setEditImageUrl(data.publicUrl)
+    const result = await uploadAsset(file)
+    if (result.url) {
+      setEditImageUrl(result.url)
     } else {
-      const reader = new FileReader()
-      reader.onload = ev => setEditImageUrl(ev.target.result)
-      reader.readAsDataURL(file)
+      setUploadError(result.error)
     }
     setUploading(false)
   }
@@ -312,7 +355,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   return (
     <div style={{ width: 340, background: '#fff', borderLeft: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
 
-      {/* Header */}
       <div style={{ padding: '14px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
@@ -326,25 +368,26 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
         >✕</button>
       </div>
 
-      {/* IG card mockup / edit uploader */}
+      {/* IG card / edit uploader */}
       {editing ? (
         <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-          <span style={labelStyle}>Asset {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0 }}>uploading...</span>}</span>
+          <span style={labelStyle}>
+            Asset
+            {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}> uploading...</span>}
+          </span>
           {editImageUrl
-            ? <div style={{ position: 'relative' }}>
-                <img src={editImageUrl} alt="" style={{ width: '100%', borderRadius: 6, maxHeight: 130, objectFit: 'cover', display: 'block' }} />
-                <button onClick={() => setEditImageUrl(null)} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 12 }}>✕</button>
-              </div>
-            : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '14px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
-                <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Replace image</div>
+            ? <AssetPreview url={editImageUrl} onRemove={() => setEditImageUrl(null)} maxHeight={130} />
+            : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '16px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Replace asset</div>
+                <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginTop: 4 }}>Image, GIF, or video (max 50MB)</div>
               </div>
           }
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+          {uploadError && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', marginTop: 6 }}>{uploadError}</div>}
+          <input ref={fileRef} type="file" accept="image/*,video/*,.gif" onChange={handleFile} style={{ display: 'none' }} />
         </div>
       ) : (
         <div style={{ padding: '12px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
           <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
-            {/* Post header */}
             <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>
                 {(client?.name || 'BB').slice(0, 2).toUpperCase()}
@@ -355,14 +398,14 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
               </div>
               <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
             </div>
-            {/* Image */}
             {post.image_url
-              ? <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+              ? isVideo(post.image_url)
+                ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', background: '#000' }} />
+                : <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
               : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No image</span>
+                  <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
                 </div>
             }
-            {/* Action icons */}
             <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -371,23 +414,16 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </div>
             </div>
-            {/* Caption with line breaks */}
             <div style={{ padding: '0 10px 10px' }}>
               <CaptionText text={post.caption} handle={handle} />
-              {post.scheduled_at && (
-                <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>
-              )}
+              {post.scheduled_at && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>}
             </div>
           </div>
         </div>
       )}
 
-      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-        {[
-          ['details', 'Details'],
-          ['comments', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]
-        ].map(([k, l]) => (
+        {[['details', 'Details'], ['comments', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]].map(([k, l]) => (
           <button key={k} onClick={() => setActiveTab(k)} style={{
             flex: 1, padding: '11px 0', border: 'none', background: 'transparent',
             fontFamily: F.body, fontSize: 11, fontWeight: activeTab === k ? 500 : 400,
@@ -399,10 +435,8 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
-
         {activeTab === 'details' && (
           <div>
-            {/* Edit toggle */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase' }}>Details</span>
               {!editing
@@ -476,7 +510,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
 
             <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
 
-            {/* Version history */}
             {versions.length > 0 && (
               <div style={{ marginBottom: 18 }}>
                 <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 12, textTransform: 'uppercase' }}>Version History</div>
@@ -493,7 +526,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
               </div>
             )}
 
-            {/* Status buttons */}
             {post.status !== 'archived' && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 10, textTransform: 'uppercase' }}>Update Status</div>
@@ -523,7 +555,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
 
             <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 14 }} />
 
-            {/* Archive / Delete */}
             <div style={{ display: 'flex', gap: 8 }}>
               {post.status !== 'archived' && (
                 <button onClick={archivePost} style={{ flex: 1, padding: '8px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.muted, transition: 'all 0.15s' }}
@@ -569,7 +600,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   )
 }
 
-// ── Compose modal ─────────────────────────────────────────────────────────────
 function ComposeModal({ clients, onClose, onSaved }) {
   const [clientId, setClientId] = useState(clients[0]?.id || '')
   const [caption, setCaption] = useState('')
@@ -580,23 +610,20 @@ function ComposeModal({ clients, onClose, onSaved }) {
   const [campaign, setCampaign] = useState('')
   const [imageUrl, setImageUrl] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
 
   const handleFile = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    setUploadError(null)
     setUploading(true)
-    const ext = file.name.split('.').pop()
-    const filename = Date.now() + '.' + ext
-    const { error } = await supabase.storage.from('post-assets').upload(filename, file, { upsert: true })
-    if (!error) {
-      const { data } = supabase.storage.from('post-assets').getPublicUrl(filename)
-      setImageUrl(data.publicUrl)
+    const result = await uploadAsset(file)
+    if (result.url) {
+      setImageUrl(result.url)
     } else {
-      const reader = new FileReader()
-      reader.onload = ev => setImageUrl(ev.target.result)
-      reader.readAsDataURL(file)
+      setUploadError(result.error)
     }
     setUploading(false)
   }
@@ -670,18 +697,17 @@ function ComposeModal({ clients, onClose, onSaved }) {
           </div>
           <div>
             {fieldLabel('Asset')}
-            {uploading && <span style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Uploading...</span>}
+            {uploading && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, marginBottom: 6 }}>Uploading...</div>}
+            {uploadError && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', marginBottom: 6 }}>{uploadError}</div>}
             {imageUrl
-              ? <div style={{ position: 'relative' }}>
-                  <img src={imageUrl} alt="" style={{ width: '100%', borderRadius: 8, maxHeight: 180, objectFit: 'cover' }} />
-                  <button onClick={() => setImageUrl(null)} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 24, height: 24, color: '#fff', fontSize: 13 }}>✕</button>
-                </div>
-              : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 8, padding: '18px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+              ? <AssetPreview url={imageUrl} onRemove={() => setImageUrl(null)} maxHeight={180} />
+              : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 8, padding: '22px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
                   <div style={{ fontFamily: F.body, fontSize: 22, color: PALETTE.caramel, marginBottom: 4 }}>+</div>
-                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Click to upload image</div>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Click to upload</div>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>Image, GIF, or video · max 50MB</div>
                 </div>
             }
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+            <input ref={fileRef} type="file" accept="image/*,video/*,.gif" onChange={handleFile} style={{ display: 'none' }} />
           </div>
           <div>
             {fieldLabel('Caption', true)}
@@ -709,7 +735,6 @@ function ComposeModal({ clients, onClose, onSaved }) {
   )
 }
 
-// ── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [clients, setClients] = useState([])
   const [posts, setPosts] = useState([])
@@ -747,12 +772,8 @@ export default function Dashboard() {
       const client = clients.find(c => c.id === p.client_id)
       const clientName = client?.name || 'Unknown client'
       const caption = p.caption?.slice(0, 40) + (p.caption?.length > 40 ? '…' : '')
-      if (p.status === 'approved') {
-        notifs.push({ id: 'post-approved-' + p.id, message: `"${caption}" was approved`, client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-approved-' + p.id) })
-      }
-      if (p.status === 'revision') {
-        notifs.push({ id: 'post-revision-' + p.id, message: `"${caption}" — revisions requested`, client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-revision-' + p.id) })
-      }
+      if (p.status === 'approved') notifs.push({ id: 'post-approved-' + p.id, message: `"${caption}" was approved`, client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-approved-' + p.id) })
+      if (p.status === 'revision') notifs.push({ id: 'post-revision-' + p.id, message: `"${caption}" — revisions requested`, client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-revision-' + p.id) })
     })
     comments.filter(c => c.author_type === 'client').forEach(c => {
       const post = posts.find(p => p.id === c.post_id)
@@ -799,7 +820,6 @@ export default function Dashboard() {
   return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => showNotifications && setShowNotifications(false)}>
 
-      {/* Top bar */}
       <div style={{ background: PALETTE.espresso, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>Brown Butter</span>
@@ -807,7 +827,7 @@ export default function Dashboard() {
           <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.caramel : '#7a5a3a', fontSize: 16, lineHeight: 1, padding: '4px 6px', borderRadius: 6, transition: 'color 0.15s' }}>
+          <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.caramel : '#7a5a3a', fontSize: 16, lineHeight: 1, padding: '4px 6px', borderRadius: 6 }}>
             🔔
             {unreadCount > 0 && (
               <span style={{ position: 'absolute', top: 0, right: 0, background: '#C0392B', color: '#fff', borderRadius: '50%', width: 14, height: 14, fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.body, fontWeight: 700, border: '1.5px solid ' + PALETTE.espresso }}>
@@ -820,25 +840,15 @@ export default function Dashboard() {
             onMouseLeave={e => e.currentTarget.style.background = PALETTE.caramel}
           >+ New Post</button>
         </div>
-        {showNotifications && (
-          <NotificationsPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkAllRead={markAllRead} />
-        )}
+        {showNotifications && <NotificationsPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkAllRead={markAllRead} />}
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-
-        {/* Sidebar */}
         <div style={{ width: 200, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
           <div style={{ padding: '18px 14px 8px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Clients</div>
             {[{ id: 'all', name: 'All Clients', brand_color: PALETTE.caramel }, ...clients].map(c => (
-              <button key={c.id} onClick={() => setSelectedClient(c.id)} style={{
-                width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5,
-                border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent',
-                color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted,
-                fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body,
-                marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s'
-              }}
+              <button key={c.id} onClick={() => setSelectedClient(c.id)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s' }}
                 onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
               >
@@ -851,12 +861,7 @@ export default function Dashboard() {
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
             {[['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar']].map(([k, l]) => (
-              <button key={k} onClick={() => setView(k)} style={{
-                width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5,
-                border: 'none', background: view === k ? PALETTE.creamDark : 'transparent',
-                color: view === k ? PALETTE.espresso : PALETTE.muted,
-                fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s'
-              }}
+              <button key={k} onClick={() => setView(k)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s' }}
                 onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
               >{l}</button>
@@ -873,13 +878,7 @@ export default function Dashboard() {
               ['published', 'Published', counts.published, '#888'],
               ['archived', 'Archived', counts.archived, '#bbb'],
             ].map(([k, l, n, dot]) => (
-              <button key={k} onClick={() => setFilter(k)} style={{
-                width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5,
-                border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent',
-                color: filter === k ? PALETTE.espresso : PALETTE.muted,
-                fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body,
-                marginBottom: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s'
-              }}
+              <button key={k} onClick={() => setFilter(k)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
                 onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
               >
@@ -897,7 +896,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Main content */}
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
@@ -922,11 +920,14 @@ export default function Dashboard() {
                           onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(44,31,14,0.08)' }}
                           onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}
                         >
-                          <div style={{ height: 120, background: post.image_url ? 'transparent' : PALETTE.creamDark, overflow: 'hidden' }}>
-                            {post.image_url
-                              ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 16 }}>BB</div>
-                            }
+                          <div style={{ height: 120, background: post.image_url ? 'transparent' : PALETTE.creamDark, overflow: 'hidden', position: 'relative' }}>
+                            {post.image_url && !isVideo(post.image_url) && <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                            {post.image_url && isVideo(post.image_url) && (
+                              <div style={{ width: '100%', height: '100%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                              </div>
+                            )}
+                            {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 16 }}>BB</div>}
                           </div>
                           <div style={{ padding: '10px 12px' }}>
                             <Badge status={post.status} />
@@ -943,21 +944,18 @@ export default function Dashboard() {
                       const formatLabel = post.format ? post.format.charAt(0).toUpperCase() + post.format.slice(1) : 'Post'
                       const hasUnread = postComments.some(c => c.author_type === 'client' && !seenIds.has('comment-' + c.id))
                       return (
-                        <div key={post.id} onClick={() => setSelectedPost(post)} style={{
-                          display: 'flex', alignItems: 'center', gap: 14, padding: '13px 22px',
-                          borderBottom: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer',
-                          background: isSelected ? '#FDF8F0' : '#fff',
-                          borderLeft: isSelected ? '2px solid ' + PALETTE.caramel : '2px solid transparent',
-                          transition: 'background 0.1s'
-                        }}
+                        <div key={post.id} onClick={() => setSelectedPost(post)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer', background: isSelected ? '#FDF8F0' : '#fff', borderLeft: isSelected ? '2px solid ' + PALETTE.caramel : '2px solid transparent', transition: 'background 0.1s' }}
                           onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = PALETTE.creamMid }}
                           onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = '#fff' }}
                         >
-                          <div style={{ width: 50, height: 50, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark }}>
-                            {post.image_url
-                              ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>
-                            }
+                          <div style={{ width: 50, height: 50, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
+                            {post.image_url && !isVideo(post.image_url) && <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                            {post.image_url && isVideo(post.image_url) && (
+                              <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
+                              </div>
+                            )}
+                            {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
@@ -978,7 +976,6 @@ export default function Dashboard() {
           }
         </div>
 
-        {/* Right panel */}
         {selectedPost && (
           <RightPanel
             post={posts.find(p => p.id === selectedPost.id) || selectedPost}
