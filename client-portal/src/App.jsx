@@ -116,8 +116,6 @@ function IGMockup({ post, client }) {
   return (
     <div style={{ padding: '16px 20px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
       <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
-
-        {/* Header */}
         <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{initials}</div>
           <div style={{ flex: 1 }}>
@@ -126,16 +124,12 @@ function IGMockup({ post, client }) {
           </div>
           <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
         </div>
-
-        {/* Image */}
         {post.image_url
           ? <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
           : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No image uploaded</span>
             </div>
         }
-
-        {/* Actions */}
         <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 14, alignItems: 'center' }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -144,14 +138,12 @@ function IGMockup({ post, client }) {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </div>
         </div>
-
-        {/* Caption — full, not truncated */}
         <div style={{ padding: '0 12px 12px' }}>
           <div style={{ fontFamily: F.body, fontSize: 13, color: '#111', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
-           {post.caption.split('\n').map((line, i, arr) => (
-  <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
-))}
+            {(post.caption || '').split('\n').map((line, i, arr) => (
+              <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+            ))}
           </div>
           {post.scheduled_at && (
             <div style={{ fontFamily: F.body, fontSize: 11, color: '#999', marginTop: 6 }}>
@@ -198,13 +190,14 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
     ? post.format.charAt(0).toUpperCase() + post.format.slice(1) + (post.slide_count ? ' · ' + post.slide_count + ' slides' : '')
     : 'Post'
 
+  const isPublished = post.status === 'published'
+
   return (
     <div style={{
       width: 320, background: '#fff',
       borderLeft: '0.5px solid ' + PALETTE.border,
       display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden'
     }}>
-      {/* Header */}
       <div style={{ padding: '16px 20px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
@@ -218,10 +211,8 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
         >✕</button>
       </div>
 
-      {/* ── Instagram mockup (replaces flat image) ── */}
       <IGMockup post={post} client={client} />
 
-      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
         {[
           ['details', 'Details'],
@@ -273,7 +264,8 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
               </>
             )}
 
-            {post.status !== 'archived' && post.status !== 'published' && (
+            {/* Only show action buttons for non-published, non-archived posts */}
+            {!isPublished && post.status !== 'archived' && (
               <>
                 <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -290,7 +282,16 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
               </>
             )}
 
-            {(post.status === 'approved' || post.status === 'published') && (
+            {/* Published state — read only, no action buttons */}
+            {isPublished && (
+              <div style={{ marginTop: 4, padding: '12px 14px', background: '#F2F2F2', borderRadius: 6, border: '0.5px solid #CCC' }}>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: '#555', letterSpacing: '0.03em' }}>
+                  This post is live on Instagram.
+                </div>
+              </div>
+            )}
+
+            {post.status === 'approved' && (
               <div style={{ marginTop: 16, padding: '10px 14px', background: '#E8F8EE', borderRadius: 6, border: '0.5px solid #7ECBA1' }}>
                 <div style={{ fontFamily: F.body, fontSize: 11, color: '#1E6E3E', letterSpacing: '0.03em' }}>{statusLine(post.status)}</div>
               </div>
@@ -390,20 +391,32 @@ export default function ClientPortal() {
   )
 
   const brandColor = client?.brand_color || PALETTE.caramel
-  const activePosts = posts.filter(p => p.status !== 'archived')
-  const filteredPosts = filter === 'all' ? activePosts : activePosts.filter(p => p.status === filter)
+
+  // Active queue: pending, approved, revision only (no published)
+  const activePosts = posts.filter(p => ['pending', 'approved', 'revision'].includes(p.status))
+  // Published history: published only
+  const publishedPosts = posts.filter(p => p.status === 'published')
+
+  // Which pool to show based on filter
+  const isPublishedView = filter === 'published'
+  const pool = isPublishedView ? publishedPosts : activePosts
+
+  const filteredPosts = filter === 'all' ? activePosts
+    : filter === 'published' ? publishedPosts
+    : activePosts.filter(p => p.status === filter)
 
   const counts = {
     all: activePosts.length,
     pending: activePosts.filter(p => p.status === 'pending').length,
     revision: activePosts.filter(p => p.status === 'revision').length,
     approved: activePosts.filter(p => p.status === 'approved').length,
-    scheduled: activePosts.filter(p => p.status === 'approved' || p.status === 'published').length,
+    published: publishedPosts.length,
   }
 
   const pageTitle = filter === 'all' ? 'Your Content'
     : filter === 'pending' ? 'Awaiting Your Approval'
     : filter === 'approved' ? 'Approved Posts'
+    : filter === 'published' ? 'Published Posts'
     : 'Needs Changes'
 
   const firstName = (client?.contact_name || client?.name || '').split(' ')[0]
@@ -441,7 +454,11 @@ export default function ClientPortal() {
               Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.
             </div>
             <div style={{ display: 'flex', gap: 40 }}>
-              {[[counts.pending, 'Awaiting you'], [counts.revision, 'Brown Butter revising'], [counts.scheduled, 'Scheduled']].map(([num, label]) => (
+              {[
+                [counts.pending, 'Awaiting you'],
+                [counts.revision, 'Brown Butter revising'],
+                [counts.published, 'Published'],
+              ].map(([num, label]) => (
                 <div key={label}>
                   <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 34, color: PALETTE.espresso, lineHeight: 1 }}>{num}</div>
                   <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 5, fontWeight: 500 }}>{label}</div>
@@ -483,7 +500,7 @@ export default function ClientPortal() {
               ['approved', 'Approved', counts.approved],
               ['revision', 'Needs Changes', counts.revision],
             ].map(([k, l, n]) => (
-              <button key={k} onClick={() => setFilter(k)} style={{
+              <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{
                 width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5,
                 border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent',
                 color: filter === k ? PALETTE.espresso : PALETTE.muted,
@@ -501,6 +518,28 @@ export default function ClientPortal() {
                 {n > 0 && <span style={{ fontSize: 10, color: filter === k ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{n}</span>}
               </button>
             ))}
+
+            {/* Divider before Published */}
+            <div style={{ height: '0.5px', background: PALETTE.border, margin: '10px 0' }} />
+
+            {/* Published — separate history section */}
+            <button onClick={() => { setFilter('published'); setSelectedPost(null) }} style={{
+              width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5,
+              border: 'none', background: filter === 'published' ? PALETTE.creamDark : 'transparent',
+              color: filter === 'published' ? PALETTE.espresso : PALETTE.muted,
+              fontWeight: filter === 'published' ? 500 : 400, fontSize: 12, fontFamily: F.body,
+              marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              transition: 'all 0.12s'
+            }}
+              onMouseEnter={e => { if (filter !== 'published') e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+              onMouseLeave={e => { if (filter !== 'published') e.currentTarget.style.background = 'transparent' }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS.published.dot, flexShrink: 0, display: 'inline-block' }} />
+                Published
+              </span>
+              {counts.published > 0 && <span style={{ fontSize: 10, color: filter === 'published' ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{counts.published}</span>}
+            </button>
           </div>
 
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '0 16px' }} />
@@ -521,13 +560,16 @@ export default function ClientPortal() {
           <div style={{ padding: '22px 28px 16px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 24, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
             <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
-              {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''} · Click any post to review
+              {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''}
+              {filter === 'published' ? ' · Your published content' : ' · Click any post to review'}
             </div>
           </div>
 
           {filteredPosts.length === 0
             ? <div style={{ padding: 60, textAlign: 'center' }}>
-                <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18 }}>No posts in this category</div>
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18 }}>
+                  {filter === 'published' ? 'No published posts yet' : 'No posts in this category'}
+                </div>
               </div>
             : filteredPosts.map(post => {
                 const postComments = comments.filter(c => c.post_id === post.id)
