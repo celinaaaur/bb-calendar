@@ -257,9 +257,10 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   }
 
   const updateStatus = async (status) => {
-    await supabase.from('posts').update({ status }).eq('id', post.id)
-    onRefresh()
-  }
+  const { error } = await supabase.from('posts').update({ status }).eq('id', post.id)
+  if (error) console.error('Status update error:', error)
+  onRefresh()
+}
 
   const deletePost = async () => {
     if (!window.confirm('Delete this post? This cannot be undone.')) return
