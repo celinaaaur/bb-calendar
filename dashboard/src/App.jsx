@@ -76,6 +76,19 @@ const statusLine = (status) => {
   return ''
 }
 
+// Render caption with line breaks preserved
+function CaptionText({ text, handle, style: extraStyle }) {
+  const lines = (text || '').split('\n')
+  return (
+    <div style={{ fontFamily: F.body, fontSize: 11, color: '#111', lineHeight: 1.6, ...extraStyle }}>
+      {handle && <span style={{ fontWeight: 600 }}>{handle}{' '}</span>}
+      {lines.map((line, i) => (
+        <span key={i}>{line}{i < lines.length - 1 && <br />}</span>
+      ))}
+    </div>
+  )
+}
+
 function Badge({ status }) {
   const s = STATUS[status] || STATUS.pending
   return (
@@ -200,6 +213,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   const fileRef = useRef()
 
   const client = clients.find(c => c.id === post.client_id)
+  const handle = client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'
 
   useEffect(() => {
     setEditCaption(post.caption)
@@ -257,10 +271,10 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   }
 
   const updateStatus = async (status) => {
-  const { error } = await supabase.from('posts').update({ status }).eq('id', post.id)
-  if (error) console.error('Status update error:', error)
-  onRefresh()
-}
+    const { error } = await supabase.from('posts').update({ status }).eq('id', post.id)
+    if (error) console.error('Status update error:', error)
+    onRefresh()
+  }
 
   const deletePost = async () => {
     if (!window.confirm('Delete this post? This cannot be undone.')) return
@@ -312,63 +326,63 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
         >✕</button>
       </div>
 
-    {/* IG card mockup (editing shows upload, otherwise shows card) */}
-      {editing
-        ? <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-            <span style={labelStyle}>Asset {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0 }}>uploading...</span>}</span>
-            {editImageUrl
-              ? <div style={{ position: 'relative' }}>
-                  <img src={editImageUrl} alt="" style={{ width: '100%', borderRadius: 6, maxHeight: 130, objectFit: 'cover', display: 'block' }} />
-                  <button onClick={() => setEditImageUrl(null)} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 12 }}>✕</button>
-                </div>
-              : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '14px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
-                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Replace image</div>
+      {/* IG card mockup / edit uploader */}
+      {editing ? (
+        <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+          <span style={labelStyle}>Asset {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0 }}>uploading...</span>}</span>
+          {editImageUrl
+            ? <div style={{ position: 'relative' }}>
+                <img src={editImageUrl} alt="" style={{ width: '100%', borderRadius: 6, maxHeight: 130, objectFit: 'cover', display: 'block' }} />
+                <button onClick={() => setEditImageUrl(null)} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 12 }}>✕</button>
+              </div>
+            : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '14px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Replace image</div>
+              </div>
+          }
+          <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+        </div>
+      ) : (
+        <div style={{ padding: '12px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+          <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
+            {/* Post header */}
+            <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>
+                {(client?.name || 'BB').slice(0, 2).toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: '#111' }}>{handle}</div>
+                {post.campaign && <div style={{ fontFamily: F.body, fontSize: 9, color: '#999' }}>{post.campaign}</div>}
+              </div>
+              <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
+            </div>
+            {/* Image */}
+            {post.image_url
+              ? <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+              : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No image</span>
                 </div>
             }
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
-          </div>
-        : <div style={{ padding: '12px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-            <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>
-                  {(client?.name || 'BB').slice(0, 2).toUpperCase()}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: '#111' }}>{client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'}</div>
-                  {post.campaign && <div style={{ fontFamily: F.body, fontSize: 9, color: '#999' }}>{post.campaign}</div>}
-                </div>
-                <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
-              </div>
-              {post.image_url
-                ? <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No image</span>
-                  </div>
-              }
-              <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                <div style={{ marginLeft: 'auto' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                </div>
-              </div>
-              <div style={{ padding: '0 10px 10px' }}>
-                <div style={{ fontFamily: F.body, fontSize: 11, color: '#111', lineHeight: 1.5 }}>
-  <span style={{ fontWeight: 600 }}>{client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'}</span>{' '}
-  {post.caption.split(`
-`).map((line, i, arr) => (
-  <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
-))}
-</div>
-                </div>
-                {post.scheduled_at && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>}
+            {/* Action icons */}
+            <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              <div style={{ marginLeft: 'auto' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </div>
             </div>
+            {/* Caption with line breaks */}
+            <div style={{ padding: '0 10px 10px' }}>
+              <CaptionText text={post.caption} handle={handle} />
+              {post.scheduled_at && (
+                <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>
+              )}
+            </div>
           </div>
-      }
+        </div>
+      )}
 
-      {/* Tabs — Discussion renamed to Comments */}
+      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
         {[
           ['details', 'Details'],
@@ -406,7 +420,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
             </div>
 
             {editing ? (
-              /* ── Edit form ── */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
@@ -444,7 +457,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
                 </div>
               </div>
             ) : (
-              /* ── Read view ── */
               <div style={{ marginBottom: 20 }}>
                 {[
                   ['Client', client?.name],
@@ -481,7 +493,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
               </div>
             )}
 
-            {/* Status */}
+            {/* Status buttons */}
             {post.status !== 'archived' && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 10, textTransform: 'uppercase' }}>Update Status</div>
@@ -489,17 +501,18 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
                   {['pending', 'approved', 'revision', 'published'].map(k => {
                     const s = STATUS[k]
                     const labels = { pending: 'Reset to pending', approved: 'Mark as approved', revision: 'Request revisions', published: 'Mark as published' }
+                    const isCurrent = post.status === k
                     return (
                       <button key={k} onClick={() => updateStatus(k)} style={{
                         padding: '8px 12px', borderRadius: 6,
-                        border: '0.5px solid ' + (post.status === k ? s.dot : PALETTE.borderLight),
-                        background: post.status === k ? s.bg : '#fff',
-                        color: post.status === k ? s.color : PALETTE.muted,
-                        fontWeight: post.status === k ? 500 : 400,
+                        border: '0.5px solid ' + (isCurrent ? s.dot : PALETTE.borderLight),
+                        background: isCurrent ? s.bg : '#fff',
+                        color: isCurrent ? s.color : PALETTE.muted,
+                        fontWeight: isCurrent ? 500 : 400,
                         fontSize: 11, fontFamily: F.body, textAlign: 'left', transition: 'all 0.15s'
                       }}
-                        onMouseEnter={e => { if (post.status !== k) e.currentTarget.style.background = PALETTE.creamMid }}
-                        onMouseLeave={e => { if (post.status !== k) e.currentTarget.style.background = '#fff' }}
+                        onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = PALETTE.creamMid }}
+                        onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = '#fff' }}
                       >{labels[k]}</button>
                     )
                   })}
@@ -556,7 +569,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   )
 }
 
-// ── Compose / Edit modal ─────────────────────────────────────────────────────
+// ── Compose modal ─────────────────────────────────────────────────────────────
 function ComposeModal({ clients, onClose, onSaved }) {
   const [clientId, setClientId] = useState(clients[0]?.id || '')
   const [caption, setCaption] = useState('')
@@ -625,14 +638,12 @@ function ComposeModal({ clients, onClose, onSaved }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.caramel, fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
-
           <div>
             {fieldLabel('Client', true)}
             <select value={clientId} onChange={e => setClientId(e.target.value)} style={{ ...inputStyle }}>
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               {fieldLabel('Format')}
@@ -647,7 +658,6 @@ function ComposeModal({ clients, onClose, onSaved }) {
               </div>
             )}
           </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               {fieldLabel('Designer', true)}
@@ -658,7 +668,6 @@ function ComposeModal({ clients, onClose, onSaved }) {
               <input value={campaign} onChange={e => setCampaign(e.target.value)} placeholder="e.g. Summer Menu" style={{ ...inputStyle }} />
             </div>
           </div>
-
           <div>
             {fieldLabel('Asset')}
             {uploading && <span style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Uploading...</span>}
@@ -674,19 +683,16 @@ function ComposeModal({ clients, onClose, onSaved }) {
             }
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
           </div>
-
           <div>
             {fieldLabel('Caption', true)}
             <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write your caption..." rows={4}
               style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }} />
             <div style={{ fontFamily: F.body, fontSize: 9, color: caption.length > 2200 ? '#C0392B' : PALETTE.mutedLight, textAlign: 'right', marginTop: 2 }}>{caption.length} / 2,200</div>
           </div>
-
           <div>
             {fieldLabel('Schedule date and time', true)}
             <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={{ ...inputStyle }} />
           </div>
-
           <button onClick={handleSave} disabled={saving || !canSave} style={{
             padding: '12px 0', borderRadius: 8, border: 'none',
             background: canSave ? PALETTE.espresso : PALETTE.creamDark,
@@ -735,7 +741,6 @@ export default function Dashboard() {
     setLoading(false)
   }
 
-  // Build notifications from posts and comments
   useEffect(() => {
     const notifs = []
     posts.forEach(p => {
@@ -774,7 +779,6 @@ export default function Dashboard() {
   }, [])
 
   const unreadCount = notifications.filter(n => !n.read).length
-
   const activePosts = posts.filter(p => p.status !== 'archived')
   const archivedPosts = posts.filter(p => p.status === 'archived')
   const base = filter === 'archived' ? archivedPosts : activePosts
@@ -803,7 +807,6 @@ export default function Dashboard() {
           <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Notification bell */}
           <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.caramel : '#7a5a3a', fontSize: 16, lineHeight: 1, padding: '4px 6px', borderRadius: 6, transition: 'color 0.15s' }}>
             🔔
             {unreadCount > 0 && (
@@ -844,9 +847,7 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
-
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
             {[['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar']].map(([k, l]) => (
@@ -861,9 +862,7 @@ export default function Dashboard() {
               >{l}</button>
             ))}
           </div>
-
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
-
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Filter</div>
             {[
@@ -892,7 +891,6 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-
           <div style={{ margin: '12px 14px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
             <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>IG Grid Preview</div>
             <IGGrid posts={selectedClient === 'all' ? posts : posts.filter(p => p.client_id === selectedClient)} />
