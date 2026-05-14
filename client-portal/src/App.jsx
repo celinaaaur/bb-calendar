@@ -168,16 +168,19 @@ function IGMockup({ post, client }) {
   const hasVideo = isVideo(post.image_url)
 
   return (
-    <div style={{ padding: '14px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-      <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
-        <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{initials}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: '#111' }}>{handle}</div>
-            {post.campaign && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999' }}>{post.campaign}</div>}
-          </div>
-          <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
-        </div>
+   <div style={{ width: '100%', paddingBottom: '100%', position: 'relative', background: PALETTE.creamDark }}>
+  {post.image_url && !isVideo(post.image_url) && (
+    <img src={post.image_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+  )}
+  {post.image_url && isVideo(post.image_url) && (
+    <video src={post.image_url} controls playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#000' }} />
+  )}
+  {!post.image_url && (
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No asset uploaded</span>
+    </div>
+  )}
+</div>
         {post.image_url
           ? hasVideo
             ? <video src={post.image_url} controls playsInline style={{ width: '100%', aspectRatio: isReel ? '9/16' : '1', objectFit: 'cover', display: 'block', background: '#000' }} />
