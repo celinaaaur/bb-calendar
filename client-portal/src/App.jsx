@@ -33,6 +33,13 @@ const PALETTE = {
   mutedLight: '#B8A898',
 }
 
+// ── Media helpers ────────────────────────────────────────────────────────────
+const isVideo = (url) => {
+  if (!url) return false
+  const ext = url.split('?')[0].split('.').pop().toLowerCase()
+  return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext)
+}
+
 const fmt = (str) => {
   if (!str) return ''
   const d = new Date(str)
@@ -99,7 +106,12 @@ function IGGrid({ posts }) {
           aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative',
           background: p ? (p.image_url ? 'transparent' : `hsl(${28 + i * 8},20%,${86 - i * 2}%)`) : '#E8E0D0'
         }}>
-          {p?.image_url && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          {p?.image_url && !isVideo(p.image_url) && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          {p?.image_url && isVideo(p.image_url) && (
+            <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          )}
           {p && !p.image_url && <div style={{ padding: 3, fontSize: 6, color: PALETTE.muted, lineHeight: 1.3 }}>{p.caption?.slice(0, 30)}</div>}
           {p && <div style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.8)' }} />}
         </div>
@@ -112,10 +124,14 @@ function IGMockup({ post, client }) {
   const handle = client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'
   const initials = (client?.name || 'BB').slice(0, 2).toUpperCase()
   const avatarBg = client?.brand_color || PALETTE.caramel
+  const isReel = post.format === 'reel'
+  const hasVideo = isVideo(post.image_url)
 
   return (
     <div style={{ padding: '16px 20px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
       <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
+
+        {/* Header */}
         <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{initials}</div>
           <div style={{ flex: 1 }}>
@@ -124,12 +140,33 @@ function IGMockup({ post, client }) {
           </div>
           <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
         </div>
+
+        {/* Media — video or image/GIF */}
         {post.image_url
-          ? <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+          ? hasVideo
+            ? <video
+                src={post.image_url}
+                controls
+                playsInline
+                style={{
+                  width: '100%',
+                  aspectRatio: isReel ? '9/16' : '1',
+                  objectFit: 'cover',
+                  display: 'block',
+                  background: '#000'
+                }}
+              />
+            : <img
+                src={post.image_url}
+                alt=""
+                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
+              />
           : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No image uploaded</span>
+              <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No asset uploaded</span>
             </div>
         }
+
+        {/* Actions */}
         <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 14, alignItems: 'center' }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -138,6 +175,8 @@ function IGMockup({ post, client }) {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </div>
         </div>
+
+        {/* Caption */}
         <div style={{ padding: '0 12px 12px' }}>
           <div style={{ fontFamily: F.body, fontSize: 13, color: '#111', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
@@ -264,7 +303,6 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
               </>
             )}
 
-            {/* Only show action buttons for non-published, non-archived posts */}
             {!isPublished && post.status !== 'archived' && (
               <>
                 <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
@@ -282,7 +320,6 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
               </>
             )}
 
-            {/* Published state — read only, no action buttons */}
             {isPublished && (
               <div style={{ marginTop: 4, padding: '12px 14px', background: '#F2F2F2', borderRadius: 6, border: '0.5px solid #CCC' }}>
                 <div style={{ fontFamily: F.body, fontSize: 11, color: '#555', letterSpacing: '0.03em' }}>
@@ -391,15 +428,8 @@ export default function ClientPortal() {
   )
 
   const brandColor = client?.brand_color || PALETTE.caramel
-
-  // Active queue: pending, approved, revision only (no published)
   const activePosts = posts.filter(p => ['pending', 'approved', 'revision'].includes(p.status))
-  // Published history: published only
   const publishedPosts = posts.filter(p => p.status === 'published')
-
-  // Which pool to show based on filter
-  const isPublishedView = filter === 'published'
-  const pool = isPublishedView ? publishedPosts : activePosts
 
   const filteredPosts = filter === 'all' ? activePosts
     : filter === 'published' ? publishedPosts
@@ -477,8 +507,13 @@ export default function ClientPortal() {
               const p = pendingPosts[i] || pendingPosts[0]
               const warmBg = `hsl(${14 + i * 5},${42 - i * 8}%,${50 - i * 4}%)`
               return (
-                <div key={i} style={{ position: 'absolute', bottom: layer.bottom, right: layer.right, width: 178, height: 178, borderRadius: 10, background: p?.image_url ? 'transparent' : warmBg, transform: `rotate(${layer.rotate})`, opacity: layer.opacity, zIndex: layer.z, overflow: 'hidden', boxShadow: '0 6px 24px rgba(44,31,14,0.10)' }}>
-                  {p?.image_url && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                <div key={i} style={{ position: 'absolute', bottom: layer.bottom, right: layer.right, width: 178, height: 178, borderRadius: 10, background: p?.image_url && !isVideo(p.image_url) ? 'transparent' : warmBg, transform: `rotate(${layer.rotate})`, opacity: layer.opacity, zIndex: layer.z, overflow: 'hidden', boxShadow: '0 6px 24px rgba(44,31,14,0.10)' }}>
+                  {p?.image_url && !isVideo(p.image_url) && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  {p?.image_url && isVideo(p.image_url) && (
+                    <div style={{ width: '100%', height: '100%', background: '#2C1F0E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                  )}
                   {i === 2 && <div style={{ position: 'absolute', bottom: 12, left: 14, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{pendingPosts[0]?.format?.toUpperCase() || 'POST'}</div>}
                 </div>
               )
@@ -519,10 +554,8 @@ export default function ClientPortal() {
               </button>
             ))}
 
-            {/* Divider before Published */}
             <div style={{ height: '0.5px', background: PALETTE.border, margin: '10px 0' }} />
 
-            {/* Published — separate history section */}
             <button onClick={() => { setFilter('published'); setSelectedPost(null) }} style={{
               width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5,
               border: 'none', background: filter === 'published' ? PALETTE.creamDark : 'transparent',
@@ -575,6 +608,7 @@ export default function ClientPortal() {
                 const postComments = comments.filter(c => c.post_id === post.id)
                 const isSelected = selectedPost?.id === post.id
                 const formatLabel = post.format ? post.format.charAt(0).toUpperCase() + post.format.slice(1) : 'Post'
+                const hasVideo = isVideo(post.image_url)
                 return (
                   <div key={post.id} onClick={() => setSelectedPost(post)} style={{
                     display: 'flex', alignItems: 'center', gap: 16, padding: '14px 24px',
@@ -586,11 +620,15 @@ export default function ClientPortal() {
                     onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = PALETTE.creamMid }}
                     onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = '#fff' }}
                   >
-                    <div style={{ width: 52, height: 52, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark }}>
-                      {post.image_url
-                        ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>
-                      }
+                    {/* Thumbnail */}
+                    <div style={{ width: 52, height: 52, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
+                      {post.image_url && !hasVideo && <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      {post.image_url && hasVideo && (
+                        <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
+                        </div>
+                      )}
+                      {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
@@ -604,7 +642,8 @@ export default function ClientPortal() {
                         {postComments.length > 0 && <span style={{ fontFamily: F.body, fontSize: 10, color: brandColor, fontWeight: 500 }}>{postComments.length} comment{postComments.length !== 1 ? 's' : ''}</span>}
                       </div>
                     </div>
-                    {post.image_url && <img src={post.image_url} alt="" style={{ width: 42, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0, opacity: 0.6 }} />}
+                    {/* Right thumb — only for images/GIFs, not video */}
+                    {post.image_url && !hasVideo && <img src={post.image_url} alt="" style={{ width: 42, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0, opacity: 0.6 }} />}
                   </div>
                 )
               })
