@@ -29,18 +29,18 @@ style.textContent = `
     z-index: 200;
     animation: fadeIn 0.2s ease;
   }
-  .bottom-sheet {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    background: #fff;
-    border-radius: 18px 18px 0 0;
-    max-height: 92vh;
-    display: flex;
-    flex-direction: column;
-    z-index: 201;
-    animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
-    overflow: hidden;
-  }
+ .bottom-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: #fff;
+  border-radius: 18px 18px 0 0;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 201;
+  animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
+  overflow: hidden;
+}
   @keyframes fadeIn {
     from { opacity: 0; } to { opacity: 1; }
   }
@@ -276,7 +276,7 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
       </div>
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '18px 18px 32px' }}>
+     <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '18px 18px 32px', minHeight: 0 }}>
         {activeTab === 'details' && (
           <div>
             <div style={{ marginBottom: 20 }}>
