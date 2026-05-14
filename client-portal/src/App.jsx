@@ -11,6 +11,49 @@ style.textContent = `
   ::-webkit-scrollbar-thumb { background: #D4C9B0; border-radius: 4px; }
   textarea:focus, input:focus { outline: none; }
   button { cursor: pointer; }
+
+  .filter-scroll {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 14px 16px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .filter-scroll::-webkit-scrollbar { display: none; }
+
+  .bottom-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(44,31,14,0.4);
+    z-index: 200;
+    animation: fadeIn 0.2s ease;
+  }
+  .bottom-sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: #fff;
+    border-radius: 18px 18px 0 0;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    z-index: 201;
+    animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
+    overflow: hidden;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); } to { transform: translateY(0); }
+  }
+  .sheet-drag-handle {
+    width: 36px; height: 4px;
+    background: #D4C9B0;
+    border-radius: 4px;
+    margin: 10px auto 4px;
+    flex-shrink: 0;
+  }
 `
 document.head.appendChild(style)
 
@@ -33,7 +76,6 @@ const PALETTE = {
   mutedLight: '#B8A898',
 }
 
-// ── Media helpers ────────────────────────────────────────────────────────────
 const isVideo = (url) => {
   if (!url) return false
   const ext = url.split('?')[0].split('.').pop().toLowerCase()
@@ -49,7 +91,6 @@ const fmtShort = (str) => {
   if (!str) return ''
   return new Date(str).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
 }
-
 const weekRange = () => {
   const now = new Date()
   const day = now.getDay()
@@ -58,7 +99,6 @@ const weekRange = () => {
   const f = (d) => d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }).toUpperCase()
   return f(mon) + ' — ' + f(sun)
 }
-
 const greeting = () => {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -128,55 +168,32 @@ function IGMockup({ post, client }) {
   const hasVideo = isVideo(post.image_url)
 
   return (
-    <div style={{ padding: '16px 20px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+    <div style={{ padding: '14px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
       <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
-
-        {/* Header */}
         <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{initials}</div>
+          <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{initials}</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: '#111' }}>{handle}</div>
             {post.campaign && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999' }}>{post.campaign}</div>}
           </div>
           <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
         </div>
-
-        {/* Media — video or image/GIF */}
         {post.image_url
           ? hasVideo
-            ? <video
-                src={post.image_url}
-                controls
-                playsInline
-                style={{
-                  width: '100%',
-                  aspectRatio: isReel ? '9/16' : '1',
-                  objectFit: 'cover',
-                  display: 'block',
-                  background: '#000'
-                }}
-              />
-            : <img
-                src={post.image_url}
-                alt=""
-                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
-              />
+            ? <video src={post.image_url} controls playsInline style={{ width: '100%', aspectRatio: isReel ? '9/16' : '1', objectFit: 'cover', display: 'block', background: '#000' }} />
+            : <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
           : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No asset uploaded</span>
             </div>
         }
-
-        {/* Actions */}
         <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 14, alignItems: 'center' }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           <div style={{ marginLeft: 'auto' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </div>
         </div>
-
-        {/* Caption */}
         <div style={{ padding: '0 12px 12px' }}>
           <div style={{ fontFamily: F.body, fontSize: 13, color: '#111', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
@@ -185,9 +202,7 @@ function IGMockup({ post, client }) {
             ))}
           </div>
           {post.scheduled_at && (
-            <div style={{ fontFamily: F.body, fontSize: 11, color: '#999', marginTop: 6 }}>
-              {fmtShort(post.scheduled_at)}
-            </div>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: '#999', marginTop: 6 }}>{fmtShort(post.scheduled_at)}</div>
           )}
         </div>
       </div>
@@ -195,12 +210,14 @@ function IGMockup({ post, client }) {
   )
 }
 
-function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
+// ── Bottom sheet panel (mobile) + side panel (desktop) ───────────────────────
+function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMobile }) {
   const [newComment, setNewComment] = useState('')
   const [authorName, setAuthorName] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
   const brandColor = client?.brand_color || PALETTE.caramel
+  const isPublished = post.status === 'published'
 
   const sendComment = async () => {
     if (!newComment.trim()) return
@@ -219,6 +236,7 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
   const setStatus = async (status) => {
     await supabase.from('posts').update({ status }).eq('id', post.id)
     onRefresh()
+    if (isMobile) onClose()
   }
 
   const handleKeyDown = (e) => {
@@ -229,45 +247,36 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
     ? post.format.charAt(0).toUpperCase() + post.format.slice(1) + (post.slide_count ? ' · ' + post.slide_count + ' slides' : '')
     : 'Post'
 
-  const isPublished = post.status === 'published'
-
-  return (
-    <div style={{
-      width: 320, background: '#fff',
-      borderLeft: '0.5px solid ' + PALETTE.border,
-      display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden'
-    }}>
-      <div style={{ padding: '16px 20px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
+  const content = (
+    <>
+      {/* Header */}
+      <div style={{ padding: '14px 18px 12px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
-          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 13, color: PALETTE.espresso, marginTop: 8, lineHeight: 1.4 }}>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 13, color: PALETTE.espresso, marginTop: 7, lineHeight: 1.4 }}>
             {post.caption?.slice(0, 55)}{post.caption?.length > 55 ? '…' : ''}
           </div>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, color: PALETTE.mutedLight, lineHeight: 1, flexShrink: 0, padding: 2, marginTop: 2, transition: 'color 0.15s' }}
-          onMouseEnter={e => e.currentTarget.style.color = PALETTE.espresso}
-          onMouseLeave={e => e.currentTarget.style.color = PALETTE.mutedLight}
-        >✕</button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, color: PALETTE.mutedLight, lineHeight: 1, flexShrink: 0, padding: 4 }}>✕</button>
       </div>
 
       <IGMockup post={post} client={client} />
 
+      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-        {[
-          ['details', 'Details'],
-          ['discussion', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]
-        ].map(([k, l]) => (
+        {[['details', 'Details'], ['discussion', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]].map(([k, l]) => (
           <button key={k} onClick={() => setActiveTab(k)} style={{
-            flex: 1, padding: '11px 0', border: 'none', background: 'transparent',
-            fontFamily: F.body, fontSize: 11, fontWeight: activeTab === k ? 500 : 400,
+            flex: 1, padding: '12px 0', border: 'none', background: 'transparent',
+            fontFamily: F.body, fontSize: 12, fontWeight: activeTab === k ? 500 : 400,
             color: activeTab === k ? PALETTE.espresso : PALETTE.muted,
             borderBottom: activeTab === k ? '1.5px solid ' + brandColor : '1.5px solid transparent',
-            transition: 'all 0.15s', letterSpacing: '0.03em'
+            transition: 'all 0.15s'
           }}>{l}</button>
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '18px 18px 32px' }}>
         {activeTab === 'details' && (
           <div>
             <div style={{ marginBottom: 20 }}>
@@ -287,9 +296,9 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
 
             {versions.length > 0 && (
               <>
-                <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 20 }} />
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 14, textTransform: 'uppercase' }}>Version History</div>
+                <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 12, textTransform: 'uppercase' }}>Version History</div>
                   {versions.sort((a, b) => b.version_number - a.version_number).map(v => (
                     <div key={v.id} style={{ display: 'flex', gap: 12, marginBottom: 14, paddingBottom: 14, borderBottom: '0.5px dashed ' + PALETTE.borderLight }}>
                       <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: '#9B2B20', flexShrink: 0, width: 26 }}>v{v.version_number}</div>
@@ -307,30 +316,28 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
               <>
                 <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <button onClick={() => setStatus('revision')} style={{ flex: 1, padding: '10px 8px', borderRadius: 6, border: '0.5px solid #D4A0A0', background: '#fff', color: '#9B2B20', fontWeight: 400, fontSize: 12, fontFamily: F.body, transition: 'all 0.15s' }}
+                  <button onClick={() => setStatus('revision')} style={{ flex: 1, padding: '12px 8px', borderRadius: 8, border: '0.5px solid #D4A0A0', background: '#fff', color: '#9B2B20', fontWeight: 400, fontSize: 13, fontFamily: F.body, transition: 'all 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#FEECEA'}
                     onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                   >Request revisions</button>
-                  <button onClick={() => setStatus('approved')} style={{ flex: 1, padding: '10px 8px', borderRadius: 6, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontWeight: 400, fontSize: 12, fontFamily: F.body, transition: 'all 0.15s' }}
+                  <button onClick={() => setStatus('approved')} style={{ flex: 1, padding: '12px 8px', borderRadius: 8, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontWeight: 400, fontSize: 13, fontFamily: F.body, transition: 'all 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.background = PALETTE.espressoLight}
                     onMouseLeave={e => e.currentTarget.style.background = PALETTE.espresso}
                   >+ Approve</button>
                 </div>
-                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, textAlign: 'center', letterSpacing: '0.04em' }}>{statusLine(post.status)}</div>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, textAlign: 'center', letterSpacing: '0.04em' }}>{statusLine(post.status)}</div>
               </>
             )}
 
             {isPublished && (
               <div style={{ marginTop: 4, padding: '12px 14px', background: '#F2F2F2', borderRadius: 6, border: '0.5px solid #CCC' }}>
-                <div style={{ fontFamily: F.body, fontSize: 11, color: '#555', letterSpacing: '0.03em' }}>
-                  This post is live on Instagram.
-                </div>
+                <div style={{ fontFamily: F.body, fontSize: 12, color: '#555' }}>This post is live on Instagram.</div>
               </div>
             )}
 
             {post.status === 'approved' && (
-              <div style={{ marginTop: 16, padding: '10px 14px', background: '#E8F8EE', borderRadius: 6, border: '0.5px solid #7ECBA1' }}>
-                <div style={{ fontFamily: F.body, fontSize: 11, color: '#1E6E3E', letterSpacing: '0.03em' }}>{statusLine(post.status)}</div>
+              <div style={{ marginTop: 16, padding: '12px 14px', background: '#E8F8EE', borderRadius: 6, border: '0.5px solid #7ECBA1' }}>
+                <div style={{ fontFamily: F.body, fontSize: 12, color: '#1E6E3E' }}>{statusLine(post.status)}</div>
               </div>
             )}
           </div>
@@ -339,31 +346,31 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
         {activeTab === 'discussion' && (
           <div>
             {comments.length === 0 && (
-              <p style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', margin: '0 0 20px', lineHeight: 1.6 }}>
+              <p style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight, fontStyle: 'italic', margin: '0 0 20px', lineHeight: 1.6 }}>
                 No comments yet. Leave a note for the Brown Butter team.
               </p>
             )}
             {comments.map(c => (
               <div key={c.id} style={{ marginBottom: 18, paddingBottom: 18, borderBottom: '0.5px dashed ' + PALETTE.borderLight }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'baseline' }}>
-                  <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 500, color: PALETTE.espresso }}>
+                  <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 500, color: PALETTE.espresso }}>
                     {c.author_type === 'agency' ? 'Brown Butter' : c.author}
                   </span>
-                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmtShort(c.created_at)}</span>
+                  <span style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight }}>{fmtShort(c.created_at)}</span>
                 </div>
                 <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.65 }}>{c.text}</p>
               </div>
             ))}
             <input value={authorName} onChange={e => setAuthorName(e.target.value)} placeholder="Your name (optional)"
-              style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, marginBottom: 8, fontFamily: F.body }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 13, color: PALETTE.espresso, marginBottom: 10, fontFamily: F.body }}
             />
-            <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 10, padding: '12px 14px' }}>
               <textarea value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={handleKeyDown} placeholder="Leave a note for the team..." rows={3}
                 style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, color: PALETTE.espresso, resize: 'none', fontFamily: F.body, lineHeight: 1.6 }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid ' + PALETTE.borderLight }}>
                 <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>⌘ + Enter to send</span>
-                <button onClick={sendComment} disabled={saving || !newComment.trim()} style={{ padding: '6px 16px', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: newComment.trim() ? PALETTE.espresso : '#fff', color: newComment.trim() ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: 400, opacity: saving ? 0.5 : 1, transition: 'all 0.15s' }}>
+                <button onClick={sendComment} disabled={saving || !newComment.trim()} style={{ padding: '8px 18px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: newComment.trim() ? PALETTE.espresso : '#fff', color: newComment.trim() ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 13, opacity: saving ? 0.5 : 1, transition: 'all 0.15s' }}>
                   Post comment
                 </button>
               </div>
@@ -371,10 +378,29 @@ function RightPanel({ post, comments, versions, client, onClose, onRefresh }) {
           </div>
         )}
       </div>
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <>
+        <div className="bottom-sheet-overlay" onClick={onClose} />
+        <div className="bottom-sheet">
+          <div className="sheet-drag-handle" />
+          {content}
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <div style={{ width: 320, background: '#fff', borderLeft: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
+      {content}
     </div>
   )
 }
 
+// ── Main portal ──────────────────────────────────────────────────────────────
 export default function ClientPortal() {
   const [client, setClient] = useState(null)
   const [posts, setPosts] = useState([])
@@ -384,6 +410,13 @@ export default function ClientPortal() {
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const slug = window.location.pathname.replace('/', '').split('/')[0] || ''
 
@@ -413,7 +446,7 @@ export default function ClientPortal() {
     <div style={{ minHeight: '100vh', background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 22, color: PALETTE.caramel, marginBottom: 8 }}>Brown Butter</div>
-        <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontWeight: 300, letterSpacing: '0.05em' }}>Loading your content...</div>
+        <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontWeight: 300 }}>Loading your content...</div>
       </div>
     </div>
   )
@@ -451,153 +484,168 @@ export default function ClientPortal() {
 
   const firstName = (client?.contact_name || client?.name || '').split(' ')[0]
 
+  const filterOptions = [
+    ['all', 'All Posts', counts.all],
+    ['pending', 'Awaiting Approval', counts.pending],
+    ['approved', 'Approved', counts.approved],
+    ['revision', 'Needs Changes', counts.revision],
+    ['published', 'Published', counts.published],
+  ]
+
   return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Hero header ── */}
-      <div style={{ background: PALETTE.cream, borderBottom: '0.5px solid ' + PALETTE.border, padding: '28px 40px 24px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-            <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 22, color: PALETTE.espresso }}>{client.name}</span>
-            <span style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, fontWeight: 300, fontStyle: 'italic' }}>— this week on social</span>
+      {/* ── Hero ── */}
+      <div style={{ background: PALETTE.cream, borderBottom: '0.5px solid ' + PALETTE.border, padding: isMobile ? '20px 20px 18px' : '28px 40px 24px', flexShrink: 0 }}>
+
+        {/* Brand + greeting */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isMobile ? 20 : 32 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 18 : 22, color: PALETTE.espresso }}>{client.name}</span>
+            <span style={{ fontFamily: F.body, fontSize: isMobile ? 12 : 14, color: PALETTE.muted, fontWeight: 300, fontStyle: 'italic' }}>— this week on social</span>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: PALETTE.espresso }}>{greeting()}, {firstName}.</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: PALETTE.caramel, display: 'inline-block' }} />
-              <span style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Prepared by Brown Butter</span>
+          <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 13 : 16, color: PALETTE.espresso }}>{greeting()}, {firstName}.</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, marginTop: 4 }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: PALETTE.caramel, display: 'inline-block' }} />
+              <span style={{ fontFamily: F.body, fontSize: 8, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Prepared by Brown Butter</span>
             </div>
           </div>
         </div>
 
-        <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 500 }}>
+        {/* Week label */}
+        <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, fontWeight: 500 }}>
           This week · {weekRange()}
         </div>
 
+        {/* Headline + stack */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div style={{ maxWidth: 540 }}>
-            <div style={{ fontFamily: F.display, fontSize: 52, lineHeight: 1.05, color: PALETTE.espresso, marginBottom: 16 }}>
+          <div style={{ maxWidth: isMobile ? '100%' : 540, flex: 1 }}>
+            <div style={{ fontFamily: F.display, fontSize: isMobile ? 36 : 52, lineHeight: 1.05, color: PALETTE.espresso, marginBottom: isMobile ? 10 : 16 }}>
               <span style={{ color: PALETTE.caramel }}>{counts.pending}</span> post{counts.pending !== 1 ? 's' : ''} waiting<br />
               on your approval.
             </div>
-            <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.65, marginBottom: 28, maxWidth: 400 }}>
-              Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.
-            </div>
-            <div style={{ display: 'flex', gap: 40 }}>
+            {!isMobile && (
+              <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.65, marginBottom: 28, maxWidth: 400 }}>
+                Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.
+              </div>
+            )}
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: isMobile ? 24 : 40, marginTop: isMobile ? 12 : 0 }}>
               {[
                 [counts.pending, 'Awaiting you'],
-                [counts.revision, 'Brown Butter revising'],
+                [counts.revision, 'Revising'],
                 [counts.published, 'Published'],
               ].map(([num, label]) => (
                 <div key={label}>
-                  <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 34, color: PALETTE.espresso, lineHeight: 1 }}>{num}</div>
-                  <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 5, fontWeight: 500 }}>{label}</div>
+                  <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 26 : 34, color: PALETTE.espresso, lineHeight: 1 }}>{num}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 8, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4, fontWeight: 500 }}>{label}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ flexShrink: 0, position: 'relative', width: 210, height: 210, marginBottom: 8 }}>
-            {[
-              { rotate: '-5deg', bottom: '14px', right: '8px', opacity: 0.3, z: 1 },
-              { rotate: '-2deg', bottom: '6px', right: '4px', opacity: 0.6, z: 2 },
-              { rotate: '1.5deg', bottom: '0px', right: '0px', opacity: 1, z: 3 },
-            ].map((layer, i) => {
-              const pendingPosts = activePosts.filter(p => p.status === 'pending')
-              const p = pendingPosts[i] || pendingPosts[0]
-              const warmBg = `hsl(${14 + i * 5},${42 - i * 8}%,${50 - i * 4}%)`
-              return (
-                <div key={i} style={{ position: 'absolute', bottom: layer.bottom, right: layer.right, width: 178, height: 178, borderRadius: 10, background: p?.image_url && !isVideo(p.image_url) ? 'transparent' : warmBg, transform: `rotate(${layer.rotate})`, opacity: layer.opacity, zIndex: layer.z, overflow: 'hidden', boxShadow: '0 6px 24px rgba(44,31,14,0.10)' }}>
-                  {p?.image_url && !isVideo(p.image_url) && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                  {p?.image_url && isVideo(p.image_url) && (
-                    <div style={{ width: '100%', height: '100%', background: '#2C1F0E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
-                    </div>
-                  )}
-                  {i === 2 && <div style={{ position: 'absolute', bottom: 12, left: 14, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{pendingPosts[0]?.format?.toUpperCase() || 'POST'}</div>}
-                </div>
-              )
-            })}
-          </div>
+          {/* Post stack — hide on very small screens */}
+          {!isMobile && (
+            <div style={{ flexShrink: 0, position: 'relative', width: 210, height: 210, marginBottom: 8 }}>
+              {[
+                { rotate: '-5deg', bottom: '14px', right: '8px', opacity: 0.3, z: 1 },
+                { rotate: '-2deg', bottom: '6px', right: '4px', opacity: 0.6, z: 2 },
+                { rotate: '1.5deg', bottom: '0px', right: '0px', opacity: 1, z: 3 },
+              ].map((layer, i) => {
+                const pendingPosts = activePosts.filter(p => p.status === 'pending')
+                const p = pendingPosts[i] || pendingPosts[0]
+                const warmBg = `hsl(${14 + i * 5},${42 - i * 8}%,${50 - i * 4}%)`
+                return (
+                  <div key={i} style={{ position: 'absolute', bottom: layer.bottom, right: layer.right, width: 178, height: 178, borderRadius: 10, background: p?.image_url && !isVideo(p.image_url) ? 'transparent' : warmBg, transform: `rotate(${layer.rotate})`, opacity: layer.opacity, zIndex: layer.z, overflow: 'hidden', boxShadow: '0 6px 24px rgba(44,31,14,0.10)' }}>
+                    {p?.image_url && !isVideo(p.image_url) && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    {i === 2 && <div style={{ position: 'absolute', bottom: 12, left: 14, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{pendingPosts[0]?.format?.toUpperCase() || 'POST'}</div>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
       {/* ── Body ── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* Sidebar */}
-        <div style={{ width: 192, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '22px 16px' }}>
-            <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Filter</div>
-            {[
-              ['all', 'All Posts', counts.all],
-              ['pending', 'Awaiting Approval', counts.pending],
-              ['approved', 'Approved', counts.approved],
-              ['revision', 'Needs Changes', counts.revision],
-            ].map(([k, l, n]) => (
-              <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{
-                width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5,
-                border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent',
-                color: filter === k ? PALETTE.espresso : PALETTE.muted,
-                fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body,
-                marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                transition: 'all 0.12s'
-              }}
-                onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-                onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
+        {/* Desktop sidebar */}
+        {!isMobile && (
+          <div style={{ width: 192, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div style={{ padding: '22px 16px' }}>
+              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Filter</div>
+              {[['all','All Posts',counts.all],['pending','Awaiting Approval',counts.pending],['approved','Approved',counts.approved],['revision','Needs Changes',counts.revision]].map(([k,l,n]) => (
+                <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
+                  onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                  onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {k !== 'all' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS[k]?.dot || PALETTE.mutedLight, flexShrink: 0, display: 'inline-block' }} />}
+                    {l}
+                  </span>
+                  {n > 0 && <span style={{ fontSize: 10, color: filter === k ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{n}</span>}
+                </button>
+              ))}
+              <div style={{ height: '0.5px', background: PALETTE.border, margin: '10px 0' }} />
+              <button onClick={() => { setFilter('published'); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: filter === 'published' ? PALETTE.creamDark : 'transparent', color: filter === 'published' ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === 'published' ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
+                onMouseEnter={e => { if (filter !== 'published') e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                onMouseLeave={e => { if (filter !== 'published') e.currentTarget.style.background = 'transparent' }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {k !== 'all' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS[k]?.dot || PALETTE.mutedLight, flexShrink: 0, display: 'inline-block' }} />}
-                  {l}
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS.published.dot, flexShrink: 0, display: 'inline-block' }} />
+                  Published
                 </span>
-                {n > 0 && <span style={{ fontSize: 10, color: filter === k ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{n}</span>}
+                {counts.published > 0 && <span style={{ fontSize: 10, color: filter === 'published' ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{counts.published}</span>}
               </button>
-            ))}
-
-            <div style={{ height: '0.5px', background: PALETTE.border, margin: '10px 0' }} />
-
-            <button onClick={() => { setFilter('published'); setSelectedPost(null) }} style={{
-              width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5,
-              border: 'none', background: filter === 'published' ? PALETTE.creamDark : 'transparent',
-              color: filter === 'published' ? PALETTE.espresso : PALETTE.muted,
-              fontWeight: filter === 'published' ? 500 : 400, fontSize: 12, fontFamily: F.body,
-              marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              transition: 'all 0.12s'
-            }}
-              onMouseEnter={e => { if (filter !== 'published') e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-              onMouseLeave={e => { if (filter !== 'published') e.currentTarget.style.background = 'transparent' }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS.published.dot, flexShrink: 0, display: 'inline-block' }} />
-                Published
-              </span>
-              {counts.published > 0 && <span style={{ fontSize: 10, color: filter === 'published' ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{counts.published}</span>}
-            </button>
+            </div>
+            <div style={{ height: '0.5px', background: PALETTE.border, margin: '0 16px' }} />
+            <div style={{ margin: '18px 16px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
+              <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
+              <IGGrid posts={posts} />
+            </div>
+            <div style={{ padding: '20px 16px', marginTop: 'auto' }}>
+              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3, fontWeight: 300 }}>Managed by</div>
+              <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 15 }}>Brown Butter</div>
+            </div>
           </div>
+        )}
 
-          <div style={{ height: '0.5px', background: PALETTE.border, margin: '0 16px' }} />
+        {/* Main content */}
+        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
 
-          <div style={{ margin: '18px 16px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
-            <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
-            <IGGrid posts={posts} />
-          </div>
+          {/* Mobile filter chips */}
+          {isMobile && (
+            <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream }}>
+              {filterOptions.map(([k, l, n]) => (
+                <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{
+                  flexShrink: 0, padding: '7px 14px', borderRadius: 20,
+                  border: '0.5px solid ' + (filter === k ? brandColor : PALETTE.border),
+                  background: filter === k ? PALETTE.espresso : '#fff',
+                  color: filter === k ? PALETTE.cream : PALETTE.muted,
+                  fontFamily: F.body, fontSize: 12, fontWeight: filter === k ? 500 : 400,
+                  whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6,
+                  transition: 'all 0.12s'
+                }}>
+                  {k !== 'all' && <span style={{ width: 5, height: 5, borderRadius: '50%', background: filter === k ? PALETTE.cream : (STATUS[k]?.dot || PALETTE.mutedLight), display: 'inline-block' }} />}
+                  {l}
+                  {n > 0 && <span style={{ fontSize: 10, opacity: 0.7 }}>{n}</span>}
+                </button>
+              ))}
+            </div>
+          )}
 
-          <div style={{ padding: '20px 16px', marginTop: 'auto' }}>
-            <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3, fontWeight: 300 }}>Managed by</div>
-            <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 15 }}>Brown Butter</div>
-          </div>
-        </div>
-
-        {/* Main list */}
-        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
-          <div style={{ padding: '22px 28px 16px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
-            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 24, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
-            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
+          {/* Section header */}
+          <div style={{ padding: isMobile ? '16px 20px 12px' : '22px 28px 16px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
+            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
+            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 5, fontWeight: 300 }}>
               {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''}
-              {filter === 'published' ? ' · Your published content' : ' · Click any post to review'}
+              {filter === 'published' ? ' · Your published content' : ' · Tap any post to review'}
             </div>
           </div>
 
+          {/* Post list */}
           {filteredPosts.length === 0
             ? <div style={{ padding: 60, textAlign: 'center' }}>
                 <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18 }}>
@@ -608,22 +656,23 @@ export default function ClientPortal() {
                 const postComments = comments.filter(c => c.post_id === post.id)
                 const isSelected = selectedPost?.id === post.id
                 const formatLabel = post.format ? post.format.charAt(0).toUpperCase() + post.format.slice(1) : 'Post'
-                const hasVideo = isVideo(post.image_url)
+                const hasVid = isVideo(post.image_url)
                 return (
                   <div key={post.id} onClick={() => setSelectedPost(post)} style={{
-                    display: 'flex', alignItems: 'center', gap: 16, padding: '14px 24px',
-                    borderBottom: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer',
-                    background: isSelected ? '#FDF8F0' : '#fff',
-                    borderLeft: isSelected ? '2px solid ' + brandColor : '2px solid transparent',
+                    display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16,
+                    padding: isMobile ? '14px 18px' : '14px 24px',
+                    borderBottom: '0.5px solid ' + PALETTE.borderLight,
+                    cursor: 'pointer',
+                    background: isSelected && !isMobile ? '#FDF8F0' : '#fff',
+                    borderLeft: isSelected && !isMobile ? '2px solid ' + brandColor : '2px solid transparent',
                     transition: 'background 0.1s'
                   }}
                     onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = PALETTE.creamMid }}
-                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = '#fff' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isSelected && !isMobile ? '#FDF8F0' : '#fff' }}
                   >
-                    {/* Thumbnail */}
-                    <div style={{ width: 52, height: 52, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
-                      {post.image_url && !hasVideo && <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                      {post.image_url && hasVideo && (
+                    <div style={{ width: isMobile ? 56 : 52, height: isMobile ? 56 : 52, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
+                      {post.image_url && !hasVid && <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      {post.image_url && hasVid && (
                         <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
                         </div>
@@ -631,37 +680,63 @@ export default function ClientPortal() {
                       {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5, flexWrap: 'wrap' }}>
                         <Badge status={post.status} />
                         <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{formatLabel}</span>
                         {post.campaign && <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>· {post.campaign}</span>}
                       </div>
-                      <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
-                      <div style={{ marginTop: 6, display: 'flex', gap: 14, alignItems: 'center' }}>
+                      <p style={{ margin: 0, fontFamily: F.body, fontSize: isMobile ? 14 : 13, color: PALETTE.espresso, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
+                      <div style={{ marginTop: 5, display: 'flex', gap: 12, alignItems: 'center' }}>
                         <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmt(post.scheduled_at)}</span>
                         {postComments.length > 0 && <span style={{ fontFamily: F.body, fontSize: 10, color: brandColor, fontWeight: 500 }}>{postComments.length} comment{postComments.length !== 1 ? 's' : ''}</span>}
                       </div>
                     </div>
-                    {/* Right thumb — only for images/GIFs, not video */}
-                    {post.image_url && !hasVideo && <img src={post.image_url} alt="" style={{ width: 42, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0, opacity: 0.6 }} />}
+                    {post.image_url && !hasVid && (
+                      <img src={post.image_url} alt="" style={{ width: isMobile ? 48 : 42, height: isMobile ? 48 : 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0, opacity: 0.6 }} />
+                    )}
+                    {isMobile && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={PALETTE.mutedLight} strokeWidth="1.5" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
+                    )}
                   </div>
                 )
               })
           }
+
+          {/* Mobile footer */}
+          {isMobile && (
+            <div style={{ padding: '20px 20px 32px', marginTop: 'auto', textAlign: 'center' }}>
+              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3 }}>Managed by</div>
+              <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 15 }}>Brown Butter</div>
+            </div>
+          )}
         </div>
 
-        {/* Right panel */}
-        {selectedPost && (
-          <RightPanel
+        {/* Desktop side panel */}
+        {!isMobile && selectedPost && (
+          <PostPanel
             post={posts.find(p => p.id === selectedPost.id) || selectedPost}
             comments={comments.filter(c => c.post_id === selectedPost.id)}
             versions={versions.filter(v => v.post_id === selectedPost.id)}
             client={client}
             onClose={() => setSelectedPost(null)}
             onRefresh={fetchAll}
+            isMobile={false}
           />
         )}
       </div>
+
+      {/* Mobile bottom sheet */}
+      {isMobile && selectedPost && (
+        <PostPanel
+          post={posts.find(p => p.id === selectedPost.id) || selectedPost}
+          comments={comments.filter(c => c.post_id === selectedPost.id)}
+          versions={versions.filter(v => v.post_id === selectedPost.id)}
+          client={client}
+          onClose={() => setSelectedPost(null)}
+          onRefresh={fetchAll}
+          isMobile={true}
+        />
+      )}
     </div>
   )
 }
