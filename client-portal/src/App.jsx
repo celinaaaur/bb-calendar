@@ -29,18 +29,18 @@ style.textContent = `
     z-index: 200;
     animation: fadeIn 0.2s ease;
   }
- .bottom-sheet {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  background: #fff;
-  border-radius: 18px 18px 0 0;
-  height: 92vh;
-  display: flex;
-  flex-direction: column;
-  z-index: 201;
-  animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
-  overflow: hidden;
-}
+  .bottom-sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: #fff;
+    border-radius: 18px 18px 0 0;
+    height: 92vh;
+    display: flex;
+    flex-direction: column;
+    z-index: 201;
+    animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
+    overflow: hidden;
+  }
   @keyframes fadeIn {
     from { opacity: 0; } to { opacity: 1; }
   }
@@ -168,27 +168,35 @@ function IGMockup({ post, client }) {
   const hasVideo = isVideo(post.image_url)
 
   return (
-   <div style={{ width: '100%', paddingBottom: '100%', position: 'relative', background: PALETTE.creamDark }}>
-  {post.image_url && !isVideo(post.image_url) && (
-    <img src={post.image_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-  )}
-  {post.image_url && isVideo(post.image_url) && (
-    <video src={post.image_url} controls playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#000' }} />
-  )}
-  {!post.image_url && (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No asset uploaded</span>
-    </div>
-  )}
-</div>
-        {post.image_url
-          ? hasVideo
-            ? <video src={post.image_url} controls playsInline style={{ width: '100%', aspectRatio: isReel ? '9/16' : '1', objectFit: 'cover', display: 'block', background: '#000' }} />
-            : <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-          : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ padding: '14px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+      <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{initials}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: '#111' }}>{handle}</div>
+            {post.campaign && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999' }}>{post.campaign}</div>}
+          </div>
+          <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
+        </div>
+
+        {/* Media — padding-bottom trick for cross-browser 1:1 square */}
+        <div style={{ width: '100%', paddingBottom: hasVideo && isReel ? '177.78%' : '100%', position: 'relative', background: PALETTE.creamDark }}>
+          {post.image_url && !hasVideo && (
+            <img src={post.image_url} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          )}
+          {post.image_url && hasVideo && (
+            <video src={post.image_url} controls playsInline style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#000' }} />
+          )}
+          {!post.image_url && (
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No asset uploaded</span>
             </div>
-        }
+          )}
+        </div>
+
+        {/* Action icons */}
         <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 14, alignItems: 'center' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -197,6 +205,8 @@ function IGMockup({ post, client }) {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </div>
         </div>
+
+        {/* Caption */}
         <div style={{ padding: '0 12px 12px' }}>
           <div style={{ fontFamily: F.body, fontSize: 13, color: '#111', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
@@ -213,7 +223,6 @@ function IGMockup({ post, client }) {
   )
 }
 
-// ── Bottom sheet panel (mobile) + side panel (desktop) ───────────────────────
 function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMobile }) {
   const [newComment, setNewComment] = useState('')
   const [authorName, setAuthorName] = useState('')
@@ -279,7 +288,7 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
       </div>
 
       {/* Scrollable content */}
-     <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '18px 18px 32px', minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '18px 18px 32px', minHeight: 0 }}>
         {activeTab === 'details' && (
           <div>
             <div style={{ marginBottom: 20 }}>
@@ -403,7 +412,6 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
   )
 }
 
-// ── Main portal ──────────────────────────────────────────────────────────────
 export default function ClientPortal() {
   const [client, setClient] = useState(null)
   const [posts, setPosts] = useState([])
@@ -498,10 +506,8 @@ export default function ClientPortal() {
   return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Hero ── */}
+      {/* Hero */}
       <div style={{ background: PALETTE.cream, borderBottom: '0.5px solid ' + PALETTE.border, padding: isMobile ? '20px 20px 18px' : '28px 40px 24px', flexShrink: 0 }}>
-
-        {/* Brand + greeting */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isMobile ? 20 : 32 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 18 : 22, color: PALETTE.espresso }}>{client.name}</span>
@@ -516,12 +522,10 @@ export default function ClientPortal() {
           </div>
         </div>
 
-        {/* Week label */}
         <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, fontWeight: 500 }}>
           This week · {weekRange()}
         </div>
 
-        {/* Headline + stack */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div style={{ maxWidth: isMobile ? '100%' : 540, flex: 1 }}>
             <div style={{ fontFamily: F.display, fontSize: isMobile ? 36 : 52, lineHeight: 1.05, color: PALETTE.espresso, marginBottom: isMobile ? 10 : 16 }}>
@@ -533,13 +537,8 @@ export default function ClientPortal() {
                 Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.
               </div>
             )}
-            {/* Stats */}
             <div style={{ display: 'flex', gap: isMobile ? 24 : 40, marginTop: isMobile ? 12 : 0 }}>
-              {[
-                [counts.pending, 'Awaiting you'],
-                [counts.revision, 'Revising'],
-                [counts.published, 'Published'],
-              ].map(([num, label]) => (
+              {[[counts.pending, 'Awaiting you'], [counts.revision, 'Revising'], [counts.published, 'Published']].map(([num, label]) => (
                 <div key={label}>
                   <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 26 : 34, color: PALETTE.espresso, lineHeight: 1 }}>{num}</div>
                   <div style={{ fontFamily: F.body, fontSize: 8, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4, fontWeight: 500 }}>{label}</div>
@@ -548,7 +547,6 @@ export default function ClientPortal() {
             </div>
           </div>
 
-          {/* Post stack — hide on very small screens */}
           {!isMobile && (
             <div style={{ flexShrink: 0, position: 'relative', width: 210, height: 210, marginBottom: 8 }}>
               {[
@@ -571,7 +569,7 @@ export default function ClientPortal() {
         </div>
       </div>
 
-      {/* ── Body ── */}
+      {/* Body */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* Desktop sidebar */}
@@ -705,7 +703,6 @@ export default function ClientPortal() {
               })
           }
 
-          {/* Mobile footer */}
           {isMobile && (
             <div style={{ padding: '20px 20px 32px', marginTop: 'auto', textAlign: 'center' }}>
               <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3 }}>Managed by</div>
