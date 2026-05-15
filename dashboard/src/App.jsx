@@ -152,22 +152,25 @@ function WhatsNewBox({ posts, comments, versions, clients, onSelect }) {
     const clientName = client?.name || 'Unknown'
     const caption = (p.caption?.slice(0, 36) || '') + (p.caption?.length > 36 ? '…' : '')
     if (p.status === 'approved') items.push({ ts, icon: '✓', color: '#2A7D4F', text: '"' + caption + '" approved by ' + clientName, date: p.updated_at || p.created_at, postId: p.id })
-   if (p.status === 'revision') items.push({ ts, icon: '↩', color: '#C0392B', text: clientName + ' requested revisions on "' + caption + '"', date: p.updated_at || p.created_at, postId: p.id })
+    if (p.status === 'revision') items.push({ ts, icon: '↩', color: '#C0392B', text: clientName + ' requested revisions on "' + caption + '"', date: p.updated_at || p.created_at, postId: p.id })
   })
+
   comments.filter(c => c.author_type === 'client').forEach(c => {
     const ts = new Date(c.created_at).getTime()
     if (ts < cutoff) return
     const post = posts.find(p => p.id === c.post_id)
     const client = clients.find(cl => cl.id === post?.client_id)
- items.push({ ts, icon: '💬', color: PALETTE.espresso, text: c.author + ' (' + (client?.name || 'Client') + '): "' + (c.text?.slice(0, 45) || '') + '…"', date: c.created_at, postId: post?.id })
+    items.push({ ts, icon: '💬', color: PALETTE.espresso, text: c.author + ' (' + (client?.name || 'Client') + '): "' + (c.text?.slice(0, 45) || '') + '…"', date: c.created_at, postId: post?.id })
   })
+
   versions.forEach(v => {
     const ts = new Date(v.created_at).getTime()
     if (ts < cutoff) return
     const post = posts.find(p => p.id === v.post_id)
     const caption = (post?.caption?.slice(0, 30) || '') + '…'
-   items.push({ ts, icon: '✎', color: PALETTE.muted, text: 'Caption updated on "' + caption + '" — v' + v.version_number, date: v.created_at, postId: post?.id })
+    items.push({ ts, icon: '✎', color: PALETTE.muted, text: 'Caption updated on "' + caption + '" — v' + v.version_number, date: v.created_at, postId: post?.id })
   })
+
   items.sort((a, b) => b.ts - a.ts)
   const recent = items.slice(0, 6)
 
@@ -184,7 +187,13 @@ function WhatsNewBox({ posts, comments, versions, clients, onSelect }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
         {recent.map((item, i) => (
-          <div onClick={() => { const p = posts.find(x => x.id === item.postId); if (p && onSelect) onSelect(p) }} style={{ padding: '12px 16px 12px', cursor: item.postId ? 'pointer' : 'default', borderBottom: ...
+          <div
+            key={i}
+            onClick={() => { const p = posts.find(x => x.id === item.postId); if (p && onSelect) onSelect(p) }}
+            style={{ padding: '14px 16px', cursor: item.postId ? 'pointer' : 'default', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', gap: 10, alignItems: 'flex-start', transition: 'background 0.12s' }}
+            onMouseEnter={e => { if (item.postId) e.currentTarget.style.background = PALETTE.creamMid }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
+          >
             <div style={{ width: 22, height: 22, borderRadius: '50%', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: item.color, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{item.icon}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, lineHeight: 1.5 }}>{item.text}</div>
@@ -434,7 +443,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   const handleKeyDown = (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendComment() }
 
   const formatLabel = post.format ? post.format.charAt(0).toUpperCase() + post.format.slice(1) + (post.slide_count ? ' · ' + post.slide_count + ' slides' : '') : 'Post'
-
   const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, fontFamily: F.body }
   const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
 
@@ -864,7 +872,7 @@ export default function Dashboard() {
           {!loading && view === 'queue' && (
             <>
               <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} />
-              <WhatsNewBox posts={posts} comments={comments} versions={versions} clients={clients} onSelect={setSelectedPost} /><WhatsNewBox posts={posts} comments={comments} versions={versions} clients={clients} />
+              <WhatsNewBox posts={posts} comments={comments} versions={versions} clients={clients} onSelect={setSelectedPost} />
             </>
           )}
 
