@@ -140,7 +140,7 @@ function Badge({ status }) {
   return <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, border: '0.5px solid ' + s.border, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
 }
 
-function WhatsNewBox({ posts, comments, versions, clients }) {
+function WhatsNewBox({ posts, comments, versions, clients, onSelect }) {
   const [dismissed, setDismissed] = useState(false)
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
   const items = []
@@ -151,22 +151,22 @@ function WhatsNewBox({ posts, comments, versions, clients }) {
     const client = clients.find(c => c.id === p.client_id)
     const clientName = client?.name || 'Unknown'
     const caption = (p.caption?.slice(0, 36) || '') + (p.caption?.length > 36 ? '…' : '')
-    if (p.status === 'approved') items.push({ ts, icon: '✓', color: '#2A7D4F', text: '"' + caption + '" approved by ' + clientName, date: p.updated_at || p.created_at })
-    if (p.status === 'revision') items.push({ ts, icon: '↩', color: '#C0392B', text: clientName + ' requested revisions on "' + caption + '"', date: p.updated_at || p.created_at })
+    if (p.status === 'approved') items.push({ ts, icon: '✓', color: '#2A7D4F', text: '"' + caption + '" approved by ' + clientName, date: p.updated_at || p.created_at, postId: p.id })
+   if (p.status === 'revision') items.push({ ts, icon: '↩', color: '#C0392B', text: clientName + ' requested revisions on "' + caption + '"', date: p.updated_at || p.created_at, postId: p.id })
   })
   comments.filter(c => c.author_type === 'client').forEach(c => {
     const ts = new Date(c.created_at).getTime()
     if (ts < cutoff) return
     const post = posts.find(p => p.id === c.post_id)
     const client = clients.find(cl => cl.id === post?.client_id)
-    items.push({ ts, icon: '💬', color: PALETTE.espresso, text: c.author + ' (' + (client?.name || 'Client') + '): "' + (c.text?.slice(0, 45) || '') + '…"', date: c.created_at })
+   items.push({ ts, icon: '💬', ..., date: c.created_at, postId: post?.id })
   })
   versions.forEach(v => {
     const ts = new Date(v.created_at).getTime()
     if (ts < cutoff) return
     const post = posts.find(p => p.id === v.post_id)
     const caption = (post?.caption?.slice(0, 30) || '') + '…'
-    items.push({ ts, icon: '✎', color: PALETTE.muted, text: 'Caption updated on "' + caption + '" — v' + v.version_number, date: v.created_at })
+   items.push({ ts, icon: '✎', ..., date: v.created_at, postId: post?.id })
   })
   items.sort((a, b) => b.ts - a.ts)
   const recent = items.slice(0, 6)
@@ -184,7 +184,7 @@ function WhatsNewBox({ posts, comments, versions, clients }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
         {recent.map((item, i) => (
-          <div key={i} style={{ padding: '10px 16px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div onClick={() => { const p = posts.find(x => x.id === item.postId); if (p && onSelect) onSelect(p) }} style={{ padding: '12px 16px 12px', cursor: item.postId ? 'pointer' : 'default', borderBottom: ...
             <div style={{ width: 22, height: 22, borderRadius: '50%', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: item.color, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{item.icon}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, lineHeight: 1.5 }}>{item.text}</div>
@@ -718,7 +718,7 @@ export default function Dashboard() {
   const [comments, setComments] = useState([])
   const [versions, setVersions] = useState([])
   const [selectedClient, setSelectedClient] = useState('all')
-  const [filter, setFilter] = useState('active')
+  const [filter, setFilter] = useState('pending')
   const [view, setView] = useState('queue')
   const [selectedPost, setSelectedPost] = useState(null)
   const [composing, setComposing] = useState(false)
@@ -864,7 +864,7 @@ export default function Dashboard() {
           {!loading && view === 'queue' && (
             <>
               <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} />
-              <WhatsNewBox posts={posts} comments={comments} versions={versions} clients={clients} />
+              <WhatsNewBox posts={posts} comments={comments} versions={versions} clients={clients} onSelect={setSelectedPost} /><WhatsNewBox posts={posts} comments={comments} versions={versions} clients={clients} />
             </>
           )}
 
