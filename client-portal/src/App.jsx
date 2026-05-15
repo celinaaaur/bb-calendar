@@ -82,6 +82,15 @@ const isVideo = (url) => {
   return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext)
 }
 
+// Append low-res transform params for published posts
+const imgSrc = (url, published = false) => {
+  if (!url || isVideo(url)) return url
+  if (published && url.includes('supabase')) {
+    return url + (url.includes('?') ? '&' : '?') + 'width=800&quality=60'
+  }
+  return url
+}
+
 const fmt = (str) => {
   if (!str) return ''
   const d = new Date(str)
@@ -90,6 +99,23 @@ const fmt = (str) => {
 const fmtShort = (str) => {
   if (!str) return ''
   return new Date(str).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+}
+const fmtTime = (str) => {
+  if (!str) return ''
+  return new Date(str).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+}
+const fmtAgo = (str) => {
+  if (!str) return ''
+  const diff = Date.now() - new Date(str).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return m + 'm ago'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + 'h ago'
+  const days = Math.floor(h / 24)
+  if (days === 1) return 'yesterday'
+  if (days < 7) return days + ' days ago'
+  return fmtShort(str)
 }
 const weekRange = () => {
   const now = new Date()
@@ -134,6 +160,148 @@ function Badge({ status }) {
   )
 }
 
+// ── What's New box ────────────────────────────────────────────────────────────
+function WhatsNewBox({ posts, comments, versions, isMobile }) {
+  const [dismissed, setDismissed] = useState(false)
+
+  // Build activity feed from posts + comments + versions, last 14 days
+  const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000
+  const items = []
+
+  posts.forEach(p => {
+    const ts = new Date(p.updated_at || p.created_at).getTime()
+    if (ts < cutoff) return
+    const caption = p.caption?.slice(0, 36) + (p.caption?.length > 36 ? '…' : '')
+    if (p.status === 'published') {
+      items.push({ ts, icon: '✦', color: PALETTE.caramel, text: `"${caption}" is now live on Instagram`, date: p.updated_at || p.created_at })
+    } else if (p.status === 'revision') {
+      items.push({ ts, icon: '↩', color: '#C0392B', text: `Revisions requested on "${caption}"`, date: p.updated_at || p.created_at })
+    } else if (p.status === 'pending') {
+      const created = new Date(p.created_at).getTime()
+      if (Date.now() - created < 7 * 24 * 60 * 60 * 1000) {
+        items.push({ ts: created, icon: '+', color: '#2A7D4F', text: `New post added: "${caption}"`, date: p.created_at })
+      }
+    }
+  })
+
+  versions.forEach(v => {
+    const ts = new Date(v.created_at).getTime()
+    if (ts < cutoff) return
+    const post = posts.find(p => p.id === v.post_id)
+    const caption = post?.caption?.slice(0, 32) + (post?.caption?.length > 32 ? '…' : '') || 'a post'
+    items.push({ ts, icon: '✎', color: PALETTE.muted, text: `Caption updated on "${caption}"`, date: v.created_at })
+  })
+
+  comments.filter(c => c.author_type === 'agency').forEach(c => {
+    const ts = new Date(c.created_at).getTime()
+    if (ts < cutoff) return
+    items.push({ ts, icon: '💬', color: PALETTE.espresso, text: `Brown Butter left a note: "${c.text?.slice(0, 40)}…"`, date: c.created_at })
+  })
+
+  items.sort((a, b) => b.ts - a.ts)
+  const recent = items.slice(0, 5)
+
+  if (dismissed || recent.length === 0) return null
+
+  return (
+    <div style={{
+      margin: isMobile ? '16px 18px 0' : '20px 28px 0',
+      background: '#fff',
+      border: '0.5px solid ' + PALETTE.border,
+      borderRadius: 10,
+      overflow: 'hidden'
+    }}>
+      {/* Header */}
+      <div style={{ padding: '12px 16px', background: PALETTE.espresso, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>What's new</span>
+          <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.08em', textTransform: 'uppercase' }}>from Brown Butter</span>
+        </div>
+        <button onClick={() => setDismissed(true)} style={{ background: 'none', border: 'none', color: '#7a5a3a', fontSize: 14, lineHeight: 1, padding: 2 }}>✕</button>
+      </div>
+      {/* Items */}
+      <div>
+        {recent.map((item, i) => (
+          <div key={i} style={{
+            padding: '11px 16px',
+            borderBottom: i < recent.length - 1 ? '0.5px solid ' + PALETTE.borderLight : 'none',
+            display: 'flex', gap: 12, alignItems: 'flex-start'
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+              background: PALETTE.creamDark,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, color: item.color, fontWeight: 700, marginTop: 1
+            }}>{item.icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{item.text}</div>
+              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{fmtAgo(item.date)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Calendar view ─────────────────────────────────────────────────────────────
+function CalendarView({ posts, onSelectPost, isMobile }) {
+  const now = new Date()
+  const [year, setYear] = useState(now.getFullYear())
+  const [month, setMonth] = useState(now.getMonth())
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+  return (
+    <div style={{ padding: isMobile ? '16px 12px' : '20px 24px' }}>
+      {/* Month nav */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+        <button onClick={() => { if (month === 0) { setMonth(11); setYear(year - 1) } else setMonth(month - 1) }}
+          style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 6, padding: '6px 14px', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>←</button>
+        <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 18, color: PALETTE.espresso, flex: 1, textAlign: 'center' }}>{MONTHS[month]} {year}</span>
+        <button onClick={() => { if (month === 11) { setMonth(0); setYear(year + 1) } else setMonth(month + 1) }}
+          style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 6, padding: '6px 14px', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>→</button>
+      </div>
+      {/* Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1, background: PALETTE.border, borderRadius: 8, overflow: 'hidden' }}>
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+          <div key={d} style={{ background: PALETTE.creamDark, padding: '7px 4px', textAlign: 'center', fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{d}</div>
+        ))}
+        {cells.map((day, i) => {
+          const dayPosts = day ? posts.filter(p => {
+            const d = new Date(p.scheduled_at)
+            return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day
+          }) : []
+          const isToday = day && now.getFullYear() === year && now.getMonth() === month && now.getDate() === day
+          return (
+            <div key={i} style={{ background: '#fff', minHeight: isMobile ? 60 : 80, padding: 5, borderTop: isToday ? '2px solid ' + PALETTE.caramel : 'none' }}>
+              {day && <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: isToday ? 600 : 400, color: isToday ? PALETTE.caramel : PALETTE.mutedLight, marginBottom: 3 }}>{day}</div>}
+              {dayPosts.slice(0, isMobile ? 1 : 2).map(p => (
+                <div key={p.id} onClick={() => onSelectPost(p)} style={{
+                  background: STATUS[p.status]?.bg || PALETTE.cream,
+                  borderLeft: '2px solid ' + (STATUS[p.status]?.dot || '#ccc'),
+                  padding: '2px 4px', marginBottom: 2, borderRadius: 2,
+                  cursor: 'pointer', fontFamily: F.body,
+                  fontSize: isMobile ? 8 : 9, color: PALETTE.espresso, lineHeight: 1.4
+                }}>
+                  {isMobile ? fmtTime(p.scheduled_at) : fmtTime(p.scheduled_at) + ' — ' + p.caption?.slice(0, 14) + '...'}
+                </div>
+              ))}
+              {dayPosts.length > (isMobile ? 1 : 2) && (
+                <div style={{ fontFamily: F.body, fontSize: 8, color: PALETTE.mutedLight }}>+{dayPosts.length - (isMobile ? 1 : 2)} more</div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function IGGrid({ posts }) {
   const grid = [...posts].filter(p => p.status !== 'archived')
     .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
@@ -146,7 +314,7 @@ function IGGrid({ posts }) {
           aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative',
           background: p ? (p.image_url ? 'transparent' : `hsl(${28 + i * 8},20%,${86 - i * 2}%)`) : '#E8E0D0'
         }}>
-          {p?.image_url && !isVideo(p.image_url) && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          {p?.image_url && !isVideo(p.image_url) && <img src={imgSrc(p.image_url, p.status === 'published')} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
           {p?.image_url && isVideo(p.image_url) && (
             <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
@@ -166,12 +334,11 @@ function IGMockup({ post, client }) {
   const avatarBg = client?.brand_color || PALETTE.caramel
   const isReel = post.format === 'reel'
   const hasVideo = isVideo(post.image_url)
+  const src = imgSrc(post.image_url, post.status === 'published')
 
   return (
     <div style={{ padding: '14px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
       <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
-
-        {/* Header */}
         <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{initials}</div>
           <div style={{ flex: 1 }}>
@@ -180,11 +347,9 @@ function IGMockup({ post, client }) {
           </div>
           <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
         </div>
-
-        {/* Media — padding-bottom trick for cross-browser 1:1 square */}
         <div style={{ width: '100%', paddingBottom: hasVideo && isReel ? '177.78%' : '100%', position: 'relative', background: PALETTE.creamDark }}>
           {post.image_url && !hasVideo && (
-            <img src={post.image_url} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <img src={src} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           )}
           {post.image_url && hasVideo && (
             <video src={post.image_url} controls playsInline style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#000' }} />
@@ -195,8 +360,6 @@ function IGMockup({ post, client }) {
             </div>
           )}
         </div>
-
-        {/* Action icons */}
         <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 14, alignItems: 'center' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -205,8 +368,6 @@ function IGMockup({ post, client }) {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </div>
         </div>
-
-        {/* Caption */}
         <div style={{ padding: '0 12px 12px' }}>
           <div style={{ fontFamily: F.body, fontSize: 13, color: '#111', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
@@ -261,7 +422,6 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
 
   const content = (
     <>
-      {/* Header */}
       <div style={{ padding: '14px 18px 12px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
@@ -274,7 +434,6 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
 
       <IGMockup post={post} client={client} />
 
-      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
         {[['details', 'Details'], ['discussion', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]].map(([k, l]) => (
           <button key={k} onClick={() => setActiveTab(k)} style={{
@@ -287,7 +446,6 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
         ))}
       </div>
 
-      {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '18px 18px 32px', minHeight: 0 }}>
         {activeTab === 'details' && (
           <div>
@@ -419,6 +577,7 @@ export default function ClientPortal() {
   const [versions, setVersions] = useState([])
   const [selectedPost, setSelectedPost] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [view, setView] = useState('list') // 'list' | 'calendar'
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -559,7 +718,7 @@ export default function ClientPortal() {
                 const warmBg = `hsl(${14 + i * 5},${42 - i * 8}%,${50 - i * 4}%)`
                 return (
                   <div key={i} style={{ position: 'absolute', bottom: layer.bottom, right: layer.right, width: 178, height: 178, borderRadius: 10, background: p?.image_url && !isVideo(p.image_url) ? 'transparent' : warmBg, transform: `rotate(${layer.rotate})`, opacity: layer.opacity, zIndex: layer.z, overflow: 'hidden', boxShadow: '0 6px 24px rgba(44,31,14,0.10)' }}>
-                    {p?.image_url && !isVideo(p.image_url) && <img src={p.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    {p?.image_url && !isVideo(p.image_url) && <img src={imgSrc(p.image_url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                     {i === 2 && <div style={{ position: 'absolute', bottom: 12, left: 14, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{pendingPosts[0]?.format?.toUpperCase() || 'POST'}</div>}
                   </div>
                 )
@@ -576,6 +735,18 @@ export default function ClientPortal() {
         {!isMobile && (
           <div style={{ width: 192, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '22px 16px' }}>
+              {/* View toggle */}
+              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 18 }}>
+                {[['list', 'List'], ['calendar', 'Calendar']].map(([k, l]) => (
+                  <button key={k} onClick={() => setView(k)} style={{
+                    flex: 1, padding: '6px 0', borderRadius: 5, border: '0.5px solid ' + (view === k ? PALETTE.caramel : PALETTE.border),
+                    background: view === k ? PALETTE.caramel : 'transparent',
+                    color: view === k ? '#fff' : PALETTE.muted,
+                    fontFamily: F.body, fontSize: 11, fontWeight: view === k ? 500 : 400, transition: 'all 0.12s'
+                  }}>{l}</button>
+                ))}
+              </div>
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Filter</div>
               {[['all','All Posts',counts.all],['pending','Awaiting Approval',counts.pending],['approved','Approved',counts.approved],['revision','Needs Changes',counts.revision]].map(([k,l,n]) => (
                 <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
@@ -616,9 +787,13 @@ export default function ClientPortal() {
         {/* Main content */}
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
 
-          {/* Mobile filter chips */}
+          {/* Mobile filter + view chips */}
           {isMobile && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream }}>
+              {/* View toggles */}
+              <button onClick={() => setView('list')} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (view === 'list' ? brandColor : PALETTE.border), background: view === 'list' ? PALETTE.espresso : '#fff', color: view === 'list' ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, whiteSpace: 'nowrap' }}>List</button>
+              <button onClick={() => setView('calendar')} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (view === 'calendar' ? brandColor : PALETTE.border), background: view === 'calendar' ? PALETTE.espresso : '#fff', color: view === 'calendar' ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, whiteSpace: 'nowrap' }}>Calendar</button>
+              <div style={{ width: 1, background: PALETTE.border, flexShrink: 0, alignSelf: 'stretch', margin: '6px 4px' }} />
               {filterOptions.map(([k, l, n]) => (
                 <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{
                   flexShrink: 0, padding: '7px 14px', borderRadius: 20,
@@ -637,73 +812,91 @@ export default function ClientPortal() {
             </div>
           )}
 
-          {/* Section header */}
-          <div style={{ padding: isMobile ? '16px 20px 12px' : '22px 28px 16px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
-            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
-            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 5, fontWeight: 300 }}>
-              {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''}
-              {filter === 'published' ? ' · Your published content' : ' · Tap any post to review'}
-            </div>
-          </div>
+          {/* What's New box — shown in list view only */}
+          {view === 'list' && (
+            <WhatsNewBox posts={posts} comments={comments} versions={versions} isMobile={isMobile} />
+          )}
 
-          {/* Post list */}
-          {filteredPosts.length === 0
-            ? <div style={{ padding: 60, textAlign: 'center' }}>
-                <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18 }}>
-                  {filter === 'published' ? 'No published posts yet' : 'No posts in this category'}
+          {/* Calendar view */}
+          {view === 'calendar' && (
+            <CalendarView
+              posts={posts.filter(p => p.status !== 'archived')}
+              onSelectPost={(p) => { setSelectedPost(p); setView('list') }}
+              isMobile={isMobile}
+            />
+          )}
+
+          {/* List view */}
+          {view === 'list' && (
+            <>
+              <div style={{ padding: isMobile ? '16px 20px 12px' : '22px 28px 16px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, marginTop: 16 }}>
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 5, fontWeight: 300 }}>
+                  {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''}
+                  {filter === 'published' ? ' · Your published content' : ' · Tap any post to review'}
                 </div>
               </div>
-            : filteredPosts.map(post => {
-                const postComments = comments.filter(c => c.post_id === post.id)
-                const isSelected = selectedPost?.id === post.id
-                const formatLabel = post.format ? post.format.charAt(0).toUpperCase() + post.format.slice(1) : 'Post'
-                const hasVid = isVideo(post.image_url)
-                return (
-                  <div key={post.id} onClick={() => setSelectedPost(post)} style={{
-                    display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16,
-                    padding: isMobile ? '14px 18px' : '14px 24px',
-                    borderBottom: '0.5px solid ' + PALETTE.borderLight,
-                    cursor: 'pointer',
-                    background: isSelected && !isMobile ? '#FDF8F0' : '#fff',
-                    borderLeft: isSelected && !isMobile ? '2px solid ' + brandColor : '2px solid transparent',
-                    transition: 'background 0.1s'
-                  }}
-                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = PALETTE.creamMid }}
-                    onMouseLeave={e => { e.currentTarget.style.background = isSelected && !isMobile ? '#FDF8F0' : '#fff' }}
-                  >
-                    <div style={{ width: isMobile ? 56 : 52, height: isMobile ? 56 : 52, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
-                      {post.image_url && !hasVid && <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                      {post.image_url && hasVid && (
-                        <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
-                        </div>
-                      )}
-                      {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5, flexWrap: 'wrap' }}>
-                        <Badge status={post.status} />
-                        <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{formatLabel}</span>
-                        {post.campaign && <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>· {post.campaign}</span>}
-                      </div>
-                      <p style={{ margin: 0, fontFamily: F.body, fontSize: isMobile ? 14 : 13, color: PALETTE.espresso, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
-                      <div style={{ marginTop: 5, display: 'flex', gap: 12, alignItems: 'center' }}>
-                        <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmt(post.scheduled_at)}</span>
-                        {postComments.length > 0 && <span style={{ fontFamily: F.body, fontSize: 10, color: brandColor, fontWeight: 500 }}>{postComments.length} comment{postComments.length !== 1 ? 's' : ''}</span>}
-                      </div>
-                    </div>
-                    {post.image_url && !hasVid && (
-                      <img src={post.image_url} alt="" style={{ width: isMobile ? 48 : 42, height: isMobile ? 48 : 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0, opacity: 0.6 }} />
-                    )}
-                    {isMobile && (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={PALETTE.mutedLight} strokeWidth="1.5" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
-                    )}
-                  </div>
-                )
-              })
-          }
 
-          {isMobile && (
+              {filteredPosts.length === 0
+                ? <div style={{ padding: 60, textAlign: 'center' }}>
+                    <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18 }}>
+                      {filter === 'published' ? 'No published posts yet' : 'No posts in this category'}
+                    </div>
+                  </div>
+                : filteredPosts.map(post => {
+                    const postComments = comments.filter(c => c.post_id === post.id)
+                    const isSelected = selectedPost?.id === post.id
+                    const formatLabel = post.format ? post.format.charAt(0).toUpperCase() + post.format.slice(1) : 'Post'
+                    const hasVid = isVideo(post.image_url)
+                    const thumb = imgSrc(post.image_url, post.status === 'published')
+                    return (
+                      <div key={post.id} onClick={() => setSelectedPost(post)} style={{
+                        display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16,
+                        padding: isMobile ? '14px 18px' : '14px 24px',
+                        borderBottom: '0.5px solid ' + PALETTE.borderLight,
+                        cursor: 'pointer',
+                        background: isSelected && !isMobile ? '#FDF8F0' : '#fff',
+                        borderLeft: isSelected && !isMobile ? '2px solid ' + brandColor : '2px solid transparent',
+                        transition: 'background 0.1s'
+                      }}
+                        onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = PALETTE.creamMid }}
+                        onMouseLeave={e => { e.currentTarget.style.background = isSelected && !isMobile ? '#FDF8F0' : '#fff' }}
+                      >
+                        <div style={{ width: isMobile ? 56 : 52, height: isMobile ? 56 : 52, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
+                          {post.image_url && !hasVid && <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                          {post.image_url && hasVid && (
+                            <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
+                            </div>
+                          )}
+                          {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5, flexWrap: 'wrap' }}>
+                            <Badge status={post.status} />
+                            <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{formatLabel}</span>
+                            {post.campaign && <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>· {post.campaign}</span>}
+                          </div>
+                          <p style={{ margin: 0, fontFamily: F.body, fontSize: isMobile ? 14 : 13, color: PALETTE.espresso, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
+                          <div style={{ marginTop: 5, display: 'flex', gap: 12, alignItems: 'center' }}>
+                            <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmt(post.scheduled_at)}</span>
+                            {postComments.length > 0 && <span style={{ fontFamily: F.body, fontSize: 10, color: brandColor, fontWeight: 500 }}>{postComments.length} comment{postComments.length !== 1 ? 's' : ''}</span>}
+                          </div>
+                        </div>
+                        {post.image_url && !hasVid && (
+                          <img src={thumb} alt="" style={{ width: isMobile ? 48 : 42, height: isMobile ? 48 : 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0, opacity: 0.6 }} />
+                        )}
+                        {isMobile && (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={PALETTE.mutedLight} strokeWidth="1.5" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
+                        )}
+                      </div>
+                    )
+                  })
+              }
+            </>
+          )}
+
+          {isMobile && view === 'list' && (
             <div style={{ padding: '20px 20px 32px', marginTop: 'auto', textAlign: 'center' }}>
               <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3 }}>Managed by</div>
               <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 15 }}>Brown Butter</div>
