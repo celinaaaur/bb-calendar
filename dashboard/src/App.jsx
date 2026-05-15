@@ -159,7 +159,7 @@ function WhatsNewBox({ posts, comments, versions, clients, onSelect }) {
     if (ts < cutoff) return
     const post = posts.find(p => p.id === c.post_id)
     const client = clients.find(cl => cl.id === post?.client_id)
-   items.push({ ts, icon: '💬', ..., date: c.created_at, postId: post?.id })
+  items.push({ ts, icon: '💬', color: PALETTE.espresso, text: c.author + ' (' + ... + '): "' + ... + '…"', date: c.created_at })
   })
   versions.forEach(v => {
     const ts = new Date(v.created_at).getTime()
