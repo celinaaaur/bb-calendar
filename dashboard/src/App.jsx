@@ -166,7 +166,7 @@ function WhatsNewBox({ posts, comments, versions, clients, onSelect }) {
     if (ts < cutoff) return
     const post = posts.find(p => p.id === v.post_id)
     const caption = (post?.caption?.slice(0, 30) || '') + '…'
-   items.push({ ts, icon: '✎', ..., date: v.created_at, postId: post?.id })
+   items.push({ ts, icon: '✎', color: PALETTE.muted, text: 'Caption updated on "' + caption + '" — v' + v.version_number, date: v.created_at, postId: post?.id })
   })
   items.sort((a, b) => b.ts - a.ts)
   const recent = items.slice(0, 6)
