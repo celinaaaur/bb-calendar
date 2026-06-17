@@ -987,25 +987,114 @@ export default function Dashboard() {
                     <button onClick={() => setComposing(true)} style={{ padding: '9px 22px', borderRadius: 7, border: 'none', background: PALETTE.espresso, color: PALETTE.caramel, fontFamily: F.body, fontSize: 12, fontWeight: 500 }}>Create First Post</button>
                   </div>
                 : view === 'grid'
-                  ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 12, padding: 20 }}>
-                      {filteredPosts.map(post => (
-                        <div key={post.id} onClick={() => setSelectedPost(post)} style={{ background: '#fff', borderRadius: 8, overflow: 'hidden', border: '0.5px solid ' + (selectedPost?.id === post.id ? PALETTE.caramel : PALETTE.border), cursor: 'pointer', transition: 'all 0.15s' }}
-                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(44,31,14,0.08)' }}
-                          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}
-                        >
-                          <div style={{ height: 120, background: post.image_url ? 'transparent' : PALETTE.creamDark, overflow: 'hidden', position: 'relative' }}>
-                            {post.image_url && !isVideo(post.image_url) && <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                            {post.image_url && isVideo(post.image_url) && <div style={{ width: '100%', height: '100%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>}
-                            {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 16 }}>BB</div>}
-                          </div>
-                          <div style={{ padding: '10px 12px' }}>
-                            <Badge status={post.status} />
-                            <p style={{ margin: '6px 0 4px', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
-                            <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmtShort(post.scheduled_at)}</div>
+                  ? (() => {
+                      const statusIcon = (status) => {
+                        if (status === 'approved') return { symbol: '✓', bg: 'rgba(42,125,79,0.88)', color: '#fff' }
+                        if (status === 'published') return { symbol: '✦', bg: 'rgba(196,137,58,0.88)', color: '#fff' }
+                        if (status === 'revision') return { symbol: '↩', bg: 'rgba(192,57,43,0.88)', color: '#fff' }
+                        if (status === 'pending') return { symbol: '…', bg: 'rgba(44,31,14,0.55)', color: '#fff' }
+                        return { symbol: '?', bg: 'rgba(0,0,0,0.4)', color: '#fff' }
+                      }
+                      return (
+                        <div style={{ padding: '16px 20px' }}>
+                          {/* Client group headers when viewing all clients */}
+                          {selectedClient === 'all'
+                            ? clients.map(cl => {
+                                const clientPosts = filteredPosts.filter(p => p.client_id === cl.id)
+                                if (clientPosts.length === 0) return null
+                                return (
+                                  <div key={cl.id} style={{ marginBottom: 28 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: cl.brand_color || PALETTE.caramel }} />
+                                      <span style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, letterSpacing: '0.04em' }}>{cl.name}</span>
+                                      <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{clientPosts.length} post{clientPosts.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
+                                      {clientPosts.map(post => {
+                                        const si = statusIcon(post.status)
+                                        const isSelected = selectedPost?.id === post.id
+                                        const hasVid = isVideo(post.image_url)
+                                        return (
+                                          <div key={post.id} onClick={() => setSelectedPost(post)} style={{ position: 'relative', aspectRatio: '1', background: PALETTE.creamDark, cursor: 'pointer', overflow: 'hidden', outline: isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
+                                            onMouseEnter={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '1')}
+                                            onMouseLeave={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '0')}
+                                          >
+                                            {/* Image — contain so nothing is cropped */}
+                                            {post.image_url && !hasVid && (
+                                              <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
+                                            )}
+                                            {post.image_url && hasVid && (
+                                              <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M8 5v14l11-7z"/></svg>
+                                              </div>
+                                            )}
+                                            {!post.image_url && (
+                                              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>BB</span>
+                                              </div>
+                                            )}
+                                            {/* Status badge — top right */}
+                                            <div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
+                                            {/* Date — bottom left */}
+                                            <div style={{ position: 'absolute', bottom: 5, left: 6, fontFamily: F.body, fontSize: 8, color: 'rgba(255,255,255,0.9)', fontWeight: 500, textShadow: '0 1px 3px rgba(0,0,0,0.6)', zIndex: 2 }}>{fmtShort(post.scheduled_at)}</div>
+                                            {/* Hover overlay */}
+                                            <div className="ig-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(44,31,14,0.35)', opacity: 0, transition: 'opacity 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}>
+                                              <span style={{ fontFamily: F.body, fontSize: 10, color: '#fff', fontWeight: 500, letterSpacing: '0.05em' }}>View</span>
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            : (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
+                                {filteredPosts.map(post => {
+                                  const si = statusIcon(post.status)
+                                  const isSelected = selectedPost?.id === post.id
+                                  const hasVid = isVideo(post.image_url)
+                                  return (
+                                    <div key={post.id} onClick={() => setSelectedPost(post)} style={{ position: 'relative', aspectRatio: '1', background: PALETTE.creamDark, cursor: 'pointer', overflow: 'hidden', outline: isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
+                                      onMouseEnter={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '1')}
+                                      onMouseLeave={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '0')}
+                                    >
+                                      {post.image_url && !hasVid && (
+                                        <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
+                                      )}
+                                      {post.image_url && hasVid && (
+                                        <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                          <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M8 5v14l11-7z"/></svg>
+                                        </div>
+                                      )}
+                                      {!post.image_url && (
+                                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>BB</span>
+                                        </div>
+                                      )}
+                                      <div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
+                                      <div style={{ position: 'absolute', bottom: 5, left: 6, fontFamily: F.body, fontSize: 8, color: 'rgba(255,255,255,0.9)', fontWeight: 500, textShadow: '0 1px 3px rgba(0,0,0,0.6)', zIndex: 2 }}>{fmtShort(post.scheduled_at)}</div>
+                                      <div className="ig-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(44,31,14,0.35)', opacity: 0, transition: 'opacity 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}>
+                                        <span style={{ fontFamily: F.body, fontSize: 10, color: '#fff', fontWeight: 500, letterSpacing: '0.05em' }}>View</span>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )
+                          }
+                          {/* Legend */}
+                          <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
+                            {[['✓','rgba(42,125,79,0.88)','Approved'],['✦','rgba(196,137,58,0.88)','Published'],['↩','rgba(192,57,43,0.88)','Revisions'],['…','rgba(44,31,14,0.55)','Pending']].map(([sym, bg, label]) => (
+                              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <div style={{ width: 16, height: 16, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff', fontWeight: 700 }}>{sym}</div>
+                                <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>{label}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      )
+                    })()
                   : filteredPosts.map(post => {
                       const postComments = comments.filter(c => c.post_id === post.id)
                       const isSelected = selectedPost?.id === post.id
