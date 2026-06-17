@@ -332,10 +332,89 @@ function IGMockup({ post, client }) {
   const handle = client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'
   const initials = (client?.name || 'BB').slice(0, 2).toUpperCase()
   const avatarBg = client?.brand_color || PALETTE.caramel
+  const isStory = post.format === 'story'
   const isReel = post.format === 'reel'
   const hasVideo = isVideo(post.image_url)
   const src = imgSrc(post.image_url, post.status === 'published')
 
+  // ── Story mockup ──────────────────────────────────────────────────────────
+  if (isStory) {
+    return (
+      <div style={{ padding: '14px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+        {/* Phone shell */}
+        <div style={{ margin: '0 auto', width: 200, background: '#111', borderRadius: 28, padding: '10px 6px', boxShadow: '0 8px 32px rgba(44,31,14,0.18)' }}>
+          {/* Notch */}
+          <div style={{ width: 60, height: 6, background: '#222', borderRadius: 4, margin: '0 auto 6px' }} />
+          {/* Story frame */}
+          <div style={{ borderRadius: 18, overflow: 'hidden', position: 'relative', aspectRatio: '9/16', background: '#1A1A1A' }}>
+            {/* Media */}
+            {post.image_url && !hasVideo && (
+              <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            )}
+            {post.image_url && hasVideo && (
+              <video src={post.image_url} controls playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
+            )}
+            {!post.image_url && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 12 }}>No asset uploaded</span>
+              </div>
+            )}
+
+            {/* Story progress bars */}
+            <div style={{ position: 'absolute', top: 10, left: 8, right: 8, display: 'flex', gap: 3, zIndex: 10 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ flex: 1, height: 2, borderRadius: 2, background: i === 1 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.35)' }} />
+              ))}
+            </div>
+
+            {/* Story header: avatar + handle + time */}
+            <div style={{ position: 'absolute', top: 20, left: 8, right: 8, display: 'flex', alignItems: 'center', gap: 7, zIndex: 10 }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: avatarBg, border: '1.5px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0 }}>{initials}</div>
+              <div>
+                <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 600, color: '#fff', lineHeight: 1.2, textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>{handle}</div>
+                <div style={{ fontFamily: F.body, fontSize: 8, color: 'rgba(255,255,255,0.7)', lineHeight: 1 }}>
+                  {post.scheduled_at ? fmtShort(post.scheduled_at) : 'Just now'}
+                </div>
+              </div>
+              <div style={{ marginLeft: 'auto', fontSize: 12, color: 'rgba(255,255,255,0.7)', letterSpacing: 1 }}>···</div>
+            </div>
+
+            {/* Caption overlay at bottom */}
+            {post.caption && (
+              <div style={{ position: 'absolute', bottom: 28, left: 8, right: 8, zIndex: 10 }}>
+                <div style={{
+                  background: 'rgba(0,0,0,0.45)',
+                  backdropFilter: 'blur(4px)',
+                  borderRadius: 6,
+                  padding: '5px 8px',
+                  fontFamily: F.body,
+                  fontSize: 8,
+                  color: '#fff',
+                  lineHeight: 1.5,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>{post.caption}</div>
+              </div>
+            )}
+
+            {/* Story bottom bar: reply + send */}
+            <div style={{ position: 'absolute', bottom: 8, left: 8, right: 8, display: 'flex', alignItems: 'center', gap: 6, zIndex: 10 }}>
+              <div style={{ flex: 1, height: 24, borderRadius: 12, border: '1px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+                <span style={{ fontFamily: F.body, fontSize: 8, color: 'rgba(255,255,255,0.6)' }}>Send message</span>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </div>
+          </div>
+          {/* Home indicator */}
+          <div style={{ width: 50, height: 4, background: '#444', borderRadius: 4, margin: '6px auto 2px' }} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── Default: Feed post / Reel mockup ─────────────────────────────────────
   return (
     <div style={{ padding: '14px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
       <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
