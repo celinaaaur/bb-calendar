@@ -154,7 +154,7 @@ function TodayQueue({ posts, clients, onSelect }) {
   const pendingCount = todayPosts.length - doneCount
 
   return (
-    <div style={{ margin: '20px 26px 0', background: '#fff', border: '0.5px solid ' + PALETTE.caramel, borderRadius: 10, overflow: 'hidden' }}>
+    <div style={{ margin: '20px 26px 48px', background: '#fff', border: '0.5px solid ' + PALETTE.caramel, borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ padding: '11px 16px', background: PALETTE.caramelLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.espresso, fontSize: 14 }}>Up for publishing today</span>
@@ -408,34 +408,94 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
         </div>
       ) : (
         <div style={{ padding: '12px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-          <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
-            <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>{(client?.name || 'BB').slice(0, 2).toUpperCase()}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: '#111' }}>{handle}</div>
-                {post.campaign && <div style={{ fontFamily: F.body, fontSize: 9, color: '#999' }}>{post.campaign}</div>}
-              </div>
-              <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
-            </div>
-            {post.image_url
-              ? isVideo(post.image_url)
-                ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', background: '#000' }} />
-                : <img src={displaySrc} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-              : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
+
+          {/* ── Story mockup ── */}
+          {post.format?.toLowerCase() === 'story' ? (
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: 180, background: '#111', borderRadius: 24, padding: '8px 5px', boxShadow: '0 8px 28px rgba(44,31,14,0.18)' }}>
+                {/* Notch */}
+                <div style={{ width: 50, height: 5, background: '#222', borderRadius: 4, margin: '0 auto 5px' }} />
+                {/* Story frame */}
+                <div style={{ borderRadius: 14, overflow: 'hidden', position: 'relative', aspectRatio: '9/16', background: '#1A1A1A' }}>
+                  {/* Media */}
+                  {post.image_url && !isVideo(post.image_url) && (
+                    <img src={displaySrc} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                  )}
+                  {post.image_url && isVideo(post.image_url) && (
+                    <video src={post.image_url} controls playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
+                  )}
+                  {!post.image_url && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 11 }}>No asset</span>
+                    </div>
+                  )}
+                  {/* Progress bars */}
+                  <div style={{ position: 'absolute', top: 8, left: 6, right: 6, display: 'flex', gap: 3, zIndex: 10 }}>
+                    {[1, 2, 3].map(i => (
+                      <div key={i} style={{ flex: 1, height: 2, borderRadius: 2, background: i === 1 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.35)' }} />
+                    ))}
+                  </div>
+                  {/* Header: avatar + handle */}
+                  <div style={{ position: 'absolute', top: 18, left: 6, right: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 10 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, border: '1.5px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0 }}>
+                      {(client?.name || 'BB').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: F.body, fontSize: 8, fontWeight: 600, color: '#fff', lineHeight: 1.2, textShadow: '0 1px 3px rgba(0,0,0,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{handle}</div>
+                      <div style={{ fontFamily: F.body, fontSize: 7, color: 'rgba(255,255,255,0.7)', lineHeight: 1 }}>{post.scheduled_at ? fmtShort(post.scheduled_at) : 'Scheduled'}</div>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', letterSpacing: 1 }}>···</div>
+                  </div>
+                  {/* Caption overlay */}
+                  {post.caption && (
+                    <div style={{ position: 'absolute', bottom: 22, left: 6, right: 6, zIndex: 10 }}>
+                      <div style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', borderRadius: 5, padding: '4px 6px', fontFamily: F.body, fontSize: 7, color: '#fff', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{post.caption}</div>
+                    </div>
+                  )}
+                  {/* Reply bar */}
+                  <div style={{ position: 'absolute', bottom: 6, left: 6, right: 6, display: 'flex', alignItems: 'center', gap: 5, zIndex: 10 }}>
+                    <div style={{ flex: 1, height: 20, borderRadius: 10, border: '1px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', paddingLeft: 7 }}>
+                      <span style={{ fontFamily: F.body, fontSize: 7, color: 'rgba(255,255,255,0.6)' }}>Send message</span>
+                    </div>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </div>
                 </div>
-            }
-            <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              <div style={{ marginLeft: 'auto' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+                {/* Home indicator */}
+                <div style={{ width: 44, height: 3, background: '#444', borderRadius: 3, margin: '5px auto 2px' }} />
+              </div>
             </div>
-            <div style={{ padding: '0 10px 10px' }}>
-              <CaptionText text={post.caption} handle={handle} />
-              {post.scheduled_at && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>}
+          ) : (
+            /* ── Feed / Reel mockup ── */
+            <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>{(client?.name || 'BB').slice(0, 2).toUpperCase()}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: '#111' }}>{handle}</div>
+                  {post.campaign && <div style={{ fontFamily: F.body, fontSize: 9, color: '#999' }}>{post.campaign}</div>}
+                </div>
+                <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
+              </div>
+              {post.image_url
+                ? isVideo(post.image_url)
+                  ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', background: '#000' }} />
+                  : <img src={displaySrc} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+                : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
+                  </div>
+              }
+              <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <div style={{ marginLeft: 'auto' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+              </div>
+              <div style={{ padding: '0 10px 10px' }}>
+                <CaptionText text={post.caption} handle={handle} />
+                {post.scheduled_at && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>}
+              </div>
             </div>
-          </div>
+          )}
+
           {post.image_url && (
             <button onClick={handleDownload} disabled={downloading} style={{ width: '100%', marginTop: 10, padding: '9px 0', borderRadius: 7, border: '0.5px solid ' + PALETTE.border, background: downloading ? PALETTE.creamDark : '#fff', color: PALETTE.espresso, fontFamily: F.body, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, transition: 'all 0.15s' }}
               onMouseEnter={e => { if (!downloading) { e.currentTarget.style.background = PALETTE.espresso; e.currentTarget.style.color = PALETTE.cream } }}
