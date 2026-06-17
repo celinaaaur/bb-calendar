@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from './supabase'
 
 const style = document.createElement('style')
@@ -80,7 +80,7 @@ function AssetPreview({ url, onRemove, maxHeight = 180 }) {
     <div style={{ position: 'relative' }}>
       {isVideo(url)
         ? <video src={url} controls style={{ width: '100%', borderRadius: 8, maxHeight, display: 'block', background: '#000' }} />
-        : <img src={url} alt="" style={{ width: '100%', borderRadius: 8, maxHeight, objectFit: 'cover', display: 'block' }} />
+        : <img src={url} alt="" loading="lazy" style={{ width: '100%', borderRadius: 8, maxHeight, objectFit: 'cover', display: 'block' }} />
       }
       {onRemove && (
         <button onClick={onRemove} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 24, height: 24, color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
@@ -140,72 +140,6 @@ function Badge({ status }) {
   return <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, border: '0.5px solid ' + s.border, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
 }
 
-function WhatsNewBox({ posts, comments, versions, clients, onSelect }) {
-  const [dismissed, setDismissed] = useState(false)
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-  const items = []
-
-  posts.forEach(p => {
-    const ts = new Date(p.updated_at || p.created_at).getTime()
-    if (ts < cutoff) return
-    const client = clients.find(c => c.id === p.client_id)
-    const clientName = client?.name || 'Unknown'
-    const caption = (p.caption?.slice(0, 36) || '') + (p.caption?.length > 36 ? '…' : '')
-    if (p.status === 'approved') items.push({ ts, icon: '✓', color: '#2A7D4F', text: '"' + caption + '" approved by ' + clientName, date: p.updated_at || p.created_at, postId: p.id })
-    if (p.status === 'revision') items.push({ ts, icon: '↩', color: '#C0392B', text: clientName + ' requested revisions on "' + caption + '"', date: p.updated_at || p.created_at, postId: p.id })
-  })
-
-  comments.filter(c => c.author_type === 'client').forEach(c => {
-    const ts = new Date(c.created_at).getTime()
-    if (ts < cutoff) return
-    const post = posts.find(p => p.id === c.post_id)
-    const client = clients.find(cl => cl.id === post?.client_id)
-    items.push({ ts, icon: '💬', color: PALETTE.espresso, text: c.author + ' (' + (client?.name || 'Client') + '): "' + (c.text?.slice(0, 45) || '') + '…"', date: c.created_at, postId: post?.id })
-  })
-
-  versions.forEach(v => {
-    const ts = new Date(v.created_at).getTime()
-    if (ts < cutoff) return
-    const post = posts.find(p => p.id === v.post_id)
-    const caption = (post?.caption?.slice(0, 30) || '') + '…'
-    items.push({ ts, icon: '✎', color: PALETTE.muted, text: 'Caption updated on "' + caption + '" — v' + v.version_number, date: v.created_at, postId: post?.id })
-  })
-
-  items.sort((a, b) => b.ts - a.ts)
-  const recent = items.slice(0, 6)
-
-  if (dismissed || recent.length === 0) return null
-
-  return (
-    <div style={{ margin: '16px 26px 0', background: '#fff', border: '0.5px solid ' + PALETTE.border, borderRadius: 10, overflow: 'hidden' }}>
-      <div style={{ padding: '11px 16px', background: PALETTE.espresso, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>What's new</span>
-          <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.08em', textTransform: 'uppercase' }}>across all clients · last 7 days</span>
-        </div>
-        <button onClick={() => setDismissed(true)} style={{ background: 'none', border: 'none', color: '#7a5a3a', fontSize: 14, padding: 2 }}>✕</button>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-        {recent.map((item, i) => (
-          <div
-            key={i}
-            onClick={() => { const p = posts.find(x => x.id === item.postId); if (p && onSelect) onSelect(p) }}
-            style={{ padding: '14px 16px', cursor: item.postId ? 'pointer' : 'default', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', gap: 10, alignItems: 'flex-start', transition: 'background 0.12s' }}
-            onMouseEnter={e => { if (item.postId) e.currentTarget.style.background = PALETTE.creamMid }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
-          >
-            <div style={{ width: 22, height: 22, borderRadius: '50%', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: item.color, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{item.icon}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, lineHeight: 1.5 }}>{item.text}</div>
-              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{fmtAgo(item.date)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function TodayQueue({ posts, clients, onSelect }) {
   const now = new Date()
   const todayPosts = posts.filter(p => {
@@ -244,7 +178,7 @@ function TodayQueue({ posts, clients, onSelect }) {
               onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none' }}
             >
               <div style={{ height: 90, background: PALETTE.creamDark, position: 'relative', overflow: 'hidden' }}>
-                {post.image_url && !hasVid && <img src={imgSrc(post.image_url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {post.image_url && !hasVid && <img src={imgSrc(post.image_url)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                 {post.image_url && hasVid && (
                   <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
@@ -278,7 +212,7 @@ function IGGrid({ posts }) {
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2 }}>
       {grid.map((p, i) => (
         <div key={i} style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative', background: p ? (p.image_url ? 'transparent' : 'hsl(' + (28 + i * 8) + ',20%,' + (86 - i * 2) + '%)') : '#E8E0D0' }}>
-          {p?.image_url && !isVideo(p.image_url) && <img src={imgSrc(p.image_url, p.status === 'published')} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          {p?.image_url && !isVideo(p.image_url) && <img src={imgSrc(p.image_url, p.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
           {p?.image_url && isVideo(p.image_url) && <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>}
           {p && !p.image_url && <div style={{ padding: 3, fontSize: 6, color: PALETTE.muted, lineHeight: 1.3 }}>{p.caption?.slice(0, 30)}</div>}
           {p && <div style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.8)' }} />}
@@ -486,7 +420,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
             {post.image_url
               ? isVideo(post.image_url)
                 ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', background: '#000' }} />
-                : <img src={displaySrc} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+                : <img src={displaySrc} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
               : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
                 </div>
@@ -732,13 +666,15 @@ export default function Dashboard() {
   const [composing, setComposing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications, setNotifications] = useState([])
-  const [seenIds, setSeenIds] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem('bb_seen_notifs') || '[]')) } catch { return new Set() } })
+  const [seenIds, setSeenIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('bb_seen_notifs') || '[]')) } catch { return new Set() }
+  })
 
+  // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
     const [c, p, cm, v] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
-      supabase.from('posts').select('*').order('scheduled_at'),
+      supabase.from('posts').select('*').neq('status', 'archived').order('scheduled_at').limit(150),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at')
     ])
@@ -750,6 +686,32 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    fetchAll()
+
+    // ── SPEED FIX 2: targeted per-table refreshes instead of full fetchAll on every event ──
+    const s1 = supabase.channel('dash-posts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+        supabase.from('posts').select('*').neq('status', 'archived').order('scheduled_at').limit(150)
+          .then(({ data }) => { if (data) setPosts(data) })
+      }).subscribe()
+
+    const s2 = supabase.channel('dash-comments')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => {
+        supabase.from('comments').select('*').order('created_at')
+          .then(({ data }) => { if (data) setComments(data) })
+      }).subscribe()
+
+    const s3 = supabase.channel('dash-versions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'versions' }, () => {
+        supabase.from('versions').select('*').order('created_at')
+          .then(({ data }) => { if (data) setVersions(data) })
+      }).subscribe()
+
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe() }
+  }, [])
+
+  // ── SPEED FIX 3: notifications built with useMemo instead of useEffect + setState ──
+  const notifications = useMemo(() => {
     const notifs = []
     posts.forEach(p => {
       const client = clients.find(c => c.id === p.client_id)
@@ -764,7 +726,7 @@ export default function Dashboard() {
       notifs.push({ id: 'comment-' + c.id, message: c.author + ' left a comment: "' + (c.text?.slice(0, 40) || '') + '…"', client: client?.name || 'Client', created_at: c.created_at, read: seenIds.has('comment-' + c.id) })
     })
     notifs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    setNotifications(notifs)
+    return notifs
   }, [posts, comments, clients, seenIds])
 
   const markAllRead = () => {
@@ -774,17 +736,19 @@ export default function Dashboard() {
     try { localStorage.setItem('bb_seen_notifs', JSON.stringify([...newSeen])) } catch {}
   }
 
-  useEffect(() => {
-    fetchAll()
-    const s1 = supabase.channel('dash-posts').on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, fetchAll).subscribe()
-    const s2 = supabase.channel('dash-comments').on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, fetchAll).subscribe()
-    const s3 = supabase.channel('dash-versions').on('postgres_changes', { event: '*', schema: 'public', table: 'versions' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe() }
-  }, [])
-
   const unreadCount = notifications.filter(n => !n.read).length
-  const activePosts = posts.filter(p => p.status !== 'archived')
-  const archivedPosts = posts.filter(p => p.status === 'archived')
+
+  // ── SPEED FIX 4: archived posts fetched separately only when filter === 'archived' ──
+  const [archivedPosts, setArchivedPosts] = useState([])
+  const [archivedLoaded, setArchivedLoaded] = useState(false)
+  useEffect(() => {
+    if (filter === 'archived' && !archivedLoaded) {
+      supabase.from('posts').select('*').eq('status', 'archived').order('scheduled_at')
+        .then(({ data }) => { if (data) { setArchivedPosts(data); setArchivedLoaded(true) } })
+    }
+  }, [filter, archivedLoaded])
+
+  const activePosts = posts
   const base = filter === 'archived' ? archivedPosts : activePosts
   const clientFiltered = base.filter(p => selectedClient === 'all' || p.client_id === selectedClient)
   const filteredPosts = filter === 'archived' || filter === 'active' ? clientFiltered : clientFiltered.filter(p => p.status === filter)
@@ -870,8 +834,8 @@ export default function Dashboard() {
           </div>
 
           {!loading && view === 'queue' && (
-  <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} />
-)}
+            <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} />
+          )}
 
           {loading
             ? <div style={{ padding: 48, textAlign: 'center', fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight }}>Loading...</div>
@@ -890,7 +854,7 @@ export default function Dashboard() {
                           onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}
                         >
                           <div style={{ height: 120, background: post.image_url ? 'transparent' : PALETTE.creamDark, overflow: 'hidden', position: 'relative' }}>
-                            {post.image_url && !isVideo(post.image_url) && <img src={imgSrc(post.image_url, post.status === 'published')} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                            {post.image_url && !isVideo(post.image_url) && <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                             {post.image_url && isVideo(post.image_url) && <div style={{ width: '100%', height: '100%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>}
                             {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 16 }}>BB</div>}
                           </div>
@@ -914,7 +878,7 @@ export default function Dashboard() {
                           onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = '#fff' }}
                         >
                           <div style={{ width: 50, height: 50, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
-                            {post.image_url && !isVideo(post.image_url) && <img src={imgSrc(post.image_url, post.status === 'published')} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                            {post.image_url && !isVideo(post.image_url) && <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                             {post.image_url && isVideo(post.image_url) && <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg></div>}
                             {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
                           </div>
