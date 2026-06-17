@@ -508,8 +508,12 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
       )}
 
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-        {[['details', 'Details'], ['comments', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]].map(([k, l]) => (
-          <button key={k} onClick={() => setActiveTab(k)} style={{ flex: 1, padding: '11px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 11, fontWeight: activeTab === k ? 500 : 400, color: activeTab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: activeTab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent', transition: 'all 0.15s', letterSpacing: '0.03em' }}>{l}</button>
+        {[
+          ['details', 'Details'],
+          ['comments', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')],
+          ['history', 'History' + (versions.length > 0 ? ' (' + versions.length + ')' : '')]
+        ].map(([k, l]) => (
+          <button key={k} onClick={() => setActiveTab(k)} style={{ flex: 1, padding: '11px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 10, fontWeight: activeTab === k ? 500 : 400, color: activeTab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: activeTab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent', transition: 'all 0.15s', letterSpacing: '0.03em' }}>{l}</button>
         ))}
       </div>
 
@@ -562,22 +566,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
             )}
 
             <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
-
-            {versions.length > 0 && (
-              <div style={{ marginBottom: 18 }}>
-                <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 12, textTransform: 'uppercase' }}>Version History</div>
-                {versions.sort((a, b) => b.version_number - a.version_number).map(v => (
-                  <div key={v.id} style={{ display: 'flex', gap: 12, marginBottom: 14, paddingBottom: 14, borderBottom: '0.5px dashed ' + PALETTE.borderLight }}>
-                    <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: '#9B2B20', flexShrink: 0, width: 26 }}>v{v.version_number}</div>
-                    <div>
-                      <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3 }}>{fmtShort(v.created_at)} · {v.author}</div>
-                      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{v.note}</div>
-                    </div>
-                  </div>
-                ))}
-                <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
-              </div>
-            )}
 
             {post.status !== 'archived' && (
               <div style={{ marginBottom: 16 }}>
@@ -635,6 +623,98 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
             </div>
           </div>
         )}
+
+        {activeTab === 'history' && (() => {
+          // Build a unified activity timeline from versions + status-change comments + client comments
+          const timeline = []
+
+          // Caption edits from versions table
+          versions.forEach(v => {
+            timeline.push({
+              ts: new Date(v.created_at).getTime(),
+              date: v.created_at,
+              icon: '✎',
+              iconColor: PALETTE.muted,
+              iconBg: PALETTE.creamDark,
+              who: v.author || 'Brown Butter',
+              action: 'updated the caption',
+              detail: v.note || null,
+              tag: 'v' + v.version_number,
+              tagColor: '#9B2B20',
+            })
+          })
+
+          // Status changes inferred from comments with author_type agency that look like status notes,
+          // plus we build synthetic entries from the current post status
+          const statusEvents = {
+            approved:  { icon: '✓', iconColor: '#2A7D4F', iconBg: '#E8F8EE', action: 'approved this post' },
+            revision:  { icon: '↩', iconColor: '#C0392B', iconBg: '#FEECEA', action: 'requested revisions' },
+            published: { icon: '✦', iconColor: PALETTE.caramel, iconBg: PALETTE.caramelLight, action: 'marked as published' },
+            pending:   { icon: '○', iconColor: PALETTE.muted, iconBg: PALETTE.creamDark, action: 'reset to pending' },
+          }
+
+          // Add current status as a timeline entry using updated_at
+          if (post.status && post.updated_at && post.updated_at !== post.created_at) {
+            const ev = statusEvents[post.status]
+            if (ev) {
+              const who = post.status === 'approved' ? (client?.name || 'Client') : 'Brown Butter'
+              timeline.push({
+                ts: new Date(post.updated_at).getTime(),
+                date: post.updated_at,
+                icon: ev.icon,
+                iconColor: ev.iconColor,
+                iconBg: ev.iconBg,
+                who,
+                action: ev.action,
+                detail: null,
+                tag: null,
+              })
+            }
+          }
+
+          // Post created entry
+          timeline.push({
+            ts: new Date(post.created_at).getTime(),
+            date: post.created_at,
+            icon: '+',
+            iconColor: PALETTE.caramel,
+            iconBg: PALETTE.caramelLight,
+            who: 'Brown Butter',
+            action: 'created this post',
+            detail: null,
+            tag: null,
+          })
+
+          timeline.sort((a, b) => b.ts - a.ts)
+
+          if (timeline.length === 0) {
+            return <p style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', margin: 0, lineHeight: 1.6 }}>No history yet.</p>
+          }
+
+          return (
+            <div style={{ position: 'relative' }}>
+              {/* Vertical line */}
+              <div style={{ position: 'absolute', left: 10, top: 6, bottom: 6, width: 1, background: PALETTE.borderLight }} />
+              {timeline.map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 20, position: 'relative' }}>
+                  {/* Icon dot */}
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: item.iconBg, border: '1.5px solid ' + PALETTE.borderLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: item.iconColor, fontWeight: 700, flexShrink: 0, zIndex: 1 }}>{item.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 500 }}>{item.who}</span>
+                      {' '}{item.action}
+                      {item.tag && <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 11, color: item.tagColor, marginLeft: 5 }}>{item.tag}</span>}
+                    </div>
+                    {item.detail && (
+                      <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 4, lineHeight: 1.5, background: PALETTE.creamMid, borderRadius: 5, padding: '5px 8px', borderLeft: '2px solid ' + PALETTE.border }}>{item.detail}</div>
+                    )}
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>{fmtAgo(item.date)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
