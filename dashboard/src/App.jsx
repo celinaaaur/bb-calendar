@@ -870,11 +870,8 @@ export default function Dashboard() {
           </div>
 
           {!loading && view === 'queue' && (
-            <>
-              <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} />
-              <WhatsNewBox posts={posts} comments={comments} versions={versions} clients={clients} onSelect={setSelectedPost} />
-            </>
-          )}
+  <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} />
+)}
 
           {loading
             ? <div style={{ padding: 48, textAlign: 'center', fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight }}>Loading...</div>
