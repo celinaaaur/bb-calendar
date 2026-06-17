@@ -998,7 +998,7 @@ export default function Dashboard() {
                       // Newest scheduled date first — mirrors how IG shows most recent at top-left
                       const sortedPosts = [...filteredPosts].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
                       return (
-                        <div style={{ padding: '16px 20px' }}>
+                        <div style={{ padding: '16px 8px' }}>
                           {/* Client group headers when viewing all clients */}
                           {selectedClient === 'all'
                             ? clients.map(cl => {
@@ -1011,7 +1011,7 @@ export default function Dashboard() {
                                       <span style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, letterSpacing: '0.04em' }}>{cl.name}</span>
                                       <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{clientPosts.length} post{clientPosts.length !== 1 ? 's' : ''}</span>
                                     </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
                                       {clientPosts.map(post => {
                                         const si = statusIcon(post.status)
                                         const isSelected = selectedPost?.id === post.id
@@ -1051,7 +1051,7 @@ export default function Dashboard() {
                                 )
                               })
                             : (
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3 }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
                                 {sortedPosts.map(post => {
                                   const si = statusIcon(post.status)
                                   const isSelected = selectedPost?.id === post.id
