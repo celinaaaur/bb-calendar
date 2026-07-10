@@ -916,6 +916,9 @@ export default function Dashboard() {
   const [seenIds, setSeenIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('bb_seen_notifs') || '[]')) } catch { return new Set() }
   })
+  const [pwEditClientId, setPwEditClientId] = useState(null)
+  const [pwDraft, setPwDraft] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
@@ -983,6 +986,21 @@ export default function Dashboard() {
     try { localStorage.setItem('bb_seen_notifs', JSON.stringify([...newSeen])) } catch {}
   }
 
+  const startEditPassword = (client) => {
+    setPwEditClientId(client.id)
+    setPwDraft(client.portal_password || '')
+  }
+
+  const savePortalPassword = async () => {
+    if (!pwEditClientId) return
+    setPwSaving(true)
+    await supabase.from('clients').update({ portal_password: pwDraft.trim() || null }).eq('id', pwEditClientId)
+    setClients(prev => prev.map(c => c.id === pwEditClientId ? { ...c, portal_password: pwDraft.trim() || null } : c))
+    setPwSaving(false)
+    setPwEditClientId(null)
+    setPwDraft('')
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   // ── SPEED FIX 4: archived posts fetched separately only when filter === 'archived' ──
@@ -1037,10 +1055,37 @@ export default function Dashboard() {
           <div style={{ padding: '18px 14px 8px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Clients</div>
             {[{ id: 'all', name: 'All Clients', brand_color: PALETTE.caramel }, ...clients].map(c => (
-              <button key={c.id} onClick={() => setSelectedClient(c.id)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s' }}
-                onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-                onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
-              ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} />{c.name}</button>
+              <div key={c.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <button onClick={() => setSelectedClient(c.id)} style={{ flex: 1, textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s', minWidth: 0 }}
+                    onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                    onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
+                  ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span></button>
+                  {c.id !== 'all' && (
+                    <button onClick={() => pwEditClientId === c.id ? setPwEditClientId(null) : startEditPassword(c)} title={c.portal_password ? 'Portal password set' : 'Set portal password'} style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: c.portal_password ? PALETTE.caramel : PALETTE.mutedLight, opacity: pwEditClientId === c.id ? 1 : 0.6 }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                      onMouseLeave={e => e.currentTarget.style.opacity = pwEditClientId === c.id ? 1 : 0.6}
+                    >{c.portal_password ? '🔒' : '🔓'}</button>
+                  )}
+                </div>
+                {pwEditClientId === c.id && (
+                  <div style={{ margin: '2px 0 8px', padding: '8px', background: PALETTE.creamDark, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <input
+                      type="text"
+                      value={pwDraft}
+                      onChange={e => setPwDraft(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && savePortalPassword()}
+                      placeholder="Portal password (blank = no lock)"
+                      autoFocus
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontSize: 11, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }}
+                    />
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      <button onClick={() => setPwEditClientId(null)} style={{ flex: 1, padding: '5px 0', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>Cancel</button>
+                      <button onClick={savePortalPassword} disabled={pwSaving} style={{ flex: 1, padding: '5px 0', borderRadius: 5, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 10, color: PALETTE.cream, opacity: pwSaving ? 0.6 : 1 }}>{pwSaving ? 'Saving…' : 'Save'}</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
