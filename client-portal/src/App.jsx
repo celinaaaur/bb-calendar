@@ -738,6 +738,96 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
   )
 }
 
+// ── Billing helpers ─────────────────────────────────────────────────────────
+const BILLING_STATUS = {
+  paid:    { label: 'PAID',    color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F' },
+  pending: { label: 'PENDING', color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A' },
+  overdue: { label: 'OVERDUE', color: '#7A2018', bg: '#FEECEA', dot: '#C0392B' },
+}
+const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+
+// ── Meeting Notes section ────────────────────────────────────────────────────
+function NotesSection({ notes, isMobile }) {
+  const sorted = [...notes].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
+  return (
+    <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px', maxWidth: 720 }}>
+      <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, marginBottom: 4 }}>Meeting Notes</div>
+      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 24, fontWeight: 300 }}>
+        {sorted.length} note{sorted.length !== 1 ? 's' : ''} from Brown Butter
+      </div>
+      {sorted.length === 0 ? (
+        <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No meeting notes yet</div>
+      ) : sorted.map(n => (
+        <div key={n.id} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '18px 20px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: PALETTE.espresso }}>{n.title}</div>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtDateLong(n.meeting_date)}</div>
+          </div>
+          <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.7 }}>
+            {(n.body || '').split('\n').map((line, i, arr) => <span key={i}>{line}{i < arr.length - 1 && <br />}</span>)}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Billing section ───────────────────────────────────────────────────────────
+function BillingSection({ cycles, isMobile }) {
+  const sorted = [...cycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
+  const today = new Date()
+  const current = sorted.find(c => new Date(c.cycle_start) <= today && today <= new Date(c.cycle_end)) || sorted[0]
+  const history = sorted.filter(c => c.id !== current?.id)
+
+  return (
+    <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px', maxWidth: 720 }}>
+      <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, marginBottom: 4 }}>Billing</div>
+      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 24, fontWeight: 300 }}>Your billing cycles with Brown Butter</div>
+
+      {!current ? (
+        <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No billing information yet</div>
+      ) : (
+        <>
+          <div style={{ background: PALETTE.espresso, borderRadius: 12, padding: '22px 24px', marginBottom: 24, color: PALETTE.cream }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontFamily: F.body, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a5a3a', marginBottom: 6 }}>Current cycle</div>
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 16 : 20 }}>{fmtDateLong(current.cycle_start)} – {fmtDateLong(current.cycle_end)}</div>
+              </div>
+              <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: BILLING_STATUS[current.status]?.bg || '#F2F2F2', color: BILLING_STATUS[current.status]?.color || '#555', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{BILLING_STATUS[current.status]?.label || current.status}</span>
+            </div>
+            <div style={{ fontFamily: F.display, fontSize: isMobile ? 28 : 34, color: PALETTE.caramel }}>{fmtMoney(current.amount)}</div>
+            {current.notes && <div style={{ fontFamily: F.body, fontSize: 12, color: 'rgba(245,240,232,0.75)', marginTop: 10, lineHeight: 1.6 }}>{current.notes}</div>}
+            {current.invoice_url && (
+              <a href={current.invoice_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 14, fontFamily: F.body, fontSize: 12, color: PALETTE.caramel, textDecoration: 'underline' }}>View invoice →</a>
+            )}
+          </div>
+
+          {history.length > 0 && (
+            <>
+              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 12, textTransform: 'uppercase' }}>History</div>
+              <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
+                {history.map((c, i) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: i < history.length - 1 ? '0.5px solid ' + PALETTE.borderLight : 'none', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 140 }}>
+                      <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso }}>{fmtDateLong(c.cycle_start)} – {fmtDateLong(c.cycle_end)}</div>
+                      {c.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginTop: 2 }}>{c.notes}</div>}
+                    </div>
+                    <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, fontWeight: 500 }}>{fmtMoney(c.amount)}</div>
+                    <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: BILLING_STATUS[c.status]?.bg || '#F2F2F2', color: BILLING_STATUS[c.status]?.color || '#555', textTransform: 'uppercase' }}>{BILLING_STATUS[c.status]?.label || c.status}</span>
+                    {c.invoice_url && <a href={c.invoice_url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Invoice</a>}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function ClientPortal() {
   const [client, setClient] = useState(null)
   const [posts, setPosts] = useState([])
@@ -753,6 +843,9 @@ export default function ClientPortal() {
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
+  const [section, setSection] = useState('content') // 'content' | 'notes' | 'billing'
+  const [notes, setNotes] = useState([])
+  const [billingCycles, setBillingCycles] = useState([])
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -774,14 +867,18 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
-    const [p, cm, v] = await Promise.all([
+    const [p, cm, v, mn, bc] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
-      supabase.from('versions').select('*').order('created_at')
+      supabase.from('versions').select('*').order('created_at'),
+      supabase.from('meeting_notes').select('*').eq('client_id', clientData.id).order('meeting_date', { ascending: false }),
+      supabase.from('billing_cycles').select('*').eq('client_id', clientData.id).order('cycle_start', { ascending: false })
     ])
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
     if (v.data) setVersions(v.data)
+    if (mn.data) setNotes(mn.data)
+    if (bc.data) setBillingCycles(bc.data)
     setLoading(false)
   }
 
@@ -804,7 +901,9 @@ export default function ClientPortal() {
     fetchAll()
     const s1 = supabase.channel('cp-posts').on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, fetchAll).subscribe()
     const s2 = supabase.channel('cp-comments').on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe() }
+    const s3 = supabase.channel('cp-notes').on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_notes' }, fetchAll).subscribe()
+    const s4 = supabase.channel('cp-billing').on('postgres_changes', { event: '*', schema: 'public', table: 'billing_cycles' }, fetchAll).subscribe()
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe() }
   }, [])
 
   if (loading) return (
@@ -954,49 +1053,63 @@ export default function ClientPortal() {
         {/* Desktop sidebar */}
         {!isMobile && (
           <div style={{ width: 192, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-            <div style={{ padding: '22px 16px' }}>
-              {/* View toggle */}
-              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
-              <div style={{ display: 'flex', gap: 4, marginBottom: 18 }}>
-                {[['list', 'List'], ['calendar', 'Calendar']].map(([k, l]) => (
-                  <button key={k} onClick={() => setView(k)} style={{
-                    flex: 1, padding: '6px 0', borderRadius: 5, border: '0.5px solid ' + (view === k ? PALETTE.caramel : PALETTE.border),
-                    background: view === k ? PALETTE.caramel : 'transparent',
-                    color: view === k ? '#fff' : PALETTE.muted,
-                    fontFamily: F.body, fontSize: 11, fontWeight: view === k ? 500 : 400, transition: 'all 0.12s'
-                  }}>{l}</button>
+            <div style={{ padding: '22px 16px 0' }}>
+              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Portal</div>
+              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing']].map(([k, l]) => (
+                <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: section === k ? PALETTE.espresso : 'transparent', color: section === k ? PALETTE.cream : PALETTE.muted, fontWeight: section === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s' }}
+                  onMouseEnter={e => { if (section !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                  onMouseLeave={e => { if (section !== k) e.currentTarget.style.background = 'transparent' }}
+                >{l}</button>
+              ))}
+            </div>
+            {section === 'content' && (
+              <div style={{ padding: '18px 16px 22px' }}>
+                <div style={{ height: '0.5px', background: PALETTE.border, margin: '2px 0 16px' }} />
+                {/* View toggle */}
+                <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
+                <div style={{ display: 'flex', gap: 4, marginBottom: 18 }}>
+                  {[['list', 'List'], ['calendar', 'Calendar']].map(([k, l]) => (
+                    <button key={k} onClick={() => setView(k)} style={{
+                      flex: 1, padding: '6px 0', borderRadius: 5, border: '0.5px solid ' + (view === k ? PALETTE.caramel : PALETTE.border),
+                      background: view === k ? PALETTE.caramel : 'transparent',
+                      color: view === k ? '#fff' : PALETTE.muted,
+                      fontFamily: F.body, fontSize: 11, fontWeight: view === k ? 500 : 400, transition: 'all 0.12s'
+                    }}>{l}</button>
+                  ))}
+                </div>
+                <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Filter</div>
+                {[['all','All Posts',counts.all],['pending','Awaiting Approval',counts.pending],['approved','Approved',counts.approved],['revision','Needs Changes',counts.revision]].map(([k,l,n]) => (
+                  <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
+                    onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                    onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {k !== 'all' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS[k]?.dot || PALETTE.mutedLight, flexShrink: 0, display: 'inline-block' }} />}
+                      {l}
+                    </span>
+                    {n > 0 && <span style={{ fontSize: 10, color: filter === k ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{n}</span>}
+                  </button>
                 ))}
-              </div>
-              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Filter</div>
-              {[['all','All Posts',counts.all],['pending','Awaiting Approval',counts.pending],['approved','Approved',counts.approved],['revision','Needs Changes',counts.revision]].map(([k,l,n]) => (
-                <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
-                  onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-                  onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
+                <div style={{ height: '0.5px', background: PALETTE.border, margin: '10px 0' }} />
+                <button onClick={() => { setFilter('published'); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: filter === 'published' ? PALETTE.creamDark : 'transparent', color: filter === 'published' ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === 'published' ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
+                  onMouseEnter={e => { if (filter !== 'published') e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                  onMouseLeave={e => { if (filter !== 'published') e.currentTarget.style.background = 'transparent' }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {k !== 'all' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS[k]?.dot || PALETTE.mutedLight, flexShrink: 0, display: 'inline-block' }} />}
-                    {l}
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS.published.dot, flexShrink: 0, display: 'inline-block' }} />
+                    Published
                   </span>
-                  {n > 0 && <span style={{ fontSize: 10, color: filter === k ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{n}</span>}
+                  {counts.published > 0 && <span style={{ fontSize: 10, color: filter === 'published' ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{counts.published}</span>}
                 </button>
-              ))}
-              <div style={{ height: '0.5px', background: PALETTE.border, margin: '10px 0' }} />
-              <button onClick={() => { setFilter('published'); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: filter === 'published' ? PALETTE.creamDark : 'transparent', color: filter === 'published' ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === 'published' ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
-                onMouseEnter={e => { if (filter !== 'published') e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-                onMouseLeave={e => { if (filter !== 'published') e.currentTarget.style.background = 'transparent' }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS.published.dot, flexShrink: 0, display: 'inline-block' }} />
-                  Published
-                </span>
-                {counts.published > 0 && <span style={{ fontSize: 10, color: filter === 'published' ? brandColor : PALETTE.mutedLight, fontWeight: 500 }}>{counts.published}</span>}
-              </button>
-            </div>
-            <div style={{ height: '0.5px', background: PALETTE.border, margin: '0 16px' }} />
-            <div style={{ margin: '18px 16px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
-              <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
-              <IGGrid posts={posts} />
-            </div>
+              </div>
+            )}
+            {section === 'content' && <div style={{ height: '0.5px', background: PALETTE.border, margin: '0 16px' }} />}
+            {section === 'content' && (
+              <div style={{ margin: '18px 16px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
+                <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
+                <IGGrid posts={posts} />
+              </div>
+            )}
             <div style={{ padding: '20px 16px', marginTop: 'auto' }}>
               <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3, fontWeight: 300 }}>Managed by</div>
               <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 15 }}>Brown Butter</div>
@@ -1007,8 +1120,17 @@ export default function ClientPortal() {
         {/* Main content */}
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
 
-          {/* Mobile filter + view chips */}
+          {/* Mobile primary section tabs */}
           {isMobile && (
+            <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream, paddingBottom: 8 }}>
+              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing']].map(([k, l]) => (
+                <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (section === k ? brandColor : PALETTE.border), background: section === k ? PALETTE.espresso : '#fff', color: section === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: section === k ? 500 : 400, whiteSpace: 'nowrap' }}>{l}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Mobile filter + view chips */}
+          {isMobile && section === 'content' && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream }}>
               {/* View toggles */}
               <button onClick={() => setView('list')} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (view === 'list' ? brandColor : PALETTE.border), background: view === 'list' ? PALETTE.espresso : '#fff', color: view === 'list' ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, whiteSpace: 'nowrap' }}>List</button>
@@ -1032,6 +1154,14 @@ export default function ClientPortal() {
             </div>
           )}
 
+          {/* Meeting Notes section */}
+          {section === 'notes' && <NotesSection notes={notes} isMobile={isMobile} />}
+
+          {/* Billing section */}
+          {section === 'billing' && <BillingSection cycles={billingCycles} isMobile={isMobile} />}
+
+          {section === 'content' && (
+          <>
           {/* What's New box — shown in list view only */}
           {view === 'list' && (
             <WhatsNewBox posts={posts} comments={comments} versions={versions} isMobile={isMobile} />
@@ -1121,6 +1251,8 @@ export default function ClientPortal() {
               <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3 }}>Managed by</div>
               <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 15 }}>Brown Butter</div>
             </div>
+          )}
+          </>
           )}
         </div>
 
