@@ -145,6 +145,13 @@ const STATUS = {
   archived:  { label: 'ARCHIVED',            color: '#777',    bg: '#F5F5F5', dot: '#AAA',    border: '#DDD'    },
 }
 const FORMATS = ['post', 'carousel', 'reel', 'story']
+const BILLING_STATUS = {
+  paid:    { label: 'PAID',    color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F' },
+  pending: { label: 'PENDING', color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A' },
+  overdue: { label: 'OVERDUE', color: '#7A2018', bg: '#FEECEA', dot: '#C0392B' },
+}
+const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 const statusLine = (s) => ({ pending: 'Awaiting client approval', approved: 'Approved — ready to schedule', revision: 'Client requested revisions', published: 'Published', archived: 'Archived' }[s] || '')
 
 function CaptionText({ text, handle, style: extra }) {
@@ -901,6 +908,190 @@ function ComposeModal({ clients, onClose, onSaved }) {
   )
 }
 
+function ClientHubModal({ client, onClose }) {
+  const [tab, setTab] = useState('notes') // 'notes' | 'billing'
+  const [notes, setNotes] = useState([])
+  const [cycles, setCycles] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const [editingNoteId, setEditingNoteId] = useState(null) // null = closed, 'new' = new note, else note id
+  const [noteTitle, setNoteTitle] = useState('')
+  const [noteDate, setNoteDate] = useState('')
+  const [noteBody, setNoteBody] = useState('')
+
+  const [editingCycleId, setEditingCycleId] = useState(null)
+  const [cycleStart, setCycleStart] = useState('')
+  const [cycleEnd, setCycleEnd] = useState('')
+  const [cycleAmount, setCycleAmount] = useState('')
+  const [cycleStatus, setCycleStatus] = useState('pending')
+  const [cycleInvoiceUrl, setCycleInvoiceUrl] = useState('')
+  const [cycleNotes, setCycleNotes] = useState('')
+
+  const fetchHub = async () => {
+    setLoading(true)
+    const [n, c] = await Promise.all([
+      supabase.from('meeting_notes').select('*').eq('client_id', client.id).order('meeting_date', { ascending: false }),
+      supabase.from('billing_cycles').select('*').eq('client_id', client.id).order('cycle_start', { ascending: false })
+    ])
+    if (n.data) setNotes(n.data)
+    if (c.data) setCycles(c.data)
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchHub() }, [client.id])
+
+  const startNewNote = () => { setEditingNoteId('new'); setNoteTitle(''); setNoteDate(new Date().toISOString().slice(0, 10)); setNoteBody('') }
+  const startEditNote = (n) => { setEditingNoteId(n.id); setNoteTitle(n.title); setNoteDate(n.meeting_date); setNoteBody(n.body || '') }
+
+  const saveNote = async () => {
+    if (!noteTitle.trim() || !noteDate) return
+    setSaving(true)
+    if (editingNoteId === 'new') {
+      await supabase.from('meeting_notes').insert({ client_id: client.id, title: noteTitle.trim(), meeting_date: noteDate, body: noteBody.trim() })
+    } else {
+      await supabase.from('meeting_notes').update({ title: noteTitle.trim(), meeting_date: noteDate, body: noteBody.trim() }).eq('id', editingNoteId)
+    }
+    setSaving(false); setEditingNoteId(null)
+    fetchHub()
+  }
+
+  const deleteNote = async (id) => {
+    if (!window.confirm('Delete this meeting note?')) return
+    await supabase.from('meeting_notes').delete().eq('id', id)
+    fetchHub()
+  }
+
+  const startNewCycle = () => { setEditingCycleId('new'); setCycleStart(''); setCycleEnd(''); setCycleAmount(''); setCycleStatus('pending'); setCycleInvoiceUrl(''); setCycleNotes('') }
+  const startEditCycle = (c) => { setEditingCycleId(c.id); setCycleStart(c.cycle_start); setCycleEnd(c.cycle_end); setCycleAmount(c.amount ?? ''); setCycleStatus(c.status || 'pending'); setCycleInvoiceUrl(c.invoice_url || ''); setCycleNotes(c.notes || '') }
+
+  const saveCycle = async () => {
+    if (!cycleStart || !cycleEnd) return
+    setSaving(true)
+    const payload = {
+      client_id: client.id, cycle_start: cycleStart, cycle_end: cycleEnd,
+      amount: cycleAmount ? parseFloat(cycleAmount) : null, status: cycleStatus,
+      invoice_url: cycleInvoiceUrl.trim() || null, notes: cycleNotes.trim() || null
+    }
+    if (editingCycleId === 'new') {
+      await supabase.from('billing_cycles').insert(payload)
+    } else {
+      await supabase.from('billing_cycles').update(payload).eq('id', editingCycleId)
+    }
+    setSaving(false); setEditingCycleId(null)
+    fetchHub()
+  }
+
+  const deleteCycle = async (id) => {
+    if (!window.confirm('Delete this billing cycle?')) return
+    await supabase.from('billing_cycles').delete().eq('id', id)
+    fetchHub()
+  }
+
+  const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
+  const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
+  const sortedNotes = [...notes].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
+  const sortedCycles = [...cycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
+        <div style={{ padding: '16px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, flexShrink: 0 }}>
+          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>{client.name} — Client Hub</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.caramel, fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+          {[['notes', 'Meeting Notes'], ['billing', 'Billing']].map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+          {loading ? (
+            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, textAlign: 'center', padding: 30 }}>Loading…</div>
+          ) : tab === 'notes' ? (
+            <div>
+              {editingNoteId ? (
+                <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div><label style={labelStyle}>Title</label><input value={noteTitle} onChange={e => setNoteTitle(e.target.value)} placeholder="e.g. Q3 Strategy Check-in" style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Date</label><input type="date" value={noteDate} onChange={e => setNoteDate(e.target.value)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Notes</label><textarea value={noteBody} onChange={e => setNoteBody(e.target.value)} rows={6} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} /></div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setEditingNoteId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
+                    <button onClick={saveNote} disabled={saving || !noteTitle.trim() || !noteDate} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 12, color: PALETTE.cream, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save note'}</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={startNewNote} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 16 }}>+ New meeting note</button>
+              )}
+
+              {sortedNotes.length === 0 && !editingNoteId && (
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>No meeting notes yet.</div>
+              )}
+              {sortedNotes.map(n => (
+                <div key={n.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 10 }}>
+                    <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 14, color: PALETTE.espresso }}>{n.title}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtDateLong(n.meeting_date)}</div>
+                  </div>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={() => startEditNote(n)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
+                    <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>
+              {editingCycleId ? (
+                <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div><label style={labelStyle}>Cycle start</label><input type="date" value={cycleStart} onChange={e => setCycleStart(e.target.value)} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Cycle end</label><input type="date" value={cycleEnd} onChange={e => setCycleEnd(e.target.value)} style={inputStyle} /></div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div><label style={labelStyle}>Amount (₱)</label><input type="number" step="0.01" value={cycleAmount} onChange={e => setCycleAmount(e.target.value)} placeholder="e.g. 45000" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Status</label><select value={cycleStatus} onChange={e => setCycleStatus(e.target.value)} style={inputStyle}><option value="pending">Pending</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></div>
+                  </div>
+                  <div><label style={labelStyle}>Invoice link (optional)</label><input value={cycleInvoiceUrl} onChange={e => setCycleInvoiceUrl(e.target.value)} placeholder="https://..." style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Notes (optional)</label><textarea value={cycleNotes} onChange={e => setCycleNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} /></div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setEditingCycleId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
+                    <button onClick={saveCycle} disabled={saving || !cycleStart || !cycleEnd} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 12, color: PALETTE.cream, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save cycle'}</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={startNewCycle} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 16 }}>+ New billing cycle</button>
+              )}
+
+              {sortedCycles.length === 0 && !editingCycleId && (
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>No billing cycles yet.</div>
+              )}
+              {sortedCycles.map(c => (
+                <div key={c.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{fmtDateLong(c.cycle_start)} – {fmtDateLong(c.cycle_end)}</div>
+                    <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: BILLING_STATUS[c.status]?.bg || '#F2F2F2', color: BILLING_STATUS[c.status]?.color || '#555', textTransform: 'uppercase' }}>{BILLING_STATUS[c.status]?.label || c.status}</span>
+                  </div>
+                  <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.espresso, marginBottom: 6 }}>{fmtMoney(c.amount)}</div>
+                  {c.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginBottom: 6, lineHeight: 1.5 }}>{c.notes}</div>}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <button onClick={() => startEditCycle(c)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
+                    <button onClick={() => deleteCycle(c.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
+                    {c.invoice_url && <a href={c.invoice_url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginLeft: 'auto' }}>Invoice ↗</a>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [clients, setClients] = useState([])
   const [posts, setPosts] = useState([])
@@ -919,6 +1110,7 @@ export default function Dashboard() {
   const [pwEditClientId, setPwEditClientId] = useState(null)
   const [pwDraft, setPwDraft] = useState('')
   const [pwSaving, setPwSaving] = useState(false)
+  const [hubClientId, setHubClientId] = useState(null)
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
@@ -1061,6 +1253,12 @@ export default function Dashboard() {
                     onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                     onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
                   ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span></button>
+                  {c.id !== 'all' && (
+                    <button onClick={() => setHubClientId(c.id)} title="Manage meeting notes & billing" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: PALETTE.mutedLight, opacity: 0.6 }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                      onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+                    >🗂</button>
+                  )}
                   {c.id !== 'all' && (
                     <button onClick={() => pwEditClientId === c.id ? setPwEditClientId(null) : startEditPassword(c)} title={c.portal_password ? 'Portal password set' : 'Set portal password'} style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: c.portal_password ? PALETTE.caramel : PALETTE.mutedLight, opacity: pwEditClientId === c.id ? 1 : 0.6 }}
                       onMouseEnter={e => e.currentTarget.style.opacity = 1}
@@ -1297,6 +1495,7 @@ export default function Dashboard() {
       </div>
 
       {composing && <ComposeModal clients={clients} onClose={() => setComposing(false)} onSaved={fetchAll} />}
+      {hubClientId && <ClientHubModal client={clients.find(c => c.id === hubClientId)} onClose={() => setHubClientId(null)} />}
     </div>
   )
 }
