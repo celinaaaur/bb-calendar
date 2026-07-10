@@ -160,90 +160,6 @@ function Badge({ status }) {
   )
 }
 
-// ── What's New box ────────────────────────────────────────────────────────────
-function WhatsNewBox({ posts, comments, versions, isMobile }) {
-  const [dismissed, setDismissed] = useState(false)
-
-  // Build activity feed from posts + comments + versions, last 14 days
-  const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000
-  const items = []
-
-  posts.forEach(p => {
-    const ts = new Date(p.updated_at || p.created_at).getTime()
-    if (ts < cutoff) return
-    const caption = p.caption?.slice(0, 36) + (p.caption?.length > 36 ? '…' : '')
-    if (p.status === 'published') {
-      items.push({ ts, icon: '✦', color: PALETTE.caramel, text: `"${caption}" is now live on Instagram`, date: p.updated_at || p.created_at })
-    } else if (p.status === 'revision') {
-      items.push({ ts, icon: '↩', color: '#C0392B', text: `Revisions requested on "${caption}"`, date: p.updated_at || p.created_at })
-    } else if (p.status === 'pending') {
-      const created = new Date(p.created_at).getTime()
-      if (Date.now() - created < 7 * 24 * 60 * 60 * 1000) {
-        items.push({ ts: created, icon: '+', color: '#2A7D4F', text: `New post added: "${caption}"`, date: p.created_at })
-      }
-    }
-  })
-
-  versions.forEach(v => {
-    const ts = new Date(v.created_at).getTime()
-    if (ts < cutoff) return
-    const post = posts.find(p => p.id === v.post_id)
-    const caption = post?.caption?.slice(0, 32) + (post?.caption?.length > 32 ? '…' : '') || 'a post'
-    items.push({ ts, icon: '✎', color: PALETTE.muted, text: `Caption updated on "${caption}"`, date: v.created_at })
-  })
-
-  comments.filter(c => c.author_type === 'agency').forEach(c => {
-    const ts = new Date(c.created_at).getTime()
-    if (ts < cutoff) return
-    items.push({ ts, icon: '💬', color: PALETTE.espresso, text: `Brown Butter left a note: "${c.text?.slice(0, 40)}…"`, date: c.created_at })
-  })
-
-  items.sort((a, b) => b.ts - a.ts)
-  const recent = items.slice(0, 5)
-
-  if (dismissed || recent.length === 0) return null
-
-  return (
-    <div style={{
-      margin: isMobile ? '16px 18px 0' : '20px 28px 0',
-      background: '#fff',
-      border: '0.5px solid ' + PALETTE.border,
-      borderRadius: 10,
-      overflow: 'hidden'
-    }}>
-      {/* Header */}
-      <div style={{ padding: '12px 16px', background: PALETTE.espresso, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>What's new</span>
-          <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.08em', textTransform: 'uppercase' }}>from Brown Butter</span>
-        </div>
-        <button onClick={() => setDismissed(true)} style={{ background: 'none', border: 'none', color: '#7a5a3a', fontSize: 14, lineHeight: 1, padding: 2 }}>✕</button>
-      </div>
-      {/* Items */}
-      <div>
-        {recent.map((item, i) => (
-          <div key={i} style={{
-            padding: '11px 16px',
-            borderBottom: i < recent.length - 1 ? '0.5px solid ' + PALETTE.borderLight : 'none',
-            display: 'flex', gap: 12, alignItems: 'flex-start'
-          }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-              background: PALETTE.creamDark,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 10, color: item.color, fontWeight: 700, marginTop: 1
-            }}>{item.icon}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{item.text}</div>
-              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{fmtAgo(item.date)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ── Calendar view ─────────────────────────────────────────────────────────────
 function CalendarView({ posts, onSelectPost, isMobile }) {
   const now = new Date()
@@ -1162,11 +1078,6 @@ export default function ClientPortal() {
 
           {section === 'content' && (
           <>
-          {/* What's New box — shown in list view only */}
-          {view === 'list' && (
-            <WhatsNewBox posts={posts} comments={comments} versions={versions} isMobile={isMobile} />
-          )}
-
           {/* Calendar view */}
           {view === 'calendar' && (
             <CalendarView
