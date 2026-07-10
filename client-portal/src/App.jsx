@@ -346,7 +346,7 @@ function CarouselMockup({ post, client, images, handle, initials, avatarBg }) {
           <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
         </div>
 
-        <div style={{ width: '100%', paddingBottom: '100%', position: 'relative', background: PALETTE.creamDark, overflow: 'hidden' }}>
+        <div style={{ width: '100%', paddingBottom: '125%', position: 'relative', background: PALETTE.creamDark, overflow: 'hidden' }}>
           <div style={{
             display: 'flex', position: 'absolute', top: 0, left: 0, height: '100%', width: '100%',
             transform: `translateX(-${idx * 100}%)`, transition: 'transform 0.3s ease'
@@ -515,7 +515,7 @@ function IGMockup({ post, client }) {
           </div>
           <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
         </div>
-        <div style={{ width: '100%', paddingBottom: hasVideo && isReel ? '177.78%' : '100%', position: 'relative', background: PALETTE.creamDark }}>
+        <div style={{ width: '100%', paddingBottom: hasVideo && isReel ? '177.78%' : '125%', position: 'relative', background: PALETTE.creamDark }}>
           {post.image_url && !hasVideo && (
             <img src={src} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           )}
