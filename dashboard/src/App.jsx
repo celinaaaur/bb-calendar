@@ -55,6 +55,13 @@ const uploadAsset = async (file) => {
   return { error: 'Upload failed. Please try again.' }
 }
 
+const uploadMultiple = async (files) => {
+  const results = await Promise.all(Array.from(files).map(uploadAsset))
+  const urls = results.filter(r => r.url).map(r => r.url)
+  const errors = results.filter(r => r.error)
+  return { urls, error: errors.length ? errors[0].error : null }
+}
+
 const downloadAsset = async (url, clientName) => {
   if (!url) return
   try {
@@ -85,6 +92,20 @@ function AssetPreview({ url, onRemove, maxHeight = 180 }) {
       {onRemove && (
         <button onClick={onRemove} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 24, height: 24, color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
       )}
+    </div>
+  )
+}
+
+function MultiAssetPreview({ urls, onRemove }) {
+  if (!urls || urls.length === 0) return null
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+      {urls.map((url, i) => (
+        <div key={i} style={{ position: 'relative' }}>
+          <AssetPreview url={url} onRemove={() => onRemove(i)} maxHeight={90} />
+          <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 9, padding: '1px 5px', borderRadius: 3, fontFamily: F.body }}>{i + 1}</div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -299,7 +320,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   const [editSlideCount, setEditSlideCount] = useState(post.slide_count || '')
   const [editDesigner, setEditDesigner] = useState(post.designer || '')
   const [editCampaign, setEditCampaign] = useState(post.campaign || '')
-  const [editImageUrl, setEditImageUrl] = useState(post.image_url || null)
+  const [editImages, setEditImages] = useState(Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.image_url ? [post.image_url] : []))
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [downloading, setDownloading] = useState(false)
@@ -317,29 +338,33 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
     setEditSlideCount(post.slide_count || '')
     setEditDesigner(post.designer || '')
     setEditCampaign(post.campaign || '')
-    setEditImageUrl(post.image_url || null)
+    setEditImages(Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.image_url ? [post.image_url] : []))
     setEditing(false)
     setUploadError(null)
   }, [post.id])
 
   const handleFile = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || !files.length) return
     setUploadError(null)
     setUploading(true)
-    const result = await uploadAsset(file)
-    if (result.url) setEditImageUrl(result.url)
-    else setUploadError(result.error)
+    const { urls, error } = await uploadMultiple(files)
+    if (urls.length) setEditImages(prev => [...prev, ...urls])
+    if (error) setUploadError(error)
     setUploading(false)
   }
+
+  const removeEditImage = (i) => setEditImages(prev => prev.filter((_, idx) => idx !== i))
 
   const saveEdit = async () => {
     if (!editCaption.trim() || !editDesigner.trim() || !editScheduled) return
     setSaving(true)
     await supabase.from('posts').update({
       caption: editCaption.trim(), scheduled_at: new Date(editScheduled).toISOString(),
-      format: editFormat, slide_count: editFormat === 'carousel' && editSlideCount ? parseInt(editSlideCount) : null,
-      designer: editDesigner.trim(), campaign: editCampaign.trim() || null, image_url: editImageUrl,
+      format: editFormat, slide_count: editFormat === 'carousel' ? (editImages.length || (editSlideCount ? parseInt(editSlideCount) : null)) : null,
+      designer: editDesigner.trim(), campaign: editCampaign.trim() || null,
+      image_url: editImages[0] || null,
+      images: editFormat === 'carousel' && editImages.length > 1 ? editImages : null,
     }).eq('id', post.id)
     setSaving(false); setEditing(false); onRefresh()
   }
@@ -395,16 +420,14 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
 
       {editing ? (
         <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-          <span style={labelStyle}>Asset {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>uploading...</span>}</span>
-          {editImageUrl
-            ? <AssetPreview url={editImageUrl} onRemove={() => setEditImageUrl(null)} maxHeight={130} />
-            : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '16px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
-                <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Replace asset</div>
-                <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginTop: 4 }}>Image, GIF, or video (max 50MB)</div>
-              </div>
-          }
+          <span style={labelStyle}>Assets {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>uploading...</span>}</span>
+          <MultiAssetPreview urls={editImages} onRemove={removeEditImage} />
+          <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '16px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ {editFormat === 'carousel' ? 'Add photos (select multiple)' : 'Replace asset'}</div>
+            <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginTop: 4 }}>Image, GIF, or video (max 50MB each)</div>
+          </div>
           {uploadError && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', marginTop: 6 }}>{uploadError}</div>}
-          <input ref={fileRef} type="file" accept="image/*,video/*,.gif" onChange={handleFile} style={{ display: 'none' }} />
+          <input ref={fileRef} type="file" accept="image/*,video/*,.gif" multiple={editFormat === 'carousel'} onChange={handleFile} style={{ display: 'none' }} />
         </div>
       ) : (
         <div style={{ padding: '12px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
@@ -462,6 +485,37 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
                 </div>
                 {/* Home indicator */}
                 <div style={{ width: 44, height: 3, background: '#444', borderRadius: 3, margin: '5px auto 2px' }} />
+              </div>
+            </div>
+          ) : post.format?.toLowerCase() === 'carousel' && Array.isArray(post.images) && post.images.length > 1 ? (
+            /* ── Carousel mockup ── */
+            <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>{(client?.name || 'BB').slice(0, 2).toUpperCase()}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: '#111' }}>{handle}</div>
+                  {post.campaign && <div style={{ fontFamily: F.body, fontSize: 9, color: '#999' }}>{post.campaign}</div>}
+                </div>
+                <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
+              </div>
+              <div style={{ width: '100%', aspectRatio: '1', position: 'relative', overflow: 'hidden', background: PALETTE.creamDark }}>
+                <img src={imgSrc(post.images[0], isPublished)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: F.body, fontSize: 9, fontWeight: 500, padding: '2px 7px', borderRadius: 9 }}>1/{post.images.length}</div>
+                <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4 }}>
+                  {post.images.map((_, i) => (
+                    <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: i === 0 ? '#3897F0' : 'rgba(255,255,255,0.8)' }} />
+                  ))}
+                </div>
+              </div>
+              <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <div style={{ marginLeft: 'auto' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+              </div>
+              <div style={{ padding: '0 10px 10px' }}>
+                <CaptionText text={post.caption} handle={handle} />
+                {post.scheduled_at && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999', marginTop: 4 }}>{fmtShort(post.scheduled_at)}</div>}
               </div>
             </div>
           ) : (
@@ -728,25 +782,36 @@ function ComposeModal({ clients, onClose, onSaved }) {
   const [slideCount, setSlideCount] = useState('')
   const [designer, setDesigner] = useState('')
   const [campaign, setCampaign] = useState('')
-  const [imageUrl, setImageUrl] = useState(null)
+  const [images, setImages] = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
 
   const handleFile = async (e) => {
-    const file = e.target.files[0]; if (!file) return
+    const files = e.target.files
+    if (!files || !files.length) return
     setUploadError(null); setUploading(true)
-    const result = await uploadAsset(file)
-    if (result.url) setImageUrl(result.url); else setUploadError(result.error)
+    const { urls, error } = await uploadMultiple(files)
+    if (urls.length) setImages(prev => [...prev, ...urls])
+    if (error) setUploadError(error)
     setUploading(false)
   }
+
+  const removeImage = (i) => setImages(prev => prev.filter((_, idx) => idx !== i))
 
   const canSave = caption.trim() && scheduledAt && clientId && designer.trim()
 
   const handleSave = async () => {
     if (!canSave) return; setSaving(true)
-    await supabase.from('posts').insert({ client_id: clientId, caption: caption.trim(), scheduled_at: new Date(scheduledAt).toISOString(), image_url: imageUrl, platform: 'instagram', status: 'pending', format, slide_count: format === 'carousel' && slideCount ? parseInt(slideCount) : null, designer: designer.trim(), campaign: campaign.trim() || null })
+    await supabase.from('posts').insert({
+      client_id: clientId, caption: caption.trim(), scheduled_at: new Date(scheduledAt).toISOString(),
+      image_url: images[0] || null,
+      images: format === 'carousel' && images.length > 1 ? images : null,
+      platform: 'instagram', status: 'pending', format,
+      slide_count: format === 'carousel' ? (images.length || (slideCount ? parseInt(slideCount) : null)) : null,
+      designer: designer.trim(), campaign: campaign.trim() || null
+    })
     setSaving(false); onSaved(); onClose()
   }
 
@@ -771,18 +836,16 @@ function ComposeModal({ clients, onClose, onSaved }) {
             <div>{fieldLabel('Campaign (optional)')}<input value={campaign} onChange={e => setCampaign(e.target.value)} placeholder="e.g. Summer Menu" style={inputStyle} /></div>
           </div>
           <div>
-            {fieldLabel('Asset')}
+            {fieldLabel(format === 'carousel' ? 'Assets (select multiple for carousel)' : 'Asset')}
             {uploading && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, marginBottom: 6 }}>Uploading...</div>}
             {uploadError && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', marginBottom: 6 }}>{uploadError}</div>}
-            {imageUrl
-              ? <AssetPreview url={imageUrl} onRemove={() => setImageUrl(null)} maxHeight={180} />
-              : <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 8, padding: '22px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
-                  <div style={{ fontFamily: F.body, fontSize: 22, color: PALETTE.caramel, marginBottom: 4 }}>+</div>
-                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Click to upload</div>
-                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>Image, GIF, or video · max 50MB</div>
-                </div>
-            }
-            <input ref={fileRef} type="file" accept="image/*,video/*,.gif" onChange={handleFile} style={{ display: 'none' }} />
+            <MultiAssetPreview urls={images} onRemove={removeImage} />
+            <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 8, padding: '22px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+              <div style={{ fontFamily: F.body, fontSize: 22, color: PALETTE.caramel, marginBottom: 4 }}>+</div>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>{format === 'carousel' ? 'Click to upload photos (select multiple)' : 'Click to upload'}</div>
+              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>Image, GIF, or video · max 50MB each</div>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*,video/*,.gif" multiple={format === 'carousel'} onChange={handleFile} style={{ display: 'none' }} />
           </div>
           <div>{fieldLabel('Caption', true)}<textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write your caption..." rows={4} style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }} /><div style={{ fontFamily: F.body, fontSize: 9, color: caption.length > 2200 ? '#C0392B' : PALETTE.mutedLight, textAlign: 'right', marginTop: 2 }}>{caption.length} / 2,200</div></div>
           <div>{fieldLabel('Schedule date and time', true)}<input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={inputStyle} /></div>
