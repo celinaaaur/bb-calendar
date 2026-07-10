@@ -498,7 +498,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
                 </div>
                 <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
               </div>
-              <div style={{ width: '100%', aspectRatio: '1', position: 'relative', overflow: 'hidden', background: PALETTE.creamDark }}>
+              <div style={{ width: '100%', aspectRatio: '4/5', position: 'relative', overflow: 'hidden', background: PALETTE.creamDark }}>
                 <img src={imgSrc(post.images[0], isPublished)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: F.body, fontSize: 9, fontWeight: 500, padding: '2px 7px', borderRadius: 9 }}>1/{post.images.length}</div>
                 <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4 }}>
@@ -532,8 +532,8 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
               {post.image_url
                 ? isVideo(post.image_url)
                   ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', background: '#000' }} />
-                  : <img src={displaySrc} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                : <div style={{ width: '100%', aspectRatio: '1', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  : <img src={displaySrc} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '4/5', objectFit: 'cover', display: 'block' }} />
+                : <div style={{ width: '100%', aspectRatio: '4/5', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
                   </div>
               }
