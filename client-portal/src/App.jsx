@@ -328,6 +328,88 @@ function IGGrid({ posts }) {
   )
 }
 
+// ── Carousel mockup ──────────────────────────────────────────────────────────
+function CarouselMockup({ post, client, images, handle, initials, avatarBg }) {
+  const [idx, setIdx] = useState(0)
+  const total = images.length
+  const goTo = (i) => setIdx(Math.max(0, Math.min(total - 1, i)))
+
+  return (
+    <div style={{ padding: '14px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+      <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{initials}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 600, color: '#111' }}>{handle}</div>
+            {post.campaign && <div style={{ fontFamily: F.body, fontSize: 10, color: '#999' }}>{post.campaign}</div>}
+          </div>
+          <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
+        </div>
+
+        <div style={{ width: '100%', paddingBottom: '100%', position: 'relative', background: PALETTE.creamDark, overflow: 'hidden' }}>
+          <div style={{
+            display: 'flex', position: 'absolute', top: 0, left: 0, height: '100%', width: '100%',
+            transform: `translateX(-${idx * 100}%)`, transition: 'transform 0.3s ease'
+          }}>
+            {images.map((url, i) => (
+              <div key={i} style={{ minWidth: '100%', height: '100%', position: 'relative' }}>
+                {isVideo(url)
+                  ? <video src={url} controls playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
+                  : <img src={imgSrc(url, post.status === 'published')} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                }
+              </div>
+            ))}
+          </div>
+
+          {/* Left/right tap zones */}
+          {idx > 0 && <div onClick={() => goTo(idx - 1)} style={{ position: 'absolute', left: 0, top: 0, width: '30%', height: '100%', cursor: 'pointer', zIndex: 5 }} />}
+          {idx < total - 1 && <div onClick={() => goTo(idx + 1)} style={{ position: 'absolute', right: 0, top: 0, width: '30%', height: '100%', cursor: 'pointer', zIndex: 5 }} />}
+
+          {/* Arrow chevrons */}
+          {idx > 0 && (
+            <div onClick={() => goTo(idx - 1)} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 6, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+          )}
+          {idx < total - 1 && (
+            <div onClick={() => goTo(idx + 1)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 6, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          )}
+
+          {/* Slide counter badge */}
+          <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: F.body, fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 10, zIndex: 6 }}>
+            {idx + 1}/{total}
+          </div>
+
+          {/* Dot indicators */}
+          <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4, zIndex: 6 }}>
+            {images.map((_, i) => (
+              <div key={i} onClick={() => goTo(i)} style={{ width: 5, height: 5, borderRadius: '50%', background: i === idx ? '#3897F0' : 'rgba(255,255,255,0.8)', cursor: 'pointer', boxShadow: '0 0 2px rgba(0,0,0,0.3)' }} />
+            ))}
+          </div>
+        </div>
+
+        <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 14, alignItems: 'center' }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <div style={{ marginLeft: 'auto' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+        </div>
+        <div style={{ padding: '0 12px 12px' }}>
+          <div style={{ fontFamily: F.body, fontSize: 13, color: '#111', lineHeight: 1.6 }}>
+            <span style={{ fontWeight: 600 }}>{handle}</span>{' '}
+            {(post.caption || '').split('\n').map((line, i, arr) => (
+              <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+            ))}
+          </div>
+          {post.scheduled_at && <div style={{ fontFamily: F.body, fontSize: 11, color: '#999', marginTop: 6 }}>{fmtShort(post.scheduled_at)}</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function IGMockup({ post, client }) {
   const handle = client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'
   const initials = (client?.name || 'BB').slice(0, 2).toUpperCase()
@@ -336,6 +418,13 @@ function IGMockup({ post, client }) {
   const isReel = post.format === 'reel'
   const hasVideo = isVideo(post.image_url)
   const src = imgSrc(post.image_url, post.status === 'published')
+
+  // ── Carousel mockup ────────────────────────────────────────────────────────
+  const images = Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.image_url ? [post.image_url] : [])
+  const isCarousel = post.format === 'carousel' && images.length > 1
+  if (isCarousel) {
+    return <CarouselMockup post={post} client={client} images={images} handle={handle} initials={initials} avatarBg={avatarBg} />
+  }
 
   // ── Story mockup ──────────────────────────────────────────────────────────
   if (isStory) {
