@@ -749,6 +749,10 @@ export default function ClientPortal() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [unlocked, setUnlocked] = useState(false)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordError, setPasswordError] = useState(false)
+  const [unlocking, setUnlocking] = useState(false)
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -757,11 +761,19 @@ export default function ClientPortal() {
   }, [])
 
   const slug = window.location.pathname.replace('/', '').split('/')[0] || ''
+  const unlockKey = 'bb_portal_unlocked_' + slug
 
   const fetchAll = async () => {
     const { data: clientData } = await supabase.from('clients').select('*').eq('slug', slug).single()
     if (!clientData) { setNotFound(true); setLoading(false); return }
     setClient(clientData)
+
+    const needsPassword = !!(clientData.portal_password && clientData.portal_password.trim())
+    const isUnlocked = !needsPassword || sessionStorage.getItem(unlockKey) === 'true'
+    setUnlocked(isUnlocked)
+
+    if (!isUnlocked) { setLoading(false); return }
+
     const [p, cm, v] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
@@ -771,6 +783,21 @@ export default function ClientPortal() {
     if (cm.data) setComments(cm.data)
     if (v.data) setVersions(v.data)
     setLoading(false)
+  }
+
+  const tryUnlock = async () => {
+    if (!passwordInput.trim()) return
+    setUnlocking(true)
+    setPasswordError(false)
+    if (passwordInput === client.portal_password) {
+      sessionStorage.setItem(unlockKey, 'true')
+      setPasswordInput('')
+      await fetchAll()
+      setUnlocking(false)
+    } else {
+      setPasswordError(true)
+      setUnlocking(false)
+    }
   }
 
   useEffect(() => {
@@ -794,6 +821,31 @@ export default function ClientPortal() {
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 22, color: PALETTE.caramel, marginBottom: 8 }}>Brown Butter</div>
         <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300 }}>Portal not found. Please check your link.</div>
+      </div>
+    </div>
+  )
+
+  if (!unlocked) return (
+    <div style={{ minHeight: '100vh', background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: 340, textAlign: 'center' }}>
+        <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 24, color: PALETTE.caramel, marginBottom: 8 }}>Brown Butter</div>
+        <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300, marginBottom: 28, lineHeight: 1.6 }}>
+          This portal is password protected. Enter the password{client?.name ? ' for ' + client.name : ''} to continue.
+        </div>
+        <input
+          type="password"
+          value={passwordInput}
+          onChange={e => { setPasswordInput(e.target.value); setPasswordError(false) }}
+          onKeyDown={e => e.key === 'Enter' && tryUnlock()}
+          placeholder="Password"
+          autoFocus
+          style={{ width: '100%', padding: '13px 14px', borderRadius: 8, border: '0.5px solid ' + (passwordError ? '#C0392B' : PALETTE.border), background: '#fff', fontSize: 14, color: PALETTE.espresso, fontFamily: F.body, textAlign: 'center', marginBottom: 10, boxSizing: 'border-box' }}
+        />
+        {passwordError && <div style={{ fontFamily: F.body, fontSize: 12, color: '#C0392B', marginBottom: 12 }}>Incorrect password. Please try again.</div>}
+        <button onClick={tryUnlock} disabled={unlocking || !passwordInput.trim()} style={{ width: '100%', padding: '13px 0', borderRadius: 8, border: 'none', background: passwordInput.trim() ? PALETTE.espresso : PALETTE.creamDark, color: passwordInput.trim() ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: passwordInput.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>
+          {unlocking ? 'Checking…' : 'Enter'}
+        </button>
+        <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginTop: 20 }}>Don't have the password? Contact Brown Butter.</div>
       </div>
     </div>
   )
