@@ -309,6 +309,58 @@ function NotificationsPanel({ notifications, onClose, onMarkAllRead }) {
   )
 }
 
+function DashboardCarousel({ images, published }) {
+  const [idx, setIdx] = useState(0)
+  const total = images.length
+  const goTo = (i) => setIdx(Math.max(0, Math.min(total - 1, i)))
+
+  return (
+    <div style={{ width: '100%', aspectRatio: '4/5', position: 'relative', overflow: 'hidden', background: PALETTE.creamDark }}>
+      <div style={{
+        display: 'flex', position: 'absolute', top: 0, left: 0, height: '100%', width: '100%',
+        transform: `translateX(-${idx * 100}%)`, transition: 'transform 0.3s ease'
+      }}>
+        {images.map((url, i) => (
+          <div key={i} style={{ minWidth: '100%', height: '100%', position: 'relative' }}>
+            {isVideo(url)
+              ? <video src={url} controls playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
+              : <img src={imgSrc(url, published)} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            }
+          </div>
+        ))}
+      </div>
+
+      {/* Left/right tap zones */}
+      {idx > 0 && <div onClick={() => goTo(idx - 1)} style={{ position: 'absolute', left: 0, top: 0, width: '30%', height: '100%', cursor: 'pointer', zIndex: 5 }} />}
+      {idx < total - 1 && <div onClick={() => goTo(idx + 1)} style={{ position: 'absolute', right: 0, top: 0, width: '30%', height: '100%', cursor: 'pointer', zIndex: 5 }} />}
+
+      {/* Arrow chevrons */}
+      {idx > 0 && (
+        <div onClick={() => goTo(idx - 1)} style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 6, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </div>
+      )}
+      {idx < total - 1 && (
+        <div onClick={() => goTo(idx + 1)} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 6, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+      )}
+
+      {/* Slide counter badge */}
+      <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: F.body, fontSize: 9, fontWeight: 500, padding: '2px 7px', borderRadius: 9, zIndex: 6 }}>
+        {idx + 1}/{total}
+      </div>
+
+      {/* Dot indicators */}
+      <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4, zIndex: 6 }}>
+        {images.map((_, i) => (
+          <div key={i} onClick={() => goTo(i)} style={{ width: 4, height: 4, borderRadius: '50%', background: i === idx ? '#3897F0' : 'rgba(255,255,255,0.8)', cursor: 'pointer', boxShadow: '0 0 2px rgba(0,0,0,0.3)' }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
@@ -498,15 +550,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
                 </div>
                 <div style={{ fontSize: 14, color: '#888', letterSpacing: 2 }}>···</div>
               </div>
-              <div style={{ width: '100%', aspectRatio: '4/5', position: 'relative', overflow: 'hidden', background: PALETTE.creamDark }}>
-                <img src={imgSrc(post.images[0], isPublished)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: F.body, fontSize: 9, fontWeight: 500, padding: '2px 7px', borderRadius: 9 }}>1/{post.images.length}</div>
-                <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                  {post.images.map((_, i) => (
-                    <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: i === 0 ? '#3897F0' : 'rgba(255,255,255,0.8)' }} />
-                  ))}
-                </div>
-              </div>
+              <DashboardCarousel images={post.images} published={isPublished} />
               <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
