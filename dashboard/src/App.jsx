@@ -368,7 +368,7 @@ function DashboardCarousel({ images, published }) {
   )
 }
 
-function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
+function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isMobile }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
@@ -465,7 +465,13 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose }) {
   const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
 
   return (
-    <div style={{ width: 340, background: '#fff', borderLeft: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
+    <div style={isMobile ? {
+  position: 'fixed', inset: 0, width: '100%', background: '#fff', display: 'flex',
+  flexDirection: 'column', zIndex: 300, overflow: 'hidden'
+} : {
+  width: 340, background: '#fff', borderLeft: '0.5px solid ' + PALETTE.border, display: 'flex',
+  flexDirection: 'column', flexShrink: 0, overflow: 'hidden'
+}}>
       <div style={{ padding: '14px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
@@ -1103,6 +1109,13 @@ export default function Dashboard() {
   const [selectedPost, setSelectedPost] = useState(null)
   const [composing, setComposing] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   const [showNotifications, setShowNotifications] = useState(false)
   const [seenIds, setSeenIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('bb_seen_notifs') || '[]')) } catch { return new Set() }
@@ -1225,16 +1238,19 @@ export default function Dashboard() {
     <div style={{ minHeight: '100vh', background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => showNotifications && setShowNotifications(false)}>
       <div style={{ background: PALETTE.espresso, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isMobile && (
+            <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'none', border: 'none', color: PALETTE.caramel, fontSize: 20, padding: '4px 6px', lineHeight: 1 }}>☰</button>
+          )}
           <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>Brown Butter</span>
-          <span style={{ color: PALETTE.espressoLight, fontSize: 12 }}>|</span>
-          <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>
+          {!isMobile && <span style={{ color: PALETTE.espressoLight, fontSize: 12 }}>|</span>}
+          {!isMobile && <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.caramel : '#7a5a3a', fontSize: 16, lineHeight: 1, padding: '4px 6px', borderRadius: 6 }}>
             🔔
             {unreadCount > 0 && <span style={{ position: 'absolute', top: 0, right: 0, background: '#C0392B', color: '#fff', borderRadius: '50%', width: 14, height: 14, fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.body, fontWeight: 700, border: '1.5px solid ' + PALETTE.espresso }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
           </button>
-          <button onClick={() => setComposing(true)} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: PALETTE.caramel, color: PALETTE.espresso, fontFamily: F.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.03em', transition: 'background 0.15s' }}
+          <button onClick={() => setComposing(true)} style={{ padding: isMobile ? '6px 10px' : '6px 16px', borderRadius: 6, border: 'none', background: PALETTE.caramel, color: PALETTE.espresso, fontFamily: F.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.03em', transition: 'background 0.15s', whiteSpace: 'nowrap' }}
             onMouseEnter={e => e.currentTarget.style.background = '#D4993A'}
             onMouseLeave={e => e.currentTarget.style.background = PALETTE.caramel}
           >+ New Post</button>
@@ -1243,7 +1259,19 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <div style={{ width: 200, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
+        {isMobile && sidebarOpen && (
+          <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, top: 52, background: 'rgba(0,0,0,0.35)', zIndex: 150 }} />
+        )}
+        <div style={isMobile ? {
+          position: 'fixed', top: 52, left: 0, bottom: 0, width: '78vw', maxWidth: 280,
+          background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex',
+          flexDirection: 'column', overflowY: 'auto', zIndex: 200,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.2s ease',
+          boxShadow: sidebarOpen ? '4px 0 20px rgba(0,0,0,0.25)' : 'none'
+        } : {
+          width: 200, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex',
+          flexDirection: 'column', flexShrink: 0, overflowY: 'auto'
+        }}>
           <div style={{ padding: '18px 14px 8px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Clients</div>
             {[{ id: 'all', name: 'All Clients', brand_color: PALETTE.caramel }, ...clients].map(c => (
@@ -1490,6 +1518,7 @@ export default function Dashboard() {
             clients={clients}
             onRefresh={fetchAll}
             onClose={() => setSelectedPost(null)}
+            isMobile={isMobile}
           />
         )}
       </div>
