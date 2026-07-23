@@ -39,7 +39,8 @@ style.textContent = `
     flex-direction: column;
     z-index: 201;
     animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
-    overflow: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   @keyframes fadeIn {
     from { opacity: 0; } to { opacity: 1; }
@@ -530,7 +531,7 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '18px 18px 32px', minHeight: 0 }}>
+      <div style={{ padding: '18px 18px 32px' }}>
         {activeTab === 'details' && (
           <div>
             <div style={{ marginBottom: 20 }}>
