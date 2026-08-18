@@ -664,6 +664,14 @@ const BILLING_STATUS = {
 const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 
+// ── Requests helpers ──────────────────────────────────────────────────────────
+const REQUEST_STATUS = {
+  new:         { label: 'NEW',         color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F' },
+  in_progress: { label: 'IN PROGRESS', color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A' },
+  done:        { label: 'DONE',        color: '#444',    bg: '#F2F2F2', dot: '#888'    },
+  declined:    { label: 'DECLINED',    color: '#7A2018', bg: '#FEECEA', dot: '#C0392B' },
+}
+
 // ── Meeting Notes section ────────────────────────────────────────────────────
 function NotesSection({ notes, isMobile }) {
   const sorted = [...notes].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
@@ -745,6 +753,86 @@ function BillingSection({ cycles, isMobile }) {
   )
 }
 
+// ── Requests section ───────────────────────────────────────────────────────────
+function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
+  const [formOpen, setFormOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const sorted = [...requests].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  const openForm = () => { setFormOpen(true); setTitle(''); setDescription('') }
+
+  const submitRequest = async () => {
+    if (!title.trim()) return
+    setSaving(true)
+    await supabase.from('requests').insert({
+      client_id: clientId,
+      title: title.trim(),
+      description: description.trim() || null,
+      status: 'new'
+    })
+    setSaving(false)
+    setFormOpen(false)
+    onRefresh()
+  }
+
+  const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 13, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
+  const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
+
+  return (
+    <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px', maxWidth: 720 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso }}>Requests</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 4, fontWeight: 300 }}>
+            Ask Brown Butter for something ad hoc — a boost, a rush edit, anything outside the usual calendar.
+          </div>
+        </div>
+        {!formOpen && (
+          <button onClick={openForm} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 8, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}>+ New request</button>
+        )}
+      </div>
+
+      {formOpen && (
+        <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '18px 20px', margin: '20px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>What do you need?</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Boost the grand opening reel" style={inputStyle} autoFocus />
+          </div>
+          <div>
+            <label style={labelStyle}>Details (optional)</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Any deadline, budget, or context that would help." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setFormOpen(false)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 13, color: PALETTE.muted }}>Cancel</button>
+            <button onClick={submitRequest} disabled={saving || !title.trim()} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: title.trim() ? PALETTE.espresso : PALETTE.creamDark, color: title.trim() ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: saving ? 0.6 : 1 }}>{saving ? 'Sending…' : 'Send request'}</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: formOpen ? 8 : 24 }}>
+        {sorted.length === 0 && !formOpen ? (
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No requests yet</div>
+        ) : sorted.map(r => {
+          const s = REQUEST_STATUS[r.status] || REQUEST_STATUS.new
+          return (
+            <div key={r.id} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso }}>{r.title}</div>
+                <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
+              </div>
+              {r.description && <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8 }}>{r.description}</div>}
+              <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight }}>Submitted {fmtAgo(r.created_at)}</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function ClientPortal() {
   const [client, setClient] = useState(null)
   const [posts, setPosts] = useState([])
@@ -760,9 +848,10 @@ export default function ClientPortal() {
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
-  const [section, setSection] = useState('content') // 'content' | 'notes' | 'billing'
+  const [section, setSection] = useState('content') // 'content' | 'notes' | 'billing' | 'requests'
   const [notes, setNotes] = useState([])
   const [billingCycles, setBillingCycles] = useState([])
+  const [requests, setRequests] = useState([])
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -784,18 +873,20 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
-    const [p, cm, v, mn, bc] = await Promise.all([
+    const [p, cm, v, mn, bc, rq] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
       supabase.from('meeting_notes').select('*').eq('client_id', clientData.id).order('meeting_date', { ascending: false }),
-      supabase.from('billing_cycles').select('*').eq('client_id', clientData.id).order('cycle_start', { ascending: false })
+      supabase.from('billing_cycles').select('*').eq('client_id', clientData.id).order('cycle_start', { ascending: false }),
+      supabase.from('requests').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false })
     ])
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
     if (v.data) setVersions(v.data)
     if (mn.data) setNotes(mn.data)
     if (bc.data) setBillingCycles(bc.data)
+    if (rq.data) setRequests(rq.data)
     setLoading(false)
   }
 
@@ -820,7 +911,8 @@ export default function ClientPortal() {
     const s2 = supabase.channel('cp-comments').on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, fetchAll).subscribe()
     const s3 = supabase.channel('cp-notes').on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_notes' }, fetchAll).subscribe()
     const s4 = supabase.channel('cp-billing').on('postgres_changes', { event: '*', schema: 'public', table: 'billing_cycles' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe() }
+    const s5 = supabase.channel('cp-requests').on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, fetchAll).subscribe()
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe() }
   }, [])
 
   if (loading) return (
@@ -881,6 +973,8 @@ export default function ClientPortal() {
     approved: activePosts.filter(p => p.status === 'approved').length,
     published: publishedPosts.length,
   }
+
+  const openRequestCount = requests.filter(r => r.status === 'new' || r.status === 'in_progress').length
 
   const pageTitle = filter === 'all' ? 'Your Content'
     : filter === 'pending' ? 'Awaiting Your Approval'
@@ -972,11 +1066,16 @@ export default function ClientPortal() {
           <div style={{ width: 192, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '22px 16px 0' }}>
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Portal</div>
-              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing']].map(([k, l]) => (
-                <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: section === k ? PALETTE.espresso : 'transparent', color: section === k ? PALETTE.cream : PALETTE.muted, fontWeight: section === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s' }}
+              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['requests', 'Requests']].map(([k, l]) => (
+                <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: section === k ? PALETTE.espresso : 'transparent', color: section === k ? PALETTE.cream : PALETTE.muted, fontWeight: section === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                   onMouseEnter={e => { if (section !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                   onMouseLeave={e => { if (section !== k) e.currentTarget.style.background = 'transparent' }}
-                >{l}</button>
+                >
+                  <span>{l}</span>
+                  {k === 'requests' && openRequestCount > 0 && (
+                    <span style={{ background: section === k ? PALETTE.caramel : PALETTE.caramelLight, color: section === k ? '#fff' : PALETTE.caramel, borderRadius: 8, minWidth: 15, height: 15, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{openRequestCount}</span>
+                  )}
+                </button>
               ))}
             </div>
             {section === 'content' && (
@@ -1040,7 +1139,7 @@ export default function ClientPortal() {
           {/* Mobile primary section tabs */}
           {isMobile && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream, paddingBottom: 8 }}>
-              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing']].map(([k, l]) => (
+              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['requests', 'Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (section === k ? brandColor : PALETTE.border), background: section === k ? PALETTE.espresso : '#fff', color: section === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: section === k ? 500 : 400, whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
@@ -1076,6 +1175,9 @@ export default function ClientPortal() {
 
           {/* Billing section */}
           {section === 'billing' && <BillingSection cycles={billingCycles} isMobile={isMobile} />}
+
+          {/* Requests section */}
+          {section === 'requests' && <RequestsSection requests={requests} clientId={client.id} isMobile={isMobile} onRefresh={fetchAll} />}
 
           {section === 'content' && (
           <>
