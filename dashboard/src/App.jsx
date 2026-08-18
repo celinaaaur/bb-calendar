@@ -922,10 +922,9 @@ function ComposeModal({ clients, onClose, onSaved }) {
 }
 
 function ClientHubModal({ client, onClose }) {
-  const [tab, setTab] = useState('notes') // 'notes' | 'billing' | 'requests'
+  const [tab, setTab] = useState('notes') // 'notes' | 'billing'
   const [notes, setNotes] = useState([])
   const [cycles, setCycles] = useState([])
-  const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -944,14 +943,12 @@ function ClientHubModal({ client, onClose }) {
 
   const fetchHub = async () => {
     setLoading(true)
-    const [n, c, r] = await Promise.all([
+    const [n, c] = await Promise.all([
       supabase.from('meeting_notes').select('*').eq('client_id', client.id).order('meeting_date', { ascending: false }),
-      supabase.from('billing_cycles').select('*').eq('client_id', client.id).order('cycle_start', { ascending: false }),
-      supabase.from('requests').select('*').eq('client_id', client.id).order('created_at', { ascending: false })
+      supabase.from('billing_cycles').select('*').eq('client_id', client.id).order('cycle_start', { ascending: false })
     ])
     if (n.data) setNotes(n.data)
     if (c.data) setCycles(c.data)
-    if (r.data) setRequests(r.data)
     setLoading(false)
   }
 
@@ -1004,23 +1001,10 @@ function ClientHubModal({ client, onClose }) {
     fetchHub()
   }
 
-  const setRequestStatus = async (id, status) => {
-    await supabase.from('requests').update({ status }).eq('id', id)
-    fetchHub()
-  }
-
-  const deleteRequest = async (id) => {
-    if (!window.confirm('Delete this request?')) return
-    await supabase.from('requests').delete().eq('id', id)
-    fetchHub()
-  }
-
   const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
   const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
   const sortedNotes = [...notes].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
   const sortedCycles = [...cycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
-  const sortedRequests = [...requests].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  const openRequestCount = requests.filter(r => r.status === 'new' || r.status === 'in_progress').length
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
@@ -1031,7 +1015,7 @@ function ClientHubModal({ client, onClose }) {
         </div>
 
         <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-          {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['requests', 'Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
+          {[['notes', 'Meeting Notes'], ['billing', 'Billing']].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
           ))}
         </div>
@@ -1072,7 +1056,7 @@ function ClientHubModal({ client, onClose }) {
                 </div>
               ))}
             </div>
-          ) : tab === 'billing' ? (
+          ) : (
             <div>
               {editingCycleId ? (
                 <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1114,36 +1098,60 @@ function ClientHubModal({ client, onClose }) {
                 </div>
               ))}
             </div>
-          ) : (
-            <div>
-              {sortedRequests.length === 0 ? (
-                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>No requests from this client yet.</div>
-              ) : sortedRequests.map(r => {
-                const s = REQUEST_STATUS[r.status] || REQUEST_STATUS.new
-                return (
-                  <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 10, flexWrap: 'wrap' }}>
-                      <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 14, color: PALETTE.espresso }}>{r.title}</div>
-                      <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
-                    </div>
-                    {r.description && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8 }}>{r.description}</div>}
-                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 10 }}>{fmtAgo(r.created_at)}</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {REQUEST_STATUS_ORDER.filter(k => k !== r.status).map(k => (
-                        <button key={k} onClick={() => setRequestStatus(r.id, k)} style={{ padding: '5px 10px', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 10, color: PALETTE.muted, transition: 'all 0.15s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
-                          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                        >Mark {REQUEST_STATUS[k].label.toLowerCase()}</button>
-                      ))}
-                      <button onClick={() => deleteRequest(r.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B', marginLeft: 'auto' }}>Delete</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function RequestsView({ requests, clients, selectedClient }) {
+  const setRequestStatus = async (id, status) => {
+    await supabase.from('requests').update({ status }).eq('id', id)
+  }
+
+  const deleteRequest = async (id) => {
+    if (!window.confirm('Delete this request?')) return
+    await supabase.from('requests').delete().eq('id', id)
+  }
+
+  const filtered = selectedClient === 'all' ? requests : requests.filter(r => r.client_id === selectedClient)
+  const sorted = [...filtered].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  return (
+    <div style={{ padding: '28px 40px', maxWidth: 760 }}>
+      {sorted.length === 0 ? (
+        <div style={{ padding: '48px 0', textAlign: 'center' }}>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18 }}>No requests yet</div>
+        </div>
+      ) : sorted.map(r => {
+        const s = REQUEST_STATUS[r.status] || REQUEST_STATUS.new
+        const client = clients.find(c => c.id === r.client_id)
+        return (
+          <div key={r.id} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '18px 20px', marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: PALETTE.espresso }}>{r.title}</div>
+                {selectedClient === 'all' && client && (
+                  <span style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight }}>· {client.name}</span>
+                )}
+              </div>
+              <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
+            </div>
+            {r.description && <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.65, marginBottom: 10 }}>{r.description}</div>}
+            <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginBottom: 14 }}>Submitted {fmtAgo(r.created_at)}</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              {REQUEST_STATUS_ORDER.filter(k => k !== r.status).map(k => (
+                <button key={k} onClick={() => setRequestStatus(r.id, k)} style={{ padding: '6px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.muted, transition: 'all 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                >Mark {REQUEST_STATUS[k].label.toLowerCase()}</button>
+              ))}
+              <button onClick={() => deleteRequest(r.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B', marginLeft: 'auto' }}>Delete</button>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1363,7 +1371,7 @@ export default function Dashboard() {
                     )}
                   </button>
                   {c.id !== 'all' && (
-                    <button onClick={() => setHubClientId(c.id)} title="Manage meeting notes, billing & requests" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: PALETTE.mutedLight, opacity: 0.6 }}
+                    <button onClick={() => setHubClientId(c.id)} title="Manage meeting notes & billing" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: PALETTE.mutedLight, opacity: 0.6 }}
                       onMouseEnter={e => e.currentTarget.style.opacity = 1}
                       onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
                     >🗂</button>
@@ -1398,11 +1406,16 @@ export default function Dashboard() {
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
-            {[['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar']].map(([k, l]) => (
-              <button key={k} onClick={() => setView(k)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s' }}
+            {[['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar'], ['requests', 'Requests']].map(([k, l]) => (
+              <button key={k} onClick={() => setView(k)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
-              >{l}</button>
+              >
+                <span>{l}</span>
+                {k === 'requests' && requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && (selectedClient === 'all' || r.client_id === selectedClient)).length > 0 && (
+                  <span style={{ fontSize: 10, color: view === k ? PALETTE.caramel : PALETTE.mutedLight, fontWeight: 500 }}>{requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && (selectedClient === 'all' || r.client_id === selectedClient)).length}</span>
+                )}
+              </button>
             ))}
           </div>
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
@@ -1426,10 +1439,21 @@ export default function Dashboard() {
 
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
-            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
-            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
-              {counts[filter] || 0} post{(counts[filter] || 0) !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
-            </div>
+            {view === 'requests' ? (
+              <>
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>Requests</div>
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
+                  {requests.filter(r => selectedClient === 'all' || r.client_id === selectedClient).length} request{requests.filter(r => selectedClient === 'all' || r.client_id === selectedClient).length !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
+                  {counts[filter] || 0} post{(counts[filter] || 0) !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
+                </div>
+              </>
+            )}
           </div>
 
           {!loading && view === 'queue' && (
@@ -1438,7 +1462,9 @@ export default function Dashboard() {
 
           {loading
             ? <div style={{ padding: 48, textAlign: 'center', fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight }}>Loading...</div>
-            : view === 'calendar'
+            : view === 'requests'
+              ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} />
+              : view === 'calendar'
               ? <CalendarView posts={filteredPosts} onSelect={setSelectedPost} />
               : filteredPosts.length === 0
                 ? <div style={{ padding: 60, textAlign: 'center' }}>
