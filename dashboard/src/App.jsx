@@ -1263,15 +1263,15 @@ export default function Dashboard() {
           <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, top: 52, background: 'rgba(0,0,0,0.35)', zIndex: 150 }} />
         )}
         <div style={isMobile ? {
-          position: 'fixed', top: 52, left: 0, bottom: 0, width: '78vw', maxWidth: 280,
-          background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex',
-          flexDirection: 'column', overflowY: 'auto', zIndex: 200,
-          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.2s ease',
-          boxShadow: sidebarOpen ? '4px 0 20px rgba(0,0,0,0.25)' : 'none'
-        } : {
-          width: 200, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex',
-          flexDirection: 'column', flexShrink: 0, overflowY: 'auto'
-        }}>
+                position: 'fixed', top: 52, left: 0, bottom: 0, width: '78vw', maxWidth: 280,
+                background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border,
+                overflowY: 'auto', WebkitOverflowScrolling: 'touch', zIndex: 200,
+                transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.2s ease',
+                boxShadow: sidebarOpen ? '4px 0 20px rgba(0,0,0,0.25)' : 'none'
+    } : {
+                width: 200, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border,
+                flexShrink: 0, overflowY: 'auto'
+    }}>
           <div style={{ padding: '18px 14px 8px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Clients</div>
             {[{ id: 'all', name: 'All Clients', brand_color: PALETTE.caramel }, ...clients].map(c => (
