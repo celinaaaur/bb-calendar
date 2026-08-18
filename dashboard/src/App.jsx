@@ -150,6 +150,13 @@ const BILLING_STATUS = {
   pending: { label: 'PENDING', color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A' },
   overdue: { label: 'OVERDUE', color: '#7A2018', bg: '#FEECEA', dot: '#C0392B' },
 }
+const REQUEST_STATUS = {
+  new:         { label: 'NEW',         color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F' },
+  in_progress: { label: 'IN PROGRESS', color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A' },
+  done:        { label: 'DONE',        color: '#444',    bg: '#F2F2F2', dot: '#888'    },
+  declined:    { label: 'DECLINED',    color: '#7A2018', bg: '#FEECEA', dot: '#C0392B' },
+}
+const REQUEST_STATUS_ORDER = ['new', 'in_progress', 'done', 'declined']
 const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 const statusLine = (s) => ({ pending: 'Awaiting client approval', approved: 'Approved — ready to schedule', revision: 'Client requested revisions', published: 'Published', archived: 'Archived' }[s] || '')
@@ -915,9 +922,10 @@ function ComposeModal({ clients, onClose, onSaved }) {
 }
 
 function ClientHubModal({ client, onClose }) {
-  const [tab, setTab] = useState('notes') // 'notes' | 'billing'
+  const [tab, setTab] = useState('notes') // 'notes' | 'billing' | 'requests'
   const [notes, setNotes] = useState([])
   const [cycles, setCycles] = useState([])
+  const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -936,12 +944,14 @@ function ClientHubModal({ client, onClose }) {
 
   const fetchHub = async () => {
     setLoading(true)
-    const [n, c] = await Promise.all([
+    const [n, c, r] = await Promise.all([
       supabase.from('meeting_notes').select('*').eq('client_id', client.id).order('meeting_date', { ascending: false }),
-      supabase.from('billing_cycles').select('*').eq('client_id', client.id).order('cycle_start', { ascending: false })
+      supabase.from('billing_cycles').select('*').eq('client_id', client.id).order('cycle_start', { ascending: false }),
+      supabase.from('requests').select('*').eq('client_id', client.id).order('created_at', { ascending: false })
     ])
     if (n.data) setNotes(n.data)
     if (c.data) setCycles(c.data)
+    if (r.data) setRequests(r.data)
     setLoading(false)
   }
 
@@ -994,10 +1004,23 @@ function ClientHubModal({ client, onClose }) {
     fetchHub()
   }
 
+  const setRequestStatus = async (id, status) => {
+    await supabase.from('requests').update({ status }).eq('id', id)
+    fetchHub()
+  }
+
+  const deleteRequest = async (id) => {
+    if (!window.confirm('Delete this request?')) return
+    await supabase.from('requests').delete().eq('id', id)
+    fetchHub()
+  }
+
   const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
   const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
   const sortedNotes = [...notes].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
   const sortedCycles = [...cycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
+  const sortedRequests = [...requests].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const openRequestCount = requests.filter(r => r.status === 'new' || r.status === 'in_progress').length
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
@@ -1008,7 +1031,7 @@ function ClientHubModal({ client, onClose }) {
         </div>
 
         <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-          {[['notes', 'Meeting Notes'], ['billing', 'Billing']].map(([k, l]) => (
+          {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['requests', 'Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
           ))}
         </div>
@@ -1049,7 +1072,7 @@ function ClientHubModal({ client, onClose }) {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : tab === 'billing' ? (
             <div>
               {editingCycleId ? (
                 <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1091,6 +1114,33 @@ function ClientHubModal({ client, onClose }) {
                 </div>
               ))}
             </div>
+          ) : (
+            <div>
+              {sortedRequests.length === 0 ? (
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>No requests from this client yet.</div>
+              ) : sortedRequests.map(r => {
+                const s = REQUEST_STATUS[r.status] || REQUEST_STATUS.new
+                return (
+                  <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 14, color: PALETTE.espresso }}>{r.title}</div>
+                      <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
+                    </div>
+                    {r.description && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8 }}>{r.description}</div>}
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 10 }}>{fmtAgo(r.created_at)}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {REQUEST_STATUS_ORDER.filter(k => k !== r.status).map(k => (
+                        <button key={k} onClick={() => setRequestStatus(r.id, k)} style={{ padding: '5px 10px', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 10, color: PALETTE.muted, transition: 'all 0.15s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                        >Mark {REQUEST_STATUS[k].label.toLowerCase()}</button>
+                      ))}
+                      <button onClick={() => deleteRequest(r.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B', marginLeft: 'auto' }}>Delete</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
@@ -1103,6 +1153,7 @@ export default function Dashboard() {
   const [posts, setPosts] = useState([])
   const [comments, setComments] = useState([])
   const [versions, setVersions] = useState([])
+  const [requests, setRequests] = useState([])
   const [selectedClient, setSelectedClient] = useState('all')
   const [filter, setFilter] = useState('pending')
   const [view, setView] = useState('queue')
@@ -1127,16 +1178,18 @@ export default function Dashboard() {
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
-    const [c, p, cm, v] = await Promise.all([
+    const [c, p, cm, v, rq] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('posts').select('*').neq('status', 'archived').order('scheduled_at').limit(150),
       supabase.from('comments').select('*').order('created_at'),
-      supabase.from('versions').select('*').order('created_at')
+      supabase.from('versions').select('*').order('created_at'),
+      supabase.from('requests').select('*').order('created_at', { ascending: false })
     ])
     if (c.data) setClients(c.data)
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
     if (v.data) setVersions(v.data)
+    if (rq.data) setRequests(rq.data)
     setLoading(false)
   }
 
@@ -1162,7 +1215,13 @@ export default function Dashboard() {
           .then(({ data }) => { if (data) setVersions(data) })
       }).subscribe()
 
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe() }
+    const s4 = supabase.channel('dash-requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => {
+        supabase.from('requests').select('*').order('created_at', { ascending: false })
+          .then(({ data }) => { if (data) setRequests(data) })
+      }).subscribe()
+
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe() }
   }, [])
 
   // ── SPEED FIX 3: notifications built with useMemo instead of useEffect + setState ──
@@ -1180,9 +1239,16 @@ export default function Dashboard() {
       const client = clients.find(cl => cl.id === post?.client_id)
       notifs.push({ id: 'comment-' + c.id, message: c.author + ' left a comment: "' + (c.text?.slice(0, 40) || '') + '…"', client: client?.name || 'Client', created_at: c.created_at, read: seenIds.has('comment-' + c.id) })
     })
+    requests.forEach(r => {
+      const client = clients.find(c => c.id === r.client_id)
+      const clientName = client?.name || 'Client'
+      if (r.status === 'new') {
+        notifs.push({ id: 'request-new-' + r.id, message: clientName + ' submitted a request: "' + r.title + '"', client: clientName, created_at: r.created_at, read: seenIds.has('request-new-' + r.id) })
+      }
+    })
     notifs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     return notifs
-  }, [posts, comments, clients, seenIds])
+  }, [posts, comments, clients, requests, seenIds])
 
   const markAllRead = () => {
     const allIds = notifications.map(n => n.id)
@@ -1207,6 +1273,17 @@ export default function Dashboard() {
   }
 
   const unreadCount = notifications.filter(n => !n.read).length
+
+  // Open request count per client, for the sidebar badge
+  const openRequestCountByClient = useMemo(() => {
+    const map = {}
+    requests.forEach(r => {
+      if (r.status === 'new' || r.status === 'in_progress') {
+        map[r.client_id] = (map[r.client_id] || 0) + 1
+      }
+    })
+    return map
+  }, [requests])
 
   // ── SPEED FIX 4: archived posts fetched separately only when filter === 'archived' ──
   const [archivedPosts, setArchivedPosts] = useState([])
@@ -1280,9 +1357,13 @@ export default function Dashboard() {
                   <button onClick={() => setSelectedClient(c.id)} style={{ flex: 1, textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s', minWidth: 0 }}
                     onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                     onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
-                  ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span></button>
+                  ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.name}</span>
+                    {c.id !== 'all' && openRequestCountByClient[c.id] > 0 && (
+                      <span style={{ flexShrink: 0, background: PALETTE.caramel, color: '#fff', borderRadius: 8, minWidth: 15, height: 15, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{openRequestCountByClient[c.id]}</span>
+                    )}
+                  </button>
                   {c.id !== 'all' && (
-                    <button onClick={() => setHubClientId(c.id)} title="Manage meeting notes & billing" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: PALETTE.mutedLight, opacity: 0.6 }}
+                    <button onClick={() => setHubClientId(c.id)} title="Manage meeting notes, billing & requests" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: PALETTE.mutedLight, opacity: 0.6 }}
                       onMouseEnter={e => e.currentTarget.style.opacity = 1}
                       onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
                     >🗂</button>
