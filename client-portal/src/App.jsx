@@ -136,6 +136,7 @@ const greeting = () => {
 const STATUS = {
   pending:   { label: 'AWAITING APPROVAL',   color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
   approved:  { label: 'APPROVED',            color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F', border: '#7ECBA1' },
+  scheduled: { label: 'SCHEDULED',           color: '#1E4E8A', bg: '#E8F1FC', dot: '#3B72B8', border: '#A9C6E8' },
   revision:  { label: 'REVISIONS REQUESTED', color: '#7A2018', bg: '#FEECEA', dot: '#C0392B', border: '#F4A59F' },
   published: { label: 'PUBLISHED',           color: '#444',    bg: '#F2F2F2', dot: '#888',    border: '#CCC'    },
   archived:  { label: 'ARCHIVED',            color: '#777',    bg: '#F5F5F5', dot: '#AAA',    border: '#DDD'    },
@@ -144,6 +145,7 @@ const STATUS = {
 const statusLine = (status) => {
   if (status === 'pending') return 'Nothing goes live until you say so.'
   if (status === 'approved') return 'Approved — Brown Butter will schedule this post.'
+  if (status === 'scheduled') return 'Scheduled and queued to go live.'
   if (status === 'revision') return 'Awaiting revised version from Brown Butter.'
   if (status === 'published') return 'This post has been published.'
   return ''
@@ -1043,7 +1045,7 @@ export default function ClientPortal() {
   )
 
   const brandColor = client?.brand_color || PALETTE.caramel
-  const activePosts = posts.filter(p => ['pending', 'approved', 'revision'].includes(p.status))
+  const activePosts = posts.filter(p => ['pending', 'approved', 'scheduled', 'revision'].includes(p.status))
   const publishedPosts = posts.filter(p => p.status === 'published')
 
   const filteredPosts = filter === 'all' ? activePosts
@@ -1055,6 +1057,7 @@ export default function ClientPortal() {
     pending: activePosts.filter(p => p.status === 'pending').length,
     revision: activePosts.filter(p => p.status === 'revision').length,
     approved: activePosts.filter(p => p.status === 'approved').length,
+    scheduled: activePosts.filter(p => p.status === 'scheduled').length,
     published: publishedPosts.length,
   }
 
@@ -1063,6 +1066,7 @@ export default function ClientPortal() {
   const pageTitle = filter === 'all' ? 'Your Content'
     : filter === 'pending' ? 'Awaiting Your Approval'
     : filter === 'approved' ? 'Approved Posts'
+    : filter === 'scheduled' ? 'Scheduled Posts'
     : filter === 'published' ? 'Published Posts'
     : 'Needs Changes'
 
@@ -1072,6 +1076,7 @@ export default function ClientPortal() {
     ['all', 'All Posts', counts.all],
     ['pending', 'Awaiting Approval', counts.pending],
     ['approved', 'Approved', counts.approved],
+    ['scheduled', 'Scheduled', counts.scheduled],
     ['revision', 'Needs Changes', counts.revision],
     ['published', 'Published', counts.published],
   ]
@@ -1178,7 +1183,7 @@ export default function ClientPortal() {
                   ))}
                 </div>
                 <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Filter</div>
-                {[['all','All Posts',counts.all],['pending','Awaiting Approval',counts.pending],['approved','Approved',counts.approved],['revision','Needs Changes',counts.revision]].map(([k,l,n]) => (
+                {[['all','All Posts',counts.all],['pending','Awaiting Approval',counts.pending],['approved','Approved',counts.approved],['scheduled','Scheduled',counts.scheduled],['revision','Needs Changes',counts.revision]].map(([k,l,n]) => (
                   <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
                     onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                     onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
