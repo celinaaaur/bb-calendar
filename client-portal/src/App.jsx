@@ -219,6 +219,26 @@ function CalendarView({ posts, onSelectPost, isMobile }) {
   )
 }
 
+// Renders a video sized to its real aspect ratio instead of a fixed frame,
+// so a horizontal video shows fully horizontal with no black letterbox bars.
+function AdaptiveVideo({ src, style }) {
+  const [ratio, setRatio] = useState(null)
+  useEffect(() => { setRatio(null) }, [src])
+  const handleLoaded = (e) => {
+    const v = e.target
+    if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight)
+  }
+  return (
+    <video
+      src={src}
+      controls
+      playsInline
+      onLoadedMetadata={handleLoaded}
+      style={{ width: '100%', aspectRatio: ratio || '9/16', objectFit: 'contain', display: 'block', background: '#000', ...style }}
+    />
+  )
+}
+
 function IGGrid({ posts }) {
   const grid = [...posts].filter(p => p.status !== 'archived')
     .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
@@ -437,19 +457,20 @@ function IGMockup({ post, client }) {
           </div>
           <div style={{ fontSize: 16, color: '#555', letterSpacing: 2, lineHeight: 1 }}>···</div>
         </div>
-        <div style={{ width: '100%', paddingBottom: hasVideo && isReel ? '177.78%' : '125%', position: 'relative', background: PALETTE.creamDark }}>
-          {post.image_url && !hasVideo && (
-            <img src={src} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          )}
-          {post.image_url && hasVideo && (
-            <video src={post.image_url} controls playsInline style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: '#000' }} />
-          )}
-          {!post.image_url && (
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No asset uploaded</span>
-            </div>
-          )}
-        </div>
+        {post.image_url && hasVideo ? (
+          <AdaptiveVideo src={post.image_url} />
+        ) : (
+          <div style={{ width: '100%', paddingBottom: '125%', position: 'relative', background: PALETTE.creamDark }}>
+            {post.image_url && (
+              <img src={src} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            )}
+            {!post.image_url && (
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>No asset uploaded</span>
+              </div>
+            )}
+          </div>
+        )}
         <div style={{ padding: '10px 12px 6px', display: 'flex', gap: 14, alignItems: 'center' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
