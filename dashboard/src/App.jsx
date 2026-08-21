@@ -1183,6 +1183,145 @@ function RequestsView({ requests, clients, selectedClient }) {
   )
 }
 
+function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToFilter }) {
+  const clientPosts = posts.filter(p => p.client_id === client.id)
+  const clientRequests = requests.filter(r => r.client_id === client.id)
+  const clientPostIds = new Set(clientPosts.map(p => p.id))
+  const clientComments = comments.filter(c => clientPostIds.has(c.post_id))
+  const clientStatusChanges = statusChanges.filter(s => clientPostIds.has(s.post_id))
+
+  const counts = {
+    pending: clientPosts.filter(p => p.status === 'pending').length,
+    revision: clientPosts.filter(p => p.status === 'revision').length,
+    approved: clientPosts.filter(p => p.status === 'approved').length,
+    published: clientPosts.filter(p => p.status === 'published').length,
+  }
+  const openRequests = clientRequests.filter(r => r.status === 'new' || r.status === 'in_progress').length
+
+  const upcoming = [...clientPosts]
+    .filter(p => p.status !== 'archived' && new Date(p.scheduled_at) >= new Date())
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+    .slice(0, 5)
+
+  // Merge comments + status changes + new requests into one recent-activity feed
+  const activity = []
+  clientComments.forEach(c => {
+    const post = clientPosts.find(p => p.id === c.post_id)
+    activity.push({
+      ts: new Date(c.created_at).getTime(), date: c.created_at,
+      text: (c.author_type === 'agency' ? 'Brown Butter' : c.author) + ' commented on "' + (post?.caption?.slice(0, 40) || 'a post') + '"',
+      post,
+    })
+  })
+  clientStatusChanges.forEach(s => {
+    if (!['approved', 'revision'].includes(s.status)) return
+    const post = clientPosts.find(p => p.id === s.post_id)
+    activity.push({
+      ts: new Date(s.created_at).getTime(), date: s.created_at,
+      text: (s.changed_by || client.name) + (s.status === 'approved' ? ' approved "' : ' requested revisions on "') + (post?.caption?.slice(0, 40) || 'a post') + '"',
+      post,
+    })
+  })
+  clientRequests.forEach(r => {
+    activity.push({
+      ts: new Date(r.created_at).getTime(), date: r.created_at,
+      text: client.name + ' submitted a request: "' + r.title + '"',
+      post: null,
+    })
+  })
+  activity.sort((a, b) => b.ts - a.ts)
+  const recentActivity = activity.slice(0, 6)
+
+  const statCard = (label, n, filterKey, dot) => (
+    <div onClick={() => onGoToFilter(filterKey)} style={{ flex: 1, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s' }}
+      onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+      onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: dot }} />
+        <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
+      </div>
+      <div style={{ fontFamily: F.display, fontSize: 26, color: PALETTE.espresso }}>{n}</div>
+    </div>
+  )
+
+  return (
+    <div style={{ padding: '24px 26px 48px' }}>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{(client.name || 'BB').slice(0, 2).toUpperCase()}</div>
+        <div>
+          <div style={{ fontFamily: F.display, fontSize: 24, color: PALETTE.espresso, lineHeight: 1.1 }}>{client.name}</div>
+          {client.ig_handle && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, marginTop: 2 }}>@{client.ig_handle}</div>}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
+        {statCard('Awaiting approval', counts.pending, 'pending', '#C4893A')}
+        {statCard('Revisions', counts.revision, 'revision', '#C0392B')}
+        {statCard('Approved', counts.approved, 'approved', '#2A7D4F')}
+        {statCard('Published', counts.published, 'published', '#888')}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' }}>
+        <button onClick={onOpenHub} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>Meeting notes & billing</button>
+        <button onClick={onGoToRequests} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>
+          Requests{openRequests > 0 ? ' (' + openRequests + ')' : ''}
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+
+        <div>
+          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Up next</div>
+          {upcoming.length === 0
+            ? <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic' }}>Nothing scheduled.</div>
+            : (
+              <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
+                {upcoming.map((p, i) => (
+                  <div key={p.id} onClick={() => onSelectPost(p)} style={{ padding: '10px 14px', borderTop: i > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}
+                    onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.caption?.slice(0, 44) || 'Untitled'}</span>
+                    <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtShort(p.scheduled_at)}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+
+          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, margin: '22px 0 10px' }}>Feed preview</div>
+          <div style={{ borderRadius: 8, overflow: 'hidden', border: '0.5px solid ' + PALETTE.borderLight }}>
+            <IGGrid posts={clientPosts} />
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Recent activity</div>
+          {recentActivity.length === 0
+            ? <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic' }}>Nothing yet.</div>
+            : (
+              <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
+                {recentActivity.map((a, i) => (
+                  <div key={i} onClick={() => a.post && onSelectPost(a.post)} style={{ padding: '10px 14px', borderTop: i > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: a.post ? 'pointer' : 'default' }}
+                    onMouseEnter={e => { if (a.post) e.currentTarget.style.background = PALETTE.creamMid }}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{a.text}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{fmtAgo(a.date)}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [clients, setClients] = useState([])
   const [posts, setPosts] = useState([])
@@ -1418,7 +1557,7 @@ export default function Dashboard() {
             {[{ id: 'all', name: 'All Clients', brand_color: PALETTE.caramel }, ...clients].map(c => (
               <div key={c.id}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <button onClick={() => setSelectedClient(c.id)} style={{ flex: 1, textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s', minWidth: 0 }}
+                  <button onClick={() => { setSelectedClient(c.id); setView(c.id === 'all' ? (view === 'overview' ? 'queue' : view) : 'overview') }} style={{ flex: 1, textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s', minWidth: 0 }}
                     onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                     onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
                   ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.name}</span>
@@ -1462,7 +1601,7 @@ export default function Dashboard() {
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
-            {[['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar'], ['requests', 'Requests']].map(([k, l]) => (
+            {[['overview', 'Overview'], ['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar'], ['requests', 'Requests']].map(([k, l]) => (
               <button key={k} onClick={() => setView(k)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
@@ -1494,6 +1633,7 @@ export default function Dashboard() {
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
+          {view !== 'overview' && (
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             {view === 'requests' ? (
               <>
@@ -1511,6 +1651,7 @@ export default function Dashboard() {
               </>
             )}
           </div>
+          )}
 
           {!loading && view === 'queue' && (
             <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} />
@@ -1518,7 +1659,24 @@ export default function Dashboard() {
 
           {loading
             ? <div style={{ padding: 48, textAlign: 'center', fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight }}>Loading...</div>
-            : view === 'requests'
+            : view === 'overview'
+              ? (selectedClient === 'all'
+                  ? <div style={{ padding: 60, textAlign: 'center' }}>
+                      <div style={{ fontFamily: F.display, fontSize: 18, color: PALETTE.mutedLight }}>Pick a client from the sidebar to see their overview</div>
+                    </div>
+                  : <ClientOverview
+                      client={clients.find(c => c.id === selectedClient)}
+                      posts={posts}
+                      comments={comments}
+                      requests={requests}
+                      statusChanges={statusChanges}
+                      onSelectPost={setSelectedPost}
+                      onOpenHub={() => setHubClientId(selectedClient)}
+                      onGoToRequests={() => setView('requests')}
+                      onGoToFilter={(k) => { setFilter(k); setView('queue') }}
+                    />
+                )
+              : view === 'requests'
               ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} />
               : view === 'calendar'
               ? <CalendarView posts={filteredPosts} onSelect={setSelectedPost} />
