@@ -476,12 +476,12 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
   return (
     <div style={isMobile ? {
   position: 'fixed', inset: 0, width: '100%', background: '#fff', display: 'flex',
-  flexDirection: 'column', zIndex: 300, overflow: 'hidden'
+  flexDirection: 'column', zIndex: 300, overflowY: 'auto', WebkitOverflowScrolling: 'touch'
 } : {
   width: 340, background: '#fff', borderLeft: '0.5px solid ' + PALETTE.border, display: 'flex',
-  flexDirection: 'column', flexShrink: 0, overflow: 'hidden'
+  flexDirection: 'column', flexShrink: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch'
 }}>
-      <div style={{ padding: '14px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
+      <div style={{ padding: '14px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0, position: 'sticky', top: 0, zIndex: 5, background: '#fff' }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
           <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 13, color: PALETTE.espresso, marginTop: 7, lineHeight: 1.4 }}>{post.caption?.slice(0, 60)}{post.caption?.length > 60 ? '…' : ''}</div>
@@ -491,8 +491,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
           onMouseLeave={e => e.currentTarget.style.color = PALETTE.mutedLight}
         >✕</button>
       </div>
-
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
       {editing ? (
         <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
@@ -837,7 +835,6 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
             </div>
           )
         })()}
-      </div>
       </div>
     </div>
   )
