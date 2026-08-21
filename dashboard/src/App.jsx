@@ -485,14 +485,38 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
   const saveEdit = async () => {
     if (!editCaption.trim() || !editDesigner.trim() || !editScheduled) return
     setSaving(true)
+
+    const newScheduledIso = new Date(editScheduled).toISOString()
+    const newImageUrl = editImages[0] || null
+    const newCoverUrl = editImages[0] && isVideo(editImages[0]) ? (editCoverUrl || null) : null
+    const newCampaign = editCampaign.trim() || null
+
+    // Figure out exactly what changed so History shows a real audit trail,
+    // not just a single generic "updated" entry
+    const changes = []
+    if (editCaption.trim() !== (post.caption || '')) changes.push('updated the caption')
+    if (newScheduledIso !== post.scheduled_at) changes.push('changed the scheduled time to ' + fmt(newScheduledIso))
+    if (editFormat !== (post.format || 'post')) changes.push('changed the format to ' + editFormat.charAt(0).toUpperCase() + editFormat.slice(1))
+    if (editDesigner.trim() !== (post.designer || '')) changes.push('changed the designer to ' + editDesigner.trim())
+    if (newCampaign !== (post.campaign || null)) changes.push('updated the content pillar')
+    if (newImageUrl !== (post.image_url || null)) changes.push(post.image_url ? 'replaced the asset' : 'uploaded an asset')
+    if (newCoverUrl !== (post.cover_url || null) && newImageUrl === (post.image_url || null)) changes.push('updated the cover photo')
+
     await supabase.from('posts').update({
-      caption: editCaption.trim(), scheduled_at: new Date(editScheduled).toISOString(),
+      caption: editCaption.trim(), scheduled_at: newScheduledIso,
       format: editFormat, slide_count: editFormat === 'carousel' ? (editImages.length || (editSlideCount ? parseInt(editSlideCount) : null)) : null,
-      designer: editDesigner.trim(), campaign: editCampaign.trim() || null,
-      image_url: editImages[0] || null,
+      designer: editDesigner.trim(), campaign: newCampaign,
+      image_url: newImageUrl,
       images: editFormat === 'carousel' && editImages.length > 1 ? editImages : null,
-      cover_url: editImages[0] && isVideo(editImages[0]) ? (editCoverUrl || null) : null,
+      cover_url: newCoverUrl,
     }).eq('id', post.id)
+
+    if (changes.length > 0) {
+      await supabase.from('versions').insert(
+        changes.map((note, i) => ({ post_id: post.id, version_number: versions.length + i + 1, note, author: 'Brown Butter' }))
+      )
+    }
+
     setSaving(false); setEditing(false); onRefresh()
   }
 
@@ -822,19 +846,27 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
           // Build a unified activity timeline from versions, logged status changes, and comments
           const timeline = []
 
-          // Caption edits from versions table
+          // Post edits from versions table — caption, schedule, asset, designer, pillar, etc.
           versions.forEach(v => {
+            const note = v.note || 'updated this post'
+            const icon = note.includes('caption') ? '✎'
+              : note.includes('scheduled time') ? '🕐'
+              : note.includes('format') ? '▦'
+              : note.includes('designer') ? '🧑'
+              : note.includes('content pillar') ? '🏷'
+              : note.includes('asset') ? '🖼'
+              : note.includes('cover photo') ? '🎞'
+              : '✎'
             timeline.push({
               ts: new Date(v.created_at).getTime(),
               date: v.created_at,
-              icon: '✎',
+              icon,
               iconColor: PALETTE.muted,
               iconBg: PALETTE.creamDark,
               who: v.author || 'Brown Butter',
-              action: 'updated the caption',
-              detail: v.note || null,
-              tag: 'v' + v.version_number,
-              tagColor: '#9B2B20',
+              action: note,
+              detail: null,
+              tag: null,
             })
           })
 
