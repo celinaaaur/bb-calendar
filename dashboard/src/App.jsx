@@ -227,9 +227,11 @@ function TodayQueue({ posts, clients, onSelect }) {
               <div style={{ height: 90, background: PALETTE.creamDark, position: 'relative', overflow: 'hidden' }}>
                 {post.image_url && !hasVid && <img src={imgSrc(post.image_url)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                 {post.image_url && hasVid && (
-                  <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
-                  </div>
+                  post.cover_url
+                    ? <img src={imgSrc(post.cover_url)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
+                      </div>
                 )}
                 {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
                 {isDone && (
@@ -260,7 +262,14 @@ function IGGrid({ posts }) {
       {grid.map((p, i) => (
         <div key={i} style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative', background: p ? (p.image_url ? 'transparent' : 'hsl(' + (28 + i * 8) + ',20%,' + (86 - i * 2) + '%)') : '#E8E0D0' }}>
           {p?.image_url && !isVideo(p.image_url) && <img src={imgSrc(p.image_url, p.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-          {p?.image_url && isVideo(p.image_url) && <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>}
+          {p?.image_url && isVideo(p.image_url) && (
+            p.cover_url
+              ? <>
+                  <img src={imgSrc(p.cover_url, p.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ position: 'absolute', bottom: 3, left: 3, width: 14, height: 14, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="7" height="7" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>
+                </>
+              : <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>
+          )}
           {p && !p.image_url && <div style={{ padding: 3, fontSize: 6, color: PALETTE.muted, lineHeight: 1.3 }}>{p.caption?.slice(0, 30)}</div>}
           {p && <div style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.8)' }} />}
         </div>
@@ -312,7 +321,7 @@ function CalendarView({ posts, onSelect }) {
 function NotificationsPanel({ notifications, onClose, onMarkAllRead, onSelect }) {
   const unread = notifications.filter(n => !n.read).length
   return (
-    <div style={{ position: 'absolute', top: 48, right: 16, width: 300, background: '#fff', borderRadius: 10, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.16)', zIndex: 300, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'absolute', top: 48, right: 16, width: 300, maxWidth: 'calc(100vw - 32px)', background: '#fff', borderRadius: 10, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.16)', zIndex: 300, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
       <div style={{ padding: '12px 16px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontFamily: F.display, fontSize: 15, color: PALETTE.espresso }}>Notifications</span>
         {unread > 0 && <button onClick={onMarkAllRead} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500 }}>Mark all read</button>}
@@ -403,10 +412,13 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
   const [editDesigner, setEditDesigner] = useState(post.designer || '')
   const [editCampaign, setEditCampaign] = useState(post.campaign || '')
   const [editImages, setEditImages] = useState(Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.image_url ? [post.image_url] : []))
+  const [editCoverUrl, setEditCoverUrl] = useState(post.cover_url || '')
+  const [uploadingCover, setUploadingCover] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [downloading, setDownloading] = useState(false)
   const fileRef = useRef()
+  const coverFileRef = useRef()
 
   const client = clients.find(c => c.id === post.client_id)
   const handle = client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'
@@ -421,6 +433,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
     setEditDesigner(post.designer || '')
     setEditCampaign(post.campaign || '')
     setEditImages(Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.image_url ? [post.image_url] : []))
+    setEditCoverUrl(post.cover_url || '')
     setEditing(false)
     setUploadError(null)
   }, [post.id])
@@ -436,6 +449,16 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
     setUploading(false)
   }
 
+  const handleCoverFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingCover(true)
+    const { url, error } = await uploadAsset(file)
+    if (url) setEditCoverUrl(url)
+    if (error) setUploadError(error)
+    setUploadingCover(false)
+  }
+
   const removeEditImage = (i) => setEditImages(prev => prev.filter((_, idx) => idx !== i))
 
   const saveEdit = async () => {
@@ -447,6 +470,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
       designer: editDesigner.trim(), campaign: editCampaign.trim() || null,
       image_url: editImages[0] || null,
       images: editFormat === 'carousel' && editImages.length > 1 ? editImages : null,
+      cover_url: editImages[0] && isVideo(editImages[0]) ? (editCoverUrl || null) : null,
     }).eq('id', post.id)
     setSaving(false); setEditing(false); onRefresh()
   }
@@ -517,6 +541,20 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
           </div>
           {uploadError && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', marginTop: 6 }}>{uploadError}</div>}
           <input ref={fileRef} type="file" accept="image/*,video/*,.gif" multiple={editFormat === 'carousel'} onChange={handleFile} style={{ display: 'none' }} />
+
+          {editImages[0] && isVideo(editImages[0]) && (
+            <div style={{ marginTop: 14 }}>
+              <span style={labelStyle}>Cover photo {uploadingCover && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>uploading...</span>}</span>
+              {editCoverUrl ? (
+                <AssetPreview url={editCoverUrl} onRemove={() => setEditCoverUrl('')} maxHeight={100} />
+              ) : (
+                <div onClick={() => coverFileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '14px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Upload cover image</div>
+                </div>
+              )}
+              <input ref={coverFileRef} type="file" accept="image/*" onChange={handleCoverFile} style={{ display: 'none' }} />
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ padding: '12px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
@@ -874,10 +912,13 @@ function ComposeModal({ clients, onClose, onSaved }) {
   const [designer, setDesigner] = useState('')
   const [campaign, setCampaign] = useState('')
   const [images, setImages] = useState([])
+  const [coverUrl, setCoverUrl] = useState('')
+  const [uploadingCover, setUploadingCover] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
+  const coverFileRef = useRef()
 
   const handleFile = async (e) => {
     const files = e.target.files
@@ -887,6 +928,16 @@ function ComposeModal({ clients, onClose, onSaved }) {
     if (urls.length) setImages(prev => [...prev, ...urls])
     if (error) setUploadError(error)
     setUploading(false)
+  }
+
+  const handleCoverFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingCover(true)
+    const { url, error } = await uploadAsset(file)
+    if (url) setCoverUrl(url)
+    if (error) setUploadError(error)
+    setUploadingCover(false)
   }
 
   const removeImage = (i) => setImages(prev => prev.filter((_, idx) => idx !== i))
@@ -899,6 +950,7 @@ function ComposeModal({ clients, onClose, onSaved }) {
       client_id: clientId, caption: caption.trim(), scheduled_at: new Date(scheduledAt).toISOString(),
       image_url: images[0] || null,
       images: format === 'carousel' && images.length > 1 ? images : null,
+      cover_url: images[0] && isVideo(images[0]) ? (coverUrl || null) : null,
       platform: 'instagram', status: 'pending', format,
       slide_count: format === 'carousel' ? (images.length || (slideCount ? parseInt(slideCount) : null)) : null,
       designer: designer.trim(), campaign: campaign.trim() || null
@@ -938,6 +990,21 @@ function ComposeModal({ clients, onClose, onSaved }) {
             </div>
             <input ref={fileRef} type="file" accept="image/*,video/*,.gif" multiple={format === 'carousel'} onChange={handleFile} style={{ display: 'none' }} />
           </div>
+          {images[0] && isVideo(images[0]) && (
+            <div>
+              {fieldLabel('Cover photo (optional)')}
+              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 8, lineHeight: 1.5 }}>Videos can't auto-generate a thumbnail — upload a still so this shows properly in grid previews instead of a black box.</div>
+              {uploadingCover && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, marginBottom: 6 }}>Uploading...</div>}
+              {coverUrl ? (
+                <AssetPreview url={coverUrl} onRemove={() => setCoverUrl('')} maxHeight={120} />
+              ) : (
+                <div onClick={() => coverFileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 8, padding: '16px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Upload cover image</div>
+                </div>
+              )}
+              <input ref={coverFileRef} type="file" accept="image/*" onChange={handleCoverFile} style={{ display: 'none' }} />
+            </div>
+          )}
           <div>{fieldLabel('Caption', true)}<textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write your caption..." rows={4} style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }} /><div style={{ fontFamily: F.body, fontSize: 9, color: caption.length > 2200 ? '#C0392B' : PALETTE.mutedLight, textAlign: 'right', marginTop: 2 }}>{caption.length} / 2,200</div></div>
           <div>{fieldLabel('Schedule date and time', true)}<input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={inputStyle} /></div>
           <button onClick={handleSave} disabled={saving || !canSave} style={{ padding: '12px 0', borderRadius: 8, border: 'none', background: canSave ? PALETTE.espresso : PALETTE.creamDark, color: canSave ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: canSave ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>{saving ? 'Saving...' : 'Send to Client for Review'}</button>
@@ -1183,7 +1250,7 @@ function RequestsView({ requests, clients, selectedClient }) {
   )
 }
 
-function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToFilter }) {
+function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToFilter, isMobile }) {
   const clientPosts = posts.filter(p => p.client_id === client.id)
   const clientRequests = requests.filter(r => r.client_id === client.id)
   const clientPostIds = new Set(clientPosts.map(p => p.id))
@@ -1233,7 +1300,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   const recentActivity = activity.slice(0, 6)
 
   const statCard = (label, n, filterKey, dot) => (
-    <div onClick={() => onGoToFilter(filterKey)} style={{ flex: 1, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s' }}
+    <div onClick={() => onGoToFilter(filterKey)} style={{ flex: isMobile ? '1 1 calc(50% - 5px)' : 1, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s' }}
       onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
       onMouseLeave={e => e.currentTarget.style.background = '#fff'}
     >
@@ -1246,7 +1313,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   )
 
   return (
-    <div style={{ padding: '24px 26px 48px' }}>
+    <div style={{ padding: isMobile ? '18px 16px 40px' : '24px 26px 48px' }}>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
         <div style={{ width: 40, height: 40, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{(client.name || 'BB').slice(0, 2).toUpperCase()}</div>
@@ -1270,7 +1337,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
 
         <div>
           <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Up next</div>
@@ -1557,7 +1624,7 @@ export default function Dashboard() {
             {[{ id: 'all', name: 'All Clients', brand_color: PALETTE.caramel }, ...clients].map(c => (
               <div key={c.id}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <button onClick={() => { setSelectedClient(c.id); setView(c.id === 'all' ? (view === 'overview' ? 'queue' : view) : 'overview') }} style={{ flex: 1, textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s', minWidth: 0 }}
+                  <button onClick={() => { setSelectedClient(c.id); setView(c.id === 'all' ? (view === 'overview' ? 'queue' : view) : 'overview'); if (isMobile) setSidebarOpen(false) }} style={{ flex: 1, textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s', minWidth: 0 }}
                     onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                     onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
                   ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.name}</span>
@@ -1602,7 +1669,7 @@ export default function Dashboard() {
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
             {[['overview', 'Overview'], ['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar'], ['requests', 'Requests']].map(([k, l]) => (
-              <button key={k} onClick={() => setView(k)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              <button key={k} onClick={() => { setView(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
               >
@@ -1617,7 +1684,7 @@ export default function Dashboard() {
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Filter</div>
             {[['active','Everything',counts.active,PALETTE.caramel],['pending','Awaiting approval',counts.pending,'#C4893A'],['revision','Revisions requested',counts.revision,'#C0392B'],['approved','Approved',counts.approved,'#2A7D4F'],['published','Published',counts.published,'#888'],['archived','Archived',counts.archived,'#bbb']].map(([k, l, n, dot]) => (
-              <button key={k} onClick={() => setFilter(k)} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
+              <button key={k} onClick={() => { setFilter(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
                 onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
               >
@@ -1674,6 +1741,7 @@ export default function Dashboard() {
                       onOpenHub={() => setHubClientId(selectedClient)}
                       onGoToRequests={() => setView('requests')}
                       onGoToFilter={(k) => { setFilter(k); setView('queue') }}
+                      isMobile={isMobile}
                     />
                 )
               : view === 'requests'
@@ -1725,9 +1793,11 @@ export default function Dashboard() {
                                               <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
                                             )}
                                             {post.image_url && hasVid && (
-                                              <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M8 5v14l11-7z"/></svg>
-                                              </div>
+                                              post.cover_url
+                                                ? <img src={imgSrc(post.cover_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
+                                                : <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M8 5v14l11-7z"/></svg>
+                                                  </div>
                                             )}
                                             {!post.image_url && (
                                               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1764,9 +1834,11 @@ export default function Dashboard() {
                                         <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
                                       )}
                                       {post.image_url && hasVid && (
-                                        <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                          <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M8 5v14l11-7z"/></svg>
-                                        </div>
+                                        post.cover_url
+                                          ? <img src={imgSrc(post.cover_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
+                                          : <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                              <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M8 5v14l11-7z"/></svg>
+                                            </div>
                                       )}
                                       {!post.image_url && (
                                         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1809,7 +1881,11 @@ export default function Dashboard() {
                         >
                           <div style={{ width: 50, height: 50, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
                             {post.image_url && !isVideo(post.image_url) && <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                            {post.image_url && isVideo(post.image_url) && <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg></div>}
+                            {post.image_url && isVideo(post.image_url) && (
+                              post.cover_url
+                                ? <img src={imgSrc(post.cover_url, post.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                : <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg></div>
+                            )}
                             {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
