@@ -138,6 +138,16 @@ const fmtAgo = (str) => {
   if (days < 7) return days + 'd ago'
   return fmtShort(str)
 }
+// Converts a stored UTC timestamp to the local "YYYY-MM-DDTHH:mm" string a
+// <input type="datetime-local"> expects. toISOString() always returns UTC,
+// which silently shifts the displayed time by the timezone offset (and,
+// worse, re-saves that shifted value) — this uses local date/time parts instead.
+const toLocalInputValue = (str) => {
+  if (!str) return ''
+  const d = new Date(str)
+  const pad = (n) => String(n).padStart(2, '0')
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+}
 
 const STATUS = {
   pending:   { label: 'AWAITING APPROVAL',   color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
@@ -383,7 +393,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
   const [activeTab, setActiveTab] = useState('details')
   const [editing, setEditing] = useState(false)
   const [editCaption, setEditCaption] = useState(post.caption)
-  const [editScheduled, setEditScheduled] = useState(post.scheduled_at ? new Date(post.scheduled_at).toISOString().slice(0, 16) : '')
+  const [editScheduled, setEditScheduled] = useState(toLocalInputValue(post.scheduled_at))
   const [editFormat, setEditFormat] = useState(post.format || 'post')
   const [editSlideCount, setEditSlideCount] = useState(post.slide_count || '')
   const [editDesigner, setEditDesigner] = useState(post.designer || '')
@@ -401,7 +411,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
 
   useEffect(() => {
     setEditCaption(post.caption)
-    setEditScheduled(post.scheduled_at ? new Date(post.scheduled_at).toISOString().slice(0, 16) : '')
+    setEditScheduled(toLocalInputValue(post.scheduled_at))
     setEditFormat(post.format || 'post')
     setEditSlideCount(post.slide_count || '')
     setEditDesigner(post.designer || '')
