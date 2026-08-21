@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 
 const style = document.createElement('style')
 style.textContent = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=League+Gothic&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
   * { box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   body { margin: 0; background: #F5F0E8; }
@@ -17,15 +17,15 @@ style.textContent = `
 document.head.appendChild(style)
 
 const F = {
-  display: "'DM Serif Display', Georgia, serif",
+  display: "'League Gothic', 'Oswald', Impact, sans-serif",
   body: "'DM Sans', system-ui, sans-serif"
 }
 
 const PALETTE = {
-  cream: '#F5F0E8', creamDark: '#EDE5D4', creamMid: '#FAF6EE',
-  border: '#D4C9B0', borderLight: '#E8E0D0',
+  cream: '#E9EDDE', creamDark: '#D6DACC', creamMid: '#F5F6F0',
+  border: '#3C2211', borderLight: '#3C2211',
   espresso: '#2C1F0E', espressoLight: '#5C4A30',
-  caramel: '#C4893A', caramelLight: '#F0E8D5',
+  caramel: '#3C2211', caramelLight: '#DCD7D4',
   muted: '#8A7560', mutedLight: '#B8A898',
 }
 
@@ -1337,8 +1337,8 @@ export default function Dashboard() {
             🔔
             {unreadCount > 0 && <span style={{ position: 'absolute', top: 0, right: 0, background: '#C0392B', color: '#fff', borderRadius: '50%', width: 14, height: 14, fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.body, fontWeight: 700, border: '1.5px solid ' + PALETTE.espresso }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
           </button>
-          <button onClick={() => setComposing(true)} style={{ padding: isMobile ? '6px 10px' : '6px 16px', borderRadius: 6, border: 'none', background: PALETTE.caramel, color: PALETTE.espresso, fontFamily: F.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.03em', transition: 'background 0.15s', whiteSpace: 'nowrap' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#D4993A'}
+          <button onClick={() => setComposing(true)} style={{ padding: isMobile ? '6px 10px' : '6px 16px', borderRadius: 6, border: 'none', background: PALETTE.caramel, color: PALETTE.cream, fontFamily: F.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.03em', transition: 'background 0.15s', whiteSpace: 'nowrap' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#5F493B'}
             onMouseLeave={e => e.currentTarget.style.background = PALETTE.caramel}
           >+ New Post</button>
         </div>
