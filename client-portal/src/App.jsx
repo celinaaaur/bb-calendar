@@ -495,7 +495,7 @@ function IGMockup({ post, client }) {
   )
 }
 
-function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMobile }) {
+function PostPanel({ post, comments, versions, statusChanges, client, onClose, onRefresh, isMobile }) {
   const [newComment, setNewComment] = useState('')
   const [authorName, setAuthorName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -547,7 +547,7 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
       <IGMockup post={post} client={client} />
 
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-        {[['details', 'Details'], ['discussion', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')]].map(([k, l]) => (
+        {[['details', 'Details'], ['discussion', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')], ['history', 'History']].map(([k, l]) => (
           <button key={k} onClick={() => setActiveTab(k)} style={{
             flex: 1, padding: '12px 0', border: 'none', background: 'transparent',
             fontFamily: F.body, fontSize: 12, fontWeight: activeTab === k ? 500 : 400,
@@ -575,24 +575,6 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
                 </div>
               ))}
             </div>
-
-            {versions.length > 0 && (
-              <>
-                <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
-                <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 12, textTransform: 'uppercase' }}>Version History</div>
-                  {versions.sort((a, b) => b.version_number - a.version_number).map(v => (
-                    <div key={v.id} style={{ display: 'flex', gap: 12, marginBottom: 14, paddingBottom: 14, borderBottom: '0.5px dashed ' + PALETTE.borderLight }}>
-                      <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: '#9B2B20', flexShrink: 0, width: 26 }}>v{v.version_number}</div>
-                      <div>
-                        <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3 }}>{fmtShort(v.created_at)} · {v.author}</div>
-                        <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{v.note}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
 
             {!isPublished && post.status !== 'archived' && (
               <>
@@ -659,6 +641,77 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
             </div>
           </div>
         )}
+
+        {activeTab === 'history' && (() => {
+          const timeline = []
+
+          versions.forEach(v => {
+            const note = v.note || 'updated this post'
+            timeline.push({
+              ts: new Date(v.created_at).getTime(), date: v.created_at,
+              icon: '✎', iconColor: PALETTE.muted, iconBg: PALETTE.creamDark,
+              who: v.author || 'Brown Butter', action: note, detail: null,
+            })
+          })
+
+          const statusEvents = {
+            approved:  { icon: '✓', iconColor: '#2A7D4F', iconBg: '#E8F8EE', action: 'approved this post' },
+            revision:  { icon: '↩', iconColor: '#C0392B', iconBg: '#FEECEA', action: 'requested revisions' },
+            published: { icon: '✦', iconColor: brandColor, iconBg: PALETTE.creamMid, action: 'marked as published' },
+            pending:   { icon: '○', iconColor: PALETTE.muted, iconBg: PALETTE.creamDark, action: 'reset to pending' },
+          }
+          statusChanges.forEach(sc => {
+            const ev = statusEvents[sc.status]
+            if (!ev) return
+            timeline.push({
+              ts: new Date(sc.created_at).getTime(), date: sc.created_at,
+              icon: ev.icon, iconColor: ev.iconColor, iconBg: ev.iconBg,
+              who: sc.changed_by || (client?.name || 'Client'), action: ev.action, detail: null,
+            })
+          })
+
+          comments.forEach(c => {
+            timeline.push({
+              ts: new Date(c.created_at).getTime(), date: c.created_at,
+              icon: '💬', iconColor: PALETTE.espresso, iconBg: PALETTE.creamMid,
+              who: c.author_type === 'agency' ? 'Brown Butter' : (c.author || client?.name || 'Client'),
+              action: 'commented',
+              detail: c.text ? (c.text.length > 140 ? c.text.slice(0, 140) + '…' : c.text) : null,
+            })
+          })
+
+          timeline.push({
+            ts: new Date(post.created_at).getTime(), date: post.created_at,
+            icon: '+', iconColor: brandColor, iconBg: PALETTE.creamMid,
+            who: 'Brown Butter', action: 'created this post', detail: null,
+          })
+
+          timeline.sort((a, b) => b.ts - a.ts)
+
+          if (timeline.length === 0) {
+            return <p style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight, fontStyle: 'italic', margin: 0, lineHeight: 1.6 }}>No history yet.</p>
+          }
+
+          return (
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', left: 10, top: 6, bottom: 6, width: 1, background: PALETTE.borderLight }} />
+              {timeline.map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 20, position: 'relative' }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: item.iconBg, border: '1.5px solid ' + PALETTE.borderLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: item.iconColor, fontWeight: 700, flexShrink: 0, zIndex: 1 }}>{item.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 500 }}>{item.who}</span>{' '}{item.action}
+                    </div>
+                    {item.detail && (
+                      <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 4, lineHeight: 1.5, background: PALETTE.creamMid, borderRadius: 5, padding: '5px 8px', borderLeft: '2px solid ' + PALETTE.border }}>{item.detail}</div>
+                    )}
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>{fmtAgo(item.date)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
       </div>
     </>
   )
@@ -865,6 +918,7 @@ export default function ClientPortal() {
   const [posts, setPosts] = useState([])
   const [comments, setComments] = useState([])
   const [versions, setVersions] = useState([])
+  const [statusChanges, setStatusChanges] = useState([])
   const [selectedPost, setSelectedPost] = useState(null)
   const [filter, setFilter] = useState('all')
   const [view, setView] = useState('list') // 'list' | 'calendar'
@@ -900,13 +954,14 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
-    const [p, cm, v, mn, bc, rq] = await Promise.all([
+    const [p, cm, v, mn, bc, rq, sc] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
       supabase.from('meeting_notes').select('*').eq('client_id', clientData.id).order('meeting_date', { ascending: false }),
       supabase.from('billing_cycles').select('*').eq('client_id', clientData.id).order('cycle_start', { ascending: false }),
-      supabase.from('requests').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false })
+      supabase.from('requests').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false }),
+      supabase.from('status_changes').select('*').order('created_at')
     ])
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
@@ -914,6 +969,7 @@ export default function ClientPortal() {
     if (mn.data) setNotes(mn.data)
     if (bc.data) setBillingCycles(bc.data)
     if (rq.data) setRequests(rq.data)
+    if (sc.data) setStatusChanges(sc.data)
     setLoading(false)
   }
 
@@ -939,7 +995,8 @@ export default function ClientPortal() {
     const s3 = supabase.channel('cp-notes').on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_notes' }, fetchAll).subscribe()
     const s4 = supabase.channel('cp-billing').on('postgres_changes', { event: '*', schema: 'public', table: 'billing_cycles' }, fetchAll).subscribe()
     const s5 = supabase.channel('cp-requests').on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe() }
+    const s6 = supabase.channel('cp-status-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'status_changes' }, fetchAll).subscribe()
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe() }
   }, [])
 
   if (loading) return (
@@ -1305,6 +1362,7 @@ export default function ClientPortal() {
             post={posts.find(p => p.id === selectedPost.id) || selectedPost}
             comments={comments.filter(c => c.post_id === selectedPost.id)}
             versions={versions.filter(v => v.post_id === selectedPost.id)}
+            statusChanges={statusChanges.filter(s => s.post_id === selectedPost.id)}
             client={client}
             onClose={() => setSelectedPost(null)}
             onRefresh={fetchAll}
@@ -1319,6 +1377,7 @@ export default function ClientPortal() {
           post={posts.find(p => p.id === selectedPost.id) || selectedPost}
           comments={comments.filter(c => c.post_id === selectedPost.id)}
           versions={versions.filter(v => v.post_id === selectedPost.id)}
+          statusChanges={statusChanges.filter(s => s.post_id === selectedPost.id)}
           client={client}
           onClose={() => setSelectedPost(null)}
           onRefresh={fetchAll}
