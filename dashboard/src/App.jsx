@@ -22,7 +22,7 @@ const F = {
 }
 
 const PALETTE = {
-  cream: '#E9EDDE', creamDark: '#D6DACC', creamMid: '#F5F6F0',
+  cream: '#EEEBE3', creamDark: '#DAD8D0', creamMid: '#F7F6F2',
   border: '#3C2211', borderLight: '#3C2211',
   espresso: '#2C1F0E', espressoLight: '#5C4A30',
   caramel: '#3C2211', caramelLight: '#DCD7D4',
@@ -888,8 +888,8 @@ function ComposeModal({ clients, onClose, onSaved }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, maxHeight: '92vh', overflow: 'auto', WebkitOverflowScrolling: 'touch', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
         <div style={{ padding: '16px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, borderRadius: '14px 14px 0 0' }}>
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>New Post</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.caramel, fontSize: 18, lineHeight: 1 }}>✕</button>
+          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.cream, fontSize: 17 }}>New Post</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.cream, fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>{fieldLabel('Client', true)}<select value={clientId} onChange={e => setClientId(e.target.value)} style={inputStyle}>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -1012,8 +1012,8 @@ function ClientHubModal({ client, onClose }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
         <div style={{ padding: '16px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, flexShrink: 0 }}>
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>{client.name} — Client Hub</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.caramel, fontSize: 18, lineHeight: 1 }}>✕</button>
+          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.cream, fontSize: 17 }}>{client.name} — Client Hub</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.cream, fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
 
         <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
@@ -1326,14 +1326,14 @@ export default function Dashboard() {
       <div style={{ background: PALETTE.espresso, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {isMobile && (
-            <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'none', border: 'none', color: PALETTE.caramel, fontSize: 20, padding: '4px 6px', lineHeight: 1 }}>☰</button>
+            <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'none', border: 'none', color: PALETTE.cream, fontSize: 20, padding: '4px 6px', lineHeight: 1 }}>☰</button>
           )}
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>Brown Butter</span>
+          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.cream, fontSize: 17 }}>Brown Butter</span>
           {!isMobile && <span style={{ color: PALETTE.espressoLight, fontSize: 12 }}>|</span>}
           {!isMobile && <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.caramel : '#7a5a3a', fontSize: 16, lineHeight: 1, padding: '4px 6px', borderRadius: 6 }}>
+          <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.cream : '#7a5a3a', fontSize: 16, lineHeight: 1, padding: '4px 6px', borderRadius: 6 }}>
             🔔
             {unreadCount > 0 && <span style={{ position: 'absolute', top: 0, right: 0, background: '#C0392B', color: '#fff', borderRadius: '50%', width: 14, height: 14, fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.body, fontWeight: 700, border: '1.5px solid ' + PALETTE.espresso }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
           </button>
@@ -1471,7 +1471,7 @@ export default function Dashboard() {
               : filteredPosts.length === 0
                 ? <div style={{ padding: 60, textAlign: 'center' }}>
                     <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18, marginBottom: 18 }}>No posts here yet</div>
-                    <button onClick={() => setComposing(true)} style={{ padding: '9px 22px', borderRadius: 7, border: 'none', background: PALETTE.espresso, color: PALETTE.caramel, fontFamily: F.body, fontSize: 12, fontWeight: 500 }}>Create First Post</button>
+                    <button onClick={() => setComposing(true)} style={{ padding: '9px 22px', borderRadius: 7, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500 }}>Create First Post</button>
                   </div>
                 : view === 'grid'
                   ? (() => {
