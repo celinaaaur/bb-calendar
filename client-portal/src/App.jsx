@@ -658,6 +658,7 @@ function PostPanel({ post, comments, versions, statusChanges, client, onClose, o
 
           const statusEvents = {
             approved:  { icon: '✓', iconColor: '#2A7D4F', iconBg: '#E8F8EE', action: 'approved this post' },
+            scheduled: { icon: '◷', iconColor: '#1E4E8A', iconBg: '#E8F1FC', action: 'marked as scheduled' },
             revision:  { icon: '↩', iconColor: '#C0392B', iconBg: '#FEECEA', action: 'requested revisions' },
             published: { icon: '✦', iconColor: brandColor, iconBg: PALETTE.creamMid, action: 'marked as published' },
             pending:   { icon: '○', iconColor: PALETTE.muted, iconBg: PALETTE.creamDark, action: 'reset to pending' },
