@@ -11,6 +11,7 @@ style.textContent = `
   ::-webkit-scrollbar-thumb { background: #D4C9B0; border-radius: 4px; }
   textarea:focus, input:focus, select:focus { outline: none; }
   button { cursor: pointer; }
+  .bb-app-shell { height: 100vh; height: 100dvh; }
 `
 document.head.appendChild(style)
 
@@ -305,7 +306,7 @@ function NotificationsPanel({ notifications, onClose, onMarkAllRead }) {
         <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso }}>Notifications</span>
         {unread > 0 && <button onClick={onMarkAllRead} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500 }}>Mark all read</button>}
       </div>
-      <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+      <div style={{ maxHeight: 340, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {notifications.length === 0
           ? <div style={{ padding: '24px 16px', textAlign: 'center', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic' }}>All caught up.</div>
           : notifications.map((n, i) => (
@@ -635,7 +636,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '18px', WebkitOverflowScrolling: 'touch' }}>
         {activeTab === 'details' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -884,7 +885,7 @@ function ComposeModal({ clients, onClose, onSaved }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, maxHeight: '92vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, maxHeight: '92vh', overflow: 'auto', WebkitOverflowScrolling: 'touch', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
         <div style={{ padding: '16px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, borderRadius: '14px 14px 0 0' }}>
           <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 17 }}>New Post</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.caramel, fontSize: 18, lineHeight: 1 }}>✕</button>
@@ -1020,7 +1021,7 @@ function ClientHubModal({ client, onClose }) {
           ))}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20, WebkitOverflowScrolling: 'touch' }}>
           {loading ? (
             <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, textAlign: 'center', padding: 30 }}>Loading…</div>
           ) : tab === 'notes' ? (
@@ -1320,7 +1321,7 @@ export default function Dashboard() {
   const pageTitle = filter === 'active' ? "Today's pass" : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : 'Published'
 
   return (
-    <div style={{ minHeight: '100vh', background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => showNotifications && setShowNotifications(false)}>
+    <div className="bb-app-shell" style={{ background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => showNotifications && setShowNotifications(false)}>
       <div style={{ background: PALETTE.espresso, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {isMobile && (
@@ -1437,7 +1438,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
+        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             {view === 'requests' ? (
               <>
