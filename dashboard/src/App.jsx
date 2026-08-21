@@ -173,6 +173,27 @@ const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLoca
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 const statusLine = (s) => ({ pending: 'Awaiting client approval', approved: 'Approved — ready to schedule', revision: 'Client requested revisions', published: 'Published', archived: 'Archived' }[s] || '')
 
+// Renders a video sized to its real aspect ratio (read from the file itself once
+// metadata loads) instead of forcing every video into a fixed 9:16 frame — a
+// horizontal video shows fully horizontal, a vertical one stays vertical, no
+// black letterbox bars either way. Falls back to 9:16 only until that loads.
+function AdaptiveVideo({ src, style }) {
+  const [ratio, setRatio] = useState(null)
+  useEffect(() => { setRatio(null) }, [src])
+  const handleLoaded = (e) => {
+    const v = e.target
+    if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight)
+  }
+  return (
+    <video
+      src={src}
+      controls
+      onLoadedMetadata={handleLoaded}
+      style={{ width: '100%', aspectRatio: ratio || '9/16', objectFit: 'contain', display: 'block', background: '#000', ...style }}
+    />
+  )
+}
+
 function CaptionText({ text, handle, style: extra }) {
   return (
     <div style={{ fontFamily: F.body, fontSize: 11, color: '#111', lineHeight: 1.6, ...extra }}>
@@ -650,7 +671,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
               </div>
               {post.image_url
                 ? isVideo(post.image_url)
-                  ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'contain', display: 'block', background: '#000' }} />
+                  ? <AdaptiveVideo src={post.image_url} />
                   : <img src={displaySrc} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '4/5', objectFit: 'cover', display: 'block' }} />
                 : <div style={{ width: '100%', aspectRatio: '4/5', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
