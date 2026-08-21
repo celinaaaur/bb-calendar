@@ -194,7 +194,7 @@ function TodayQueue({ posts, clients, onSelect }) {
     <div style={{ margin: '20px 26px 48px', background: '#fff', border: '0.5px solid ' + PALETTE.caramel, borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ padding: '11px 16px', background: PALETTE.caramelLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.espresso, fontSize: 14 }}>Up for publishing today</span>
+          <span style={{ fontFamily: F.display, color: PALETTE.espresso, fontSize: 14 }}>Up for publishing today</span>
           <span style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             {now.toLocaleDateString('en-PH', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()}
           </span>
@@ -221,7 +221,7 @@ function TodayQueue({ posts, clients, onSelect }) {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg>
                   </div>
                 )}
-                {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
+                {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
                 {isDone && (
                   <div style={{ position: 'absolute', inset: 0, background: 'rgba(42,125,79,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ background: '#2A7D4F', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>✓</div>
@@ -273,7 +273,7 @@ function CalendarView({ posts, onSelect }) {
     <div style={{ padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
         <button onClick={() => { if (month === 0) { setMonth(11); setYear(year - 1) } else setMonth(month - 1) }} style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 6, padding: '6px 14px', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Prev</button>
-        <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 18, color: PALETTE.espresso, flex: 1, textAlign: 'center' }}>{MONTHS[month]} {year}</span>
+        <span style={{ fontFamily: F.display, fontSize: 18, color: PALETTE.espresso, flex: 1, textAlign: 'center' }}>{MONTHS[month]} {year}</span>
         <button onClick={() => { if (month === 11) { setMonth(0); setYear(year + 1) } else setMonth(month + 1) }} style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 6, padding: '6px 14px', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Next</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1, background: PALETTE.border }}>
@@ -304,7 +304,7 @@ function NotificationsPanel({ notifications, onClose, onMarkAllRead }) {
   return (
     <div style={{ position: 'absolute', top: 48, right: 16, width: 300, background: '#fff', borderRadius: 10, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.16)', zIndex: 300, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
       <div style={{ padding: '12px 16px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso }}>Notifications</span>
+        <span style={{ fontFamily: F.display, fontSize: 15, color: PALETTE.espresso }}>Notifications</span>
         {unread > 0 && <button onClick={onMarkAllRead} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500 }}>Mark all read</button>}
       </div>
       <div style={{ maxHeight: 340, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -485,7 +485,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
       <div style={{ padding: '14px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0, position: 'sticky', top: 0, zIndex: 5, background: '#fff' }}>
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <Badge status={post.status} />
-          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 13, color: PALETTE.espresso, marginTop: 7, lineHeight: 1.4 }}>{post.caption?.slice(0, 60)}{post.caption?.length > 60 ? '…' : ''}</div>
+          <div style={{ fontFamily: F.display, fontSize: 13, color: PALETTE.espresso, marginTop: 7, lineHeight: 1.4 }}>{post.caption?.slice(0, 60)}{post.caption?.length > 60 ? '…' : ''}</div>
         </div>
         <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, color: PALETTE.mutedLight, lineHeight: 1, flexShrink: 0, padding: 2, marginTop: 2 }}
           onMouseEnter={e => e.currentTarget.style.color = PALETTE.espresso}
@@ -524,7 +524,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
                   )}
                   {!post.image_url && (
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 11 }}>No asset</span>
+                      <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 11 }}>No asset</span>
                     </div>
                   )}
                   {/* Progress bars */}
@@ -601,7 +601,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
                   ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', background: '#000' }} />
                   : <img src={displaySrc} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '4/5', objectFit: 'cover', display: 'block' }} />
                 : <div style={{ width: '100%', aspectRatio: '4/5', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
+                    <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
                   </div>
               }
               <div style={{ padding: '8px 10px 4px', display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -834,7 +834,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
                     <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>
                       <span style={{ fontWeight: 500 }}>{item.who}</span>
                       {' '}{item.action}
-                      {item.tag && <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 11, color: item.tagColor, marginLeft: 5 }}>{item.tag}</span>}
+                      {item.tag && <span style={{ fontFamily: F.display, fontSize: 11, color: item.tagColor, marginLeft: 5 }}>{item.tag}</span>}
                     </div>
                     {item.detail && (
                       <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 4, lineHeight: 1.5, background: PALETTE.creamMid, borderRadius: 5, padding: '5px 8px', borderLeft: '2px solid ' + PALETTE.border }}>{item.detail}</div>
@@ -899,7 +899,7 @@ function ComposeModal({ clients, onClose, onSaved }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, maxHeight: '92vh', overflow: 'auto', WebkitOverflowScrolling: 'touch', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
         <div style={{ padding: '16px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, borderRadius: '14px 14px 0 0' }}>
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.cream, fontSize: 17 }}>New Post</span>
+          <span style={{ fontFamily: F.display, color: PALETTE.cream, fontSize: 17 }}>New Post</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.cream, fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1023,7 +1023,7 @@ function ClientHubModal({ client, onClose }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
         <div style={{ padding: '16px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, flexShrink: 0 }}>
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.cream, fontSize: 17 }}>{client.name} — Client Hub</span>
+          <span style={{ fontFamily: F.display, color: PALETTE.cream, fontSize: 17 }}>{client.name} — Client Hub</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.cream, fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
 
@@ -1058,7 +1058,7 @@ function ClientHubModal({ client, onClose }) {
               {sortedNotes.map(n => (
                 <div key={n.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 10 }}>
-                    <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 14, color: PALETTE.espresso }}>{n.title}</div>
+                    <div style={{ fontFamily: F.display, fontSize: 14, color: PALETTE.espresso }}>{n.title}</div>
                     <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtDateLong(n.meeting_date)}</div>
                   </div>
                   <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>
@@ -1135,7 +1135,7 @@ function RequestsView({ requests, clients, selectedClient }) {
     <div style={{ padding: '28px 40px', maxWidth: 760 }}>
       {sorted.length === 0 ? (
         <div style={{ padding: '48px 0', textAlign: 'center' }}>
-          <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18 }}>No requests yet</div>
+          <div style={{ fontFamily: F.display, color: PALETTE.mutedLight, fontSize: 18 }}>No requests yet</div>
         </div>
       ) : sorted.map(r => {
         const s = REQUEST_STATUS[r.status] || REQUEST_STATUS.new
@@ -1144,7 +1144,7 @@ function RequestsView({ requests, clients, selectedClient }) {
           <div key={r.id} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '18px 20px', marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: PALETTE.espresso }}>{r.title}</div>
+                <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso }}>{r.title}</div>
                 {selectedClient === 'all' && client && (
                   <span style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight }}>· {client.name}</span>
                 )}
@@ -1348,7 +1348,7 @@ export default function Dashboard() {
           {isMobile && (
             <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'none', border: 'none', color: PALETTE.cream, fontSize: 20, padding: '4px 6px', lineHeight: 1 }}>☰</button>
           )}
-          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.cream, fontSize: 17 }}>Brown Butter</span>
+          <span style={{ fontFamily: F.display, color: PALETTE.cream, fontSize: 17 }}>Brown Butter</span>
           {!isMobile && <span style={{ color: PALETTE.espressoLight, fontSize: 12 }}>|</span>}
           {!isMobile && <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>}
         </div>
@@ -1463,14 +1463,14 @@ export default function Dashboard() {
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             {view === 'requests' ? (
               <>
-                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>Requests</div>
+                <div style={{ fontFamily: F.display, fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>Requests</div>
                 <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
                   {requests.filter(r => selectedClient === 'all' || r.client_id === selectedClient).length} request{requests.filter(r => selectedClient === 'all' || r.client_id === selectedClient).length !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
                 </div>
               </>
             ) : (
               <>
-                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
+                <div style={{ fontFamily: F.display, fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>{pageTitle}</div>
                 <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
                   {counts[filter] || 0} post{(counts[filter] || 0) !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
                 </div>
@@ -1490,7 +1490,7 @@ export default function Dashboard() {
               ? <CalendarView posts={filteredPosts} onSelect={setSelectedPost} />
               : filteredPosts.length === 0
                 ? <div style={{ padding: 60, textAlign: 'center' }}>
-                    <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 18, marginBottom: 18 }}>No posts here yet</div>
+                    <div style={{ fontFamily: F.display, color: PALETTE.mutedLight, fontSize: 18, marginBottom: 18 }}>No posts here yet</div>
                     <button onClick={() => setComposing(true)} style={{ padding: '9px 22px', borderRadius: 7, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500 }}>Create First Post</button>
                   </div>
                 : view === 'grid'
@@ -1539,7 +1539,7 @@ export default function Dashboard() {
                                             )}
                                             {!post.image_url && (
                                               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>BB</span>
+                                                <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 14 }}>BB</span>
                                               </div>
                                             )}
                                             {/* Status badge — top right */}
@@ -1578,7 +1578,7 @@ export default function Dashboard() {
                                       )}
                                       {!post.image_url && (
                                         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                          <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 14 }}>BB</span>
+                                          <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 14 }}>BB</span>
                                         </div>
                                       )}
                                       <div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
@@ -1618,7 +1618,7 @@ export default function Dashboard() {
                           <div style={{ width: 50, height: 50, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, position: 'relative' }}>
                             {post.image_url && !isVideo(post.image_url) && <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                             {post.image_url && isVideo(post.image_url) && <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="16" height="16" viewBox="0 0 24 24" fill={PALETTE.caramel}><path d="M8 5v14l11-7z"/></svg></div>}
-                            {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
+                            {!post.image_url && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: F.display, color: PALETTE.caramel, fontSize: 13 }}>BB</div>}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
