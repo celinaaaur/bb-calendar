@@ -152,6 +152,7 @@ const toLocalInputValue = (str) => {
 const STATUS = {
   pending:   { label: 'AWAITING APPROVAL',   color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
   approved:  { label: 'APPROVED',            color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F', border: '#7ECBA1' },
+  scheduled: { label: 'SCHEDULED',           color: '#1E4E8A', bg: '#E8F1FC', dot: '#3B72B8', border: '#A9C6E8' },
   revision:  { label: 'REVISIONS REQUESTED', color: '#7A2018', bg: '#FEECEA', dot: '#C0392B', border: '#F4A59F' },
   published: { label: 'PUBLISHED',           color: '#444',    bg: '#F2F2F2', dot: '#888',    border: '#CCC'    },
   archived:  { label: 'ARCHIVED',            color: '#777',    bg: '#F5F5F5', dot: '#AAA',    border: '#DDD'    },
@@ -171,7 +172,7 @@ const REQUEST_STATUS = {
 const REQUEST_STATUS_ORDER = ['new', 'in_progress', 'done', 'declined']
 const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
-const statusLine = (s) => ({ pending: 'Awaiting client approval', approved: 'Approved — ready to schedule', revision: 'Client requested revisions', published: 'Published', archived: 'Archived' }[s] || '')
+const statusLine = (s) => ({ pending: 'Awaiting client approval', approved: 'Approved — ready to schedule', scheduled: 'Scheduled — will auto-mark as published 24h after posting time', revision: 'Client requested revisions', published: 'Published', archived: 'Archived' }[s] || '')
 
 // Renders a video sized to its real aspect ratio (read from the file itself once
 // metadata loads) instead of forcing every video into a fixed 9:16 frame — a
@@ -789,9 +790,9 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 10, textTransform: 'uppercase' }}>Update Status</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
-                  {['pending', 'approved', 'revision', 'published'].map(k => {
+                  {['pending', 'approved', 'scheduled', 'revision', 'published'].map(k => {
                     const s = STATUS[k]
-                    const labels = { pending: 'Reset to pending', approved: 'Mark as approved', revision: 'Request revisions', published: 'Mark as published' }
+                    const labels = { pending: 'Reset to pending', approved: 'Mark as approved', scheduled: 'Mark as scheduled', revision: 'Request revisions', published: 'Mark as published' }
                     const isCurrent = post.status === k
                     return (
                       <button key={k} onClick={() => updateStatus(k)} style={{ padding: '8px 12px', borderRadius: 6, border: '0.5px solid ' + (isCurrent ? s.dot : PALETTE.borderLight), background: isCurrent ? s.bg : '#fff', color: isCurrent ? s.color : PALETTE.muted, fontWeight: isCurrent ? 500 : 400, fontSize: 11, fontFamily: F.body, textAlign: 'left', transition: 'all 0.15s' }}
@@ -1314,6 +1315,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     pending: clientPosts.filter(p => p.status === 'pending').length,
     revision: clientPosts.filter(p => p.status === 'revision').length,
     approved: clientPosts.filter(p => p.status === 'approved').length,
+    scheduled: clientPosts.filter(p => p.status === 'scheduled').length,
     published: clientPosts.filter(p => p.status === 'published').length,
   }
   const openRequests = clientRequests.filter(r => r.status === 'new' || r.status === 'in_progress').length
@@ -1380,6 +1382,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
         {statCard('Awaiting approval', counts.pending, 'pending', '#C4893A')}
         {statCard('Revisions', counts.revision, 'revision', '#C0392B')}
         {statCard('Approved', counts.approved, 'approved', '#2A7D4F')}
+        {statCard('Scheduled', counts.scheduled, 'scheduled', '#3B72B8')}
         {statCard('Published', counts.published, 'published', '#888')}
       </div>
 
@@ -1624,12 +1627,13 @@ export default function Dashboard() {
     active: activePosts.filter(p => selectedClient === 'all' || p.client_id === selectedClient).length,
     pending: activePosts.filter(p => p.status === 'pending' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
     approved: activePosts.filter(p => p.status === 'approved' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
+    scheduled: activePosts.filter(p => p.status === 'scheduled' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
     revision: activePosts.filter(p => p.status === 'revision' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
     published: activePosts.filter(p => p.status === 'published' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
     archived: archivedPosts.filter(p => selectedClient === 'all' || p.client_id === selectedClient).length,
   }
 
-  const pageTitle = filter === 'active' ? "Today's pass" : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : 'Published'
+  const pageTitle = filter === 'active' ? "Today's pass" : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : filter === 'scheduled' ? 'Scheduled' : 'Published'
 
   return (
     <div className="bb-app-shell" style={{ background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => showNotifications && setShowNotifications(false)}>
@@ -1736,7 +1740,7 @@ export default function Dashboard() {
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Filter</div>
-            {[['active','Everything',counts.active,PALETTE.caramel],['pending','Awaiting approval',counts.pending,'#C4893A'],['revision','Revisions requested',counts.revision,'#C0392B'],['approved','Approved',counts.approved,'#2A7D4F'],['published','Published',counts.published,'#888'],['archived','Archived',counts.archived,'#bbb']].map(([k, l, n, dot]) => (
+            {[['active','Everything',counts.active,PALETTE.caramel],['pending','Awaiting approval',counts.pending,'#C4893A'],['revision','Revisions requested',counts.revision,'#C0392B'],['approved','Approved',counts.approved,'#2A7D4F'],['scheduled','Scheduled',counts.scheduled,'#3B72B8'],['published','Published',counts.published,'#888'],['archived','Archived',counts.archived,'#bbb']].map(([k, l, n, dot]) => (
               <button key={k} onClick={() => { setFilter(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
                 onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
@@ -1810,6 +1814,7 @@ export default function Dashboard() {
                   ? (() => {
                       const statusIcon = (status) => {
                         if (status === 'approved') return { symbol: '✓', bg: 'rgba(42,125,79,0.88)', color: '#fff' }
+                        if (status === 'scheduled') return { symbol: '◷', bg: 'rgba(59,114,184,0.88)', color: '#fff' }
                         if (status === 'published') return { symbol: '✦', bg: 'rgba(196,137,58,0.88)', color: '#fff' }
                         if (status === 'revision') return { symbol: '↩', bg: 'rgba(192,57,43,0.88)', color: '#fff' }
                         if (status === 'pending') return { symbol: '…', bg: 'rgba(44,31,14,0.55)', color: '#fff' }
@@ -1911,7 +1916,7 @@ export default function Dashboard() {
                           }
                           {/* Legend */}
                           <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
-                            {[['✓','rgba(42,125,79,0.88)','Approved'],['✦','rgba(196,137,58,0.88)','Published'],['↩','rgba(192,57,43,0.88)','Revisions'],['…','rgba(44,31,14,0.55)','Pending']].map(([sym, bg, label]) => (
+                            {[['✓','rgba(42,125,79,0.88)','Approved'],['◷','rgba(59,114,184,0.88)','Scheduled'],['✦','rgba(196,137,58,0.88)','Published'],['↩','rgba(192,57,43,0.88)','Revisions'],['…','rgba(44,31,14,0.55)','Pending']].map(([sym, bg, label]) => (
                               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <div style={{ width: 16, height: 16, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff', fontWeight: 700 }}>{sym}</div>
                                 <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>{label}</span>
