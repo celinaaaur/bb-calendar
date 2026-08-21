@@ -5,6 +5,7 @@ const style = document.createElement('style')
 style.textContent = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
   * { box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   body { margin: 0; background: #F5F0E8; }
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -636,7 +637,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '18px', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px', WebkitOverflowScrolling: 'touch' }}>
         {activeTab === 'details' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -1344,7 +1345,7 @@ export default function Dashboard() {
         {showNotifications && <NotificationsPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkAllRead={markAllRead} />}
       </div>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {isMobile && sidebarOpen && (
           <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, top: 52, background: 'rgba(0,0,0,0.35)', zIndex: 150 }} />
         )}
@@ -1438,7 +1439,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             {view === 'requests' ? (
               <>
