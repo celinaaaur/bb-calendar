@@ -64,7 +64,7 @@ const uploadMultiple = async (files) => {
   return { urls, error: errors.length ? errors[0].error : null }
 }
 
-const downloadAsset = async (url, clientName) => {
+const downloadAsset = async (url, clientName, index) => {
   if (!url) return
   try {
     const response = await fetch(url)
@@ -72,7 +72,7 @@ const downloadAsset = async (url, clientName) => {
     const ext = url.split('?')[0].split('.').pop().toLowerCase() || 'jpg'
     const slug = (clientName || 'post').toLowerCase().replace(/\s+/g, '-')
     const date = new Date().toISOString().slice(0, 10)
-    const filename = slug + '-' + date + '.' + ext
+    const filename = slug + '-' + date + (index != null ? '-' + index : '') + '.' + ext
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
     link.download = filename
@@ -80,6 +80,16 @@ const downloadAsset = async (url, clientName) => {
     URL.revokeObjectURL(link.href)
   } catch (e) {
     window.open(url, '_blank')
+  }
+}
+
+// Downloads every slide of a carousel. Sequenced with a short delay between
+// each — firing several downloads at once in the same tick gets blocked or
+// silently dropped by some browsers.
+const downloadAllAssets = async (urls, clientName) => {
+  for (let i = 0; i < urls.length; i++) {
+    await downloadAsset(urls[i], clientName, i + 1)
+    if (i < urls.length - 1) await new Promise(r => setTimeout(r, 400))
   }
 }
 
@@ -552,7 +562,11 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
 
   const handleDownload = async () => {
     setDownloading(true)
-    await downloadAsset(post.image_url, client?.name)
+    if (Array.isArray(post.images) && post.images.length > 1) {
+      await downloadAllAssets(post.images, client?.name)
+    } else {
+      await downloadAsset(post.image_url, client?.name)
+    }
     setDownloading(false)
   }
 
@@ -724,7 +738,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
               onMouseEnter={e => { if (!downloading) { e.currentTarget.style.background = PALETTE.espresso; e.currentTarget.style.color = PALETTE.cream } }}
               onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = PALETTE.espresso }}
             >
-              {downloading ? 'Downloading…' : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download asset</>}
+              {downloading ? 'Downloading…' : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> {Array.isArray(post.images) && post.images.length > 1 ? 'Download all assets (' + post.images.length + ')' : 'Download asset'}</>}
             </button>
           )}
         </div>
