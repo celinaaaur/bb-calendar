@@ -492,6 +492,8 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
         >✕</button>
       </div>
 
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+
       {editing ? (
         <div style={{ padding: '12px 18px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
           <span style={labelStyle}>Assets {uploading && <span style={{ color: PALETTE.caramel, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>uploading...</span>}</span>
@@ -637,7 +639,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
         ))}
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ padding: '18px' }}>
         {activeTab === 'details' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -835,6 +837,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
             </div>
           )
         })()}
+      </div>
       </div>
     </div>
   )
