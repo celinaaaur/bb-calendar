@@ -309,7 +309,7 @@ function CalendarView({ posts, onSelect }) {
   )
 }
 
-function NotificationsPanel({ notifications, onClose, onMarkAllRead }) {
+function NotificationsPanel({ notifications, onClose, onMarkAllRead, onSelect }) {
   const unread = notifications.filter(n => !n.read).length
   return (
     <div style={{ position: 'absolute', top: 48, right: 16, width: 300, background: '#fff', borderRadius: 10, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.16)', zIndex: 300, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
@@ -321,11 +321,15 @@ function NotificationsPanel({ notifications, onClose, onMarkAllRead }) {
         {notifications.length === 0
           ? <div style={{ padding: '24px 16px', textAlign: 'center', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic' }}>All caught up.</div>
           : notifications.map((n, i) => (
-            <div key={i} style={{ padding: '11px 16px', borderBottom: '0.5px solid ' + PALETTE.borderLight, background: n.read ? '#fff' : PALETTE.creamMid, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <div key={i} onClick={() => onSelect(n)} style={{ padding: '11px 16px', borderBottom: '0.5px solid ' + PALETTE.borderLight, background: n.read ? '#fff' : PALETTE.creamMid, display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamDark}
+              onMouseLeave={e => e.currentTarget.style.background = n.read ? '#fff' : PALETTE.creamMid}
+            >
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: n.read ? 'transparent' : PALETTE.caramel, flexShrink: 0, marginTop: 5, border: n.read ? '0.5px solid ' + PALETTE.border : 'none' }} />
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 700, color: PALETTE.caramel, letterSpacing: '0.02em', marginBottom: 3 }}>{n.client}</div>
                 <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{n.message}</div>
-                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{n.client} · {fmtAgo(n.created_at)}</div>
+                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>{fmtAgo(n.created_at)}</div>
               </div>
             </div>
           ))
@@ -608,7 +612,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
               </div>
               {post.image_url
                 ? isVideo(post.image_url)
-                  ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', display: 'block', background: '#000' }} />
+                  ? <video src={post.image_url} controls style={{ width: '100%', aspectRatio: '9/16', objectFit: 'contain', display: 'block', background: '#000' }} />
                   : <img src={displaySrc} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '4/5', objectFit: 'cover', display: 'block' }} />
                 : <div style={{ width: '100%', aspectRatio: '4/5', background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 13 }}>No asset</span>
@@ -1271,24 +1275,41 @@ export default function Dashboard() {
       const client = clients.find(c => c.id === p.client_id)
       const clientName = client?.name || 'Unknown client'
       const caption = p.caption?.slice(0, 40) + (p.caption?.length > 40 ? '…' : '')
-      if (p.status === 'approved') notifs.push({ id: 'post-approved-' + p.id, message: '"' + caption + '" was approved', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-approved-' + p.id) })
-      if (p.status === 'revision') notifs.push({ id: 'post-revision-' + p.id, message: '"' + caption + '" — revisions requested', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-revision-' + p.id) })
+      if (p.status === 'approved') notifs.push({ id: 'post-approved-' + p.id, message: '"' + caption + '" was approved', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-approved-' + p.id), postId: p.id })
+      if (p.status === 'revision') notifs.push({ id: 'post-revision-' + p.id, message: '"' + caption + '" — revisions requested', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-revision-' + p.id), postId: p.id })
     })
     comments.filter(c => c.author_type === 'client').forEach(c => {
       const post = posts.find(p => p.id === c.post_id)
       const client = clients.find(cl => cl.id === post?.client_id)
-      notifs.push({ id: 'comment-' + c.id, message: c.author + ' left a comment: "' + (c.text?.slice(0, 40) || '') + '…"', client: client?.name || 'Client', created_at: c.created_at, read: seenIds.has('comment-' + c.id) })
+      notifs.push({ id: 'comment-' + c.id, message: c.author + ' left a comment: "' + (c.text?.slice(0, 40) || '') + '…"', client: client?.name || 'Client', created_at: c.created_at, read: seenIds.has('comment-' + c.id), postId: c.post_id })
     })
     requests.forEach(r => {
       const client = clients.find(c => c.id === r.client_id)
       const clientName = client?.name || 'Client'
       if (r.status === 'new') {
-        notifs.push({ id: 'request-new-' + r.id, message: clientName + ' submitted a request: "' + r.title + '"', client: clientName, created_at: r.created_at, read: seenIds.has('request-new-' + r.id) })
+        notifs.push({ id: 'request-new-' + r.id, message: clientName + ' submitted a request: "' + r.title + '"', client: clientName, created_at: r.created_at, read: seenIds.has('request-new-' + r.id), type: 'request' })
       }
     })
     notifs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     return notifs
   }, [posts, comments, clients, requests, seenIds])
+
+  const markOneRead = (id) => {
+    const newSeen = new Set([...seenIds, id])
+    setSeenIds(newSeen)
+    try { localStorage.setItem('bb_seen_notifs', JSON.stringify([...newSeen])) } catch {}
+  }
+
+  const handleNotificationClick = (n) => {
+    markOneRead(n.id)
+    setShowNotifications(false)
+    if (n.type === 'request') {
+      setView('requests')
+    } else if (n.postId) {
+      const post = posts.find(p => p.id === n.postId)
+      if (post) setSelectedPost(post)
+    }
+  }
 
   const markAllRead = () => {
     const allIds = notifications.map(n => n.id)
@@ -1363,16 +1384,19 @@ export default function Dashboard() {
           {!isMobile && <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.cream : '#7a5a3a', fontSize: 16, lineHeight: 1, padding: '4px 6px', borderRadius: 6 }}>
+          <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.cream : '#7a5a3a', fontSize: 18, lineHeight: 1, padding: '10px', margin: '-6px', borderRadius: 8, cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+          >
             🔔
-            {unreadCount > 0 && <span style={{ position: 'absolute', top: 0, right: 0, background: '#C0392B', color: '#fff', borderRadius: '50%', width: 14, height: 14, fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.body, fontWeight: 700, border: '1.5px solid ' + PALETTE.espresso }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
+            {unreadCount > 0 && <span style={{ position: 'absolute', top: 6, right: 6, background: '#C0392B', color: '#fff', borderRadius: '50%', width: 14, height: 14, fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: F.body, fontWeight: 700, border: '1.5px solid ' + PALETTE.espresso }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
           </button>
           <button onClick={() => setComposing(true)} style={{ padding: isMobile ? '6px 10px' : '6px 16px', borderRadius: 6, border: 'none', background: PALETTE.caramel, color: PALETTE.cream, fontFamily: F.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.03em', transition: 'background 0.15s', whiteSpace: 'nowrap' }}
             onMouseEnter={e => e.currentTarget.style.background = '#5F493B'}
             onMouseLeave={e => e.currentTarget.style.background = PALETTE.caramel}
           >+ New Post</button>
         </div>
-        {showNotifications && <NotificationsPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkAllRead={markAllRead} />}
+        {showNotifications && <NotificationsPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkAllRead={markAllRead} onSelect={handleNotificationClick} />}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
