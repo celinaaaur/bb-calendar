@@ -3,7 +3,28 @@ import { supabase } from './supabase'
 
 const style = document.createElement('style')
 style.textContent = `
-  @import url('https://fonts.googleapis.com/css2?family=League+Gothic&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+  @font-face {
+    font-family: 'Glacial Indifference';
+    src: url('/fonts/GlacialIndifference-Regular.otf') format('opentype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Glacial Indifference';
+    src: url('/fonts/GlacialIndifference-Italic.otf') format('opentype');
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Glacial Indifference';
+    src: url('/fonts/GlacialIndifference-Bold.otf') format('opentype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
   * { box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   body { margin: 0; background: #F5F0E8; }
@@ -17,7 +38,7 @@ style.textContent = `
 document.head.appendChild(style)
 
 const F = {
-  display: "'League Gothic', 'Oswald', Impact, sans-serif",
+  display: "'Glacial Indifference', 'Helvetica Neue', Arial, sans-serif",
   body: "'DM Sans', system-ui, sans-serif"
 }
 
