@@ -878,6 +878,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
           // Every logged status change, in order — not just the current status
           const statusEvents = {
             approved:  { icon: '✓', iconColor: '#2A7D4F', iconBg: '#E8F8EE', action: 'approved this post' },
+            scheduled: { icon: '◷', iconColor: '#1E4E8A', iconBg: '#E8F1FC', action: 'marked as scheduled' },
             revision:  { icon: '↩', iconColor: '#C0392B', iconBg: '#FEECEA', action: 'requested revisions' },
             published: { icon: '✦', iconColor: PALETTE.caramel, iconBg: PALETTE.caramelLight, action: 'marked as published' },
             pending:   { icon: '○', iconColor: PALETTE.muted, iconBg: PALETTE.creamDark, action: 'reset to pending' },
