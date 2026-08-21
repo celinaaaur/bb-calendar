@@ -530,7 +530,11 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
 
   const updateStatus = async (status) => {
     const { error } = await supabase.from('posts').update({ status }).eq('id', post.id)
-    if (error) console.error('Status update error:', error)
+    if (error) {
+      console.error('Status update error:', error)
+      alert('Could not update status: ' + error.message)
+      return
+    }
     await supabase.from('status_changes').insert({ post_id: post.id, status, changed_by: 'Brown Butter' })
     onRefresh()
   }
