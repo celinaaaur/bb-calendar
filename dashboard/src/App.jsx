@@ -3,28 +3,7 @@ import { supabase } from './supabase'
 
 const style = document.createElement('style')
 style.textContent = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
-  @font-face {
-    font-family: 'Glacial Indifference';
-    src: url('/fonts/GlacialIndifference-Regular.otf') format('opentype');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'Glacial Indifference';
-    src: url('/fonts/GlacialIndifference-Italic.otf') format('opentype');
-    font-weight: 400;
-    font-style: italic;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'Glacial Indifference';
-    src: url('/fonts/GlacialIndifference-Bold.otf') format('opentype');
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
-  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
   * { box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   body { margin: 0; background: #F5F0E8; }
@@ -38,7 +17,7 @@ style.textContent = `
 document.head.appendChild(style)
 
 const F = {
-  display: "'Glacial Indifference', 'Helvetica Neue', Arial, sans-serif",
+  display: "'Inter', 'Helvetica Neue', Arial, sans-serif",
   body: "'DM Sans', system-ui, sans-serif"
 }
 
@@ -398,7 +377,7 @@ function DashboardCarousel({ images, published }) {
   )
 }
 
-function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isMobile }) {
+function RightPanel({ post, comments, versions, statusChanges, clients, onRefresh, onClose, isMobile }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
@@ -468,6 +447,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
   const updateStatus = async (status) => {
     const { error } = await supabase.from('posts').update({ status }).eq('id', post.id)
     if (error) console.error('Status update error:', error)
+    await supabase.from('status_changes').insert({ post_id: post.id, status, changed_by: 'Brown Butter' })
     onRefresh()
   }
 
@@ -652,7 +632,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
         {[
           ['details', 'Details'],
           ['comments', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')],
-          ['history', 'History' + (versions.length > 0 ? ' (' + versions.length + ')' : '')]
+          ['history', 'History' + ((versions.length + statusChanges.length + comments.length) > 0 ? ' (' + (versions.length + statusChanges.length + comments.length + 1) + ')' : '')]
         ].map(([k, l]) => (
           <button key={k} onClick={() => setActiveTab(k)} style={{ flex: 1, padding: '11px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 10, fontWeight: activeTab === k ? 500 : 400, color: activeTab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: activeTab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent', transition: 'all 0.15s', letterSpacing: '0.03em' }}>{l}</button>
         ))}
@@ -687,7 +667,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
                   {editFormat === 'carousel' && <div><label style={labelStyle}>Slides</label><input type="number" min="2" max="20" value={editSlideCount} onChange={e => setEditSlideCount(e.target.value)} placeholder="e.g. 4" style={inputStyle} /></div>}
                 </div>
                 <div><label style={{ ...labelStyle, color: !editDesigner.trim() ? '#C0392B' : PALETTE.mutedLight }}>Designer <span style={{ color: '#C0392B' }}>*</span></label><input value={editDesigner} onChange={e => setEditDesigner(e.target.value)} placeholder="Required" style={{ ...inputStyle, borderColor: !editDesigner.trim() ? '#F4A59F' : PALETTE.border }} /></div>
-                <div><label style={labelStyle}>Campaign (optional)</label><input value={editCampaign} onChange={e => setEditCampaign(e.target.value)} placeholder="e.g. Summer Menu" style={inputStyle} /></div>
+                <div><label style={labelStyle}>Content Pillar (optional)</label><input value={editCampaign} onChange={e => setEditCampaign(e.target.value)} placeholder="e.g. Behind the Scenes" style={inputStyle} /></div>
                 <div>
                   <label style={labelStyle}>Caption</label>
                   <textarea value={editCaption} onChange={e => setEditCaption(e.target.value)} rows={4} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
@@ -697,7 +677,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
               </div>
             ) : (
               <div style={{ marginBottom: 20 }}>
-                {[['Client', client?.name], ['Platform', 'Instagram'], ['Format', formatLabel], ['Designer', post.designer], post.campaign ? ['Campaign', post.campaign] : null, ['Scheduled', fmt(post.scheduled_at)]].filter(Boolean).map(([label, value]) => (
+                {[['Client', client?.name], ['Platform', 'Instagram'], ['Format', formatLabel], ['Designer', post.designer], post.campaign ? ['Content Pillar', post.campaign] : null, ['Scheduled', fmt(post.scheduled_at)]].filter(Boolean).map(([label, value]) => (
                   <div key={label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 10, alignItems: 'start' }}>
                     <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', paddingTop: 1 }}>{label}</span>
                     <span style={{ fontFamily: F.body, fontSize: 12, color: value ? PALETTE.espresso : PALETTE.mutedLight, fontStyle: value ? 'normal' : 'italic' }}>{value || 'Not set'}</span>
@@ -766,7 +746,7 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
         )}
 
         {activeTab === 'history' && (() => {
-          // Build a unified activity timeline from versions + status-change comments + client comments
+          // Build a unified activity timeline from versions, logged status changes, and comments
           const timeline = []
 
           // Caption edits from versions table
@@ -785,33 +765,43 @@ function RightPanel({ post, comments, versions, clients, onRefresh, onClose, isM
             })
           })
 
-          // Status changes inferred from comments with author_type agency that look like status notes,
-          // plus we build synthetic entries from the current post status
+          // Every logged status change, in order — not just the current status
           const statusEvents = {
             approved:  { icon: '✓', iconColor: '#2A7D4F', iconBg: '#E8F8EE', action: 'approved this post' },
             revision:  { icon: '↩', iconColor: '#C0392B', iconBg: '#FEECEA', action: 'requested revisions' },
             published: { icon: '✦', iconColor: PALETTE.caramel, iconBg: PALETTE.caramelLight, action: 'marked as published' },
             pending:   { icon: '○', iconColor: PALETTE.muted, iconBg: PALETTE.creamDark, action: 'reset to pending' },
           }
+          statusChanges.forEach(sc => {
+            const ev = statusEvents[sc.status]
+            if (!ev) return
+            timeline.push({
+              ts: new Date(sc.created_at).getTime(),
+              date: sc.created_at,
+              icon: ev.icon,
+              iconColor: ev.iconColor,
+              iconBg: ev.iconBg,
+              who: sc.changed_by || 'Brown Butter',
+              action: ev.action,
+              detail: null,
+              tag: null,
+            })
+          })
 
-          // Add current status as a timeline entry using updated_at
-          if (post.status && post.updated_at && post.updated_at !== post.created_at) {
-            const ev = statusEvents[post.status]
-            if (ev) {
-              const who = post.status === 'approved' ? (client?.name || 'Client') : 'Brown Butter'
-              timeline.push({
-                ts: new Date(post.updated_at).getTime(),
-                date: post.updated_at,
-                icon: ev.icon,
-                iconColor: ev.iconColor,
-                iconBg: ev.iconBg,
-                who,
-                action: ev.action,
-                detail: null,
-                tag: null,
-              })
-            }
-          }
+          // Every comment, from both the agency and the client
+          comments.forEach(c => {
+            timeline.push({
+              ts: new Date(c.created_at).getTime(),
+              date: c.created_at,
+              icon: '💬',
+              iconColor: PALETTE.espresso,
+              iconBg: PALETTE.creamMid,
+              who: c.author_type === 'agency' ? (c.author || 'Brown Butter') : (c.author || client?.name || 'Client'),
+              action: 'commented',
+              detail: c.text ? (c.text.length > 140 ? c.text.slice(0, 140) + '…' : c.text) : null,
+              tag: null,
+            })
+          })
 
           // Post created entry
           timeline.push({
@@ -920,7 +910,7 @@ function ComposeModal({ clients, onClose, onSaved }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>{fieldLabel('Designer', true)}<input value={designer} onChange={e => setDesigner(e.target.value)} placeholder="e.g. Saoirse L." style={{ ...inputStyle, borderColor: !designer.trim() ? '#F4A59F' : PALETTE.border }} /></div>
-            <div>{fieldLabel('Campaign (optional)')}<input value={campaign} onChange={e => setCampaign(e.target.value)} placeholder="e.g. Summer Menu" style={inputStyle} /></div>
+            <div>{fieldLabel('Content Pillar (optional)')}<input value={campaign} onChange={e => setCampaign(e.target.value)} placeholder="e.g. Behind the Scenes" style={inputStyle} /></div>
           </div>
           <div>
             {fieldLabel(format === 'carousel' ? 'Assets (select multiple for carousel)' : 'Asset')}
@@ -1185,6 +1175,7 @@ export default function Dashboard() {
   const [comments, setComments] = useState([])
   const [versions, setVersions] = useState([])
   const [requests, setRequests] = useState([])
+  const [statusChanges, setStatusChanges] = useState([])
   const [selectedClient, setSelectedClient] = useState('all')
   const [filter, setFilter] = useState('pending')
   const [view, setView] = useState('queue')
@@ -1209,18 +1200,20 @@ export default function Dashboard() {
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
-    const [c, p, cm, v, rq] = await Promise.all([
+    const [c, p, cm, v, rq, sc] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('posts').select('*').neq('status', 'archived').order('scheduled_at').limit(150),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
-      supabase.from('requests').select('*').order('created_at', { ascending: false })
+      supabase.from('requests').select('*').order('created_at', { ascending: false }),
+      supabase.from('status_changes').select('*').order('created_at')
     ])
     if (c.data) setClients(c.data)
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
     if (v.data) setVersions(v.data)
     if (rq.data) setRequests(rq.data)
+    if (sc.data) setStatusChanges(sc.data)
     setLoading(false)
   }
 
@@ -1252,7 +1245,13 @@ export default function Dashboard() {
           .then(({ data }) => { if (data) setRequests(data) })
       }).subscribe()
 
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe() }
+    const s5 = supabase.channel('dash-status-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'status_changes' }, () => {
+        supabase.from('status_changes').select('*').order('created_at')
+          .then(({ data }) => { if (data) setStatusChanges(data) })
+      }).subscribe()
+
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe() }
   }, [])
 
   // ── SPEED FIX 3: notifications built with useMemo instead of useEffect + setState ──
@@ -1645,6 +1644,7 @@ export default function Dashboard() {
             post={posts.find(p => p.id === selectedPost.id) || selectedPost}
             comments={comments.filter(c => c.post_id === selectedPost.id)}
             versions={versions.filter(v => v.post_id === selectedPost.id)}
+            statusChanges={statusChanges.filter(s => s.post_id === selectedPost.id)}
             clients={clients}
             onRefresh={fetchAll}
             onClose={() => setSelectedPost(null)}
