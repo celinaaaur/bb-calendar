@@ -493,6 +493,7 @@ function PostPanel({ post, comments, versions, client, onClose, onRefresh, isMob
 
   const setStatus = async (status) => {
     await supabase.from('posts').update({ status }).eq('id', post.id)
+    await supabase.from('status_changes').insert({ post_id: post.id, status, changed_by: client?.name || 'Client' })
     onRefresh()
     if (isMobile) onClose()
   }
