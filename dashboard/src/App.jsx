@@ -274,7 +274,7 @@ function TodayQueue({ posts, clients, onSelect }) {
               </div>
               <div style={{ padding: '8px 10px' }}>
                 <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500, marginBottom: 2 }}>{fmtTime(post.scheduled_at)}</div>
-                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted, marginBottom: 4 }}>{client?.name || '—'}</div>
+                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted, marginBottom: 4 }}>{client?.name || '—'}{post.campaign ? ' · ' + post.campaign : ''}</div>
                 <p style={{ margin: '0 0 6px', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
                 <Badge status={post.status} />
               </div>
@@ -1970,6 +1970,7 @@ export default function Dashboard() {
                               <Badge status={post.status} />
                               <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{formatLabel}</span>
                               {client && selectedClient === 'all' && <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>· {client.name}</span>}
+                              {post.campaign && <span style={{ fontFamily: F.body, fontSize: 9, background: PALETTE.creamDark, color: PALETTE.espresso, padding: '2px 7px', borderRadius: 10, fontWeight: 500 }}>{post.campaign}</span>}
                               {hasUnread && <span style={{ fontFamily: F.body, fontSize: 9, background: PALETTE.caramelLight, color: PALETTE.caramel, padding: '1px 6px', borderRadius: 3, fontWeight: 500 }}>New comment</span>}
                             </div>
                             <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
