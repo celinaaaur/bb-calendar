@@ -1,6 +1,84 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from './supabase'
 
+// ── Google Drive import ──────────────────────────────────────────────────────
+// Lets the user pick file(s) straight from their existing Google Drive
+// instead of uploading from their computer. Drive stays the source of truth;
+// picked files are downloaded once and copied into Supabase Storage so every
+// preview/mockup/download feature in the app keeps working exactly as before.
+const GOOGLE_CLIENT_ID = '1034112791542-3h0erfvn96l9v8na0alrfl6g97mtvfik.apps.googleusercontent.com'
+const GOOGLE_API_KEY = 'AIzaSyAVx02rQmVnOK-rCt7dBbrBSrVZKqgTDNA'
+
+let driveTokenClient = null
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[src="' + src + '"]')) return resolve()
+    const script = document.createElement('script')
+    script.src = src
+    script.onload = resolve
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+}
+
+async function ensureGoogleApisLoaded() {
+  await loadScriptOnce('https://accounts.google.com/gsi/client')
+  await loadScriptOnce('https://apis.google.com/js/api.js')
+  await new Promise((resolve) => window.gapi.load('picker', resolve))
+}
+
+function getDriveAccessToken() {
+  return new Promise((resolve, reject) => {
+    if (!driveTokenClient) {
+      driveTokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/drive.readonly',
+        callback: () => {},
+      })
+    }
+    driveTokenClient.callback = (resp) => {
+      if (resp.error) reject(resp)
+      else resolve(resp.access_token)
+    }
+    driveTokenClient.requestAccessToken({ prompt: '' })
+  })
+}
+
+// Opens the Drive picker, lets the user select image/video file(s), downloads
+// them, and resolves to real File objects — the same shape uploadMultiple()
+// already expects from a local <input type="file">.
+async function pickFilesFromDrive({ multiple = false } = {}) {
+  await ensureGoogleApisLoaded()
+  const accessToken = await getDriveAccessToken()
+
+  const docs = await new Promise((resolve) => {
+    const view = new window.google.picker.DocsView(window.google.picker.ViewId.DOCS_IMAGES_AND_VIDEOS)
+      .setIncludeFolders(false)
+      .setSelectFolderEnabled(false)
+    const builder = new window.google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(accessToken)
+      .setDeveloperKey(GOOGLE_API_KEY)
+      .setCallback((data) => {
+        if (data.action === window.google.picker.Action.PICKED) resolve(data.docs)
+        else if (data.action === window.google.picker.Action.CANCEL) resolve(null)
+      })
+    if (multiple) builder.enableFeature(window.google.picker.Feature.MULTISELECT_ENABLED)
+    builder.build().setVisible(true)
+  })
+
+  if (!docs) return []
+
+  return Promise.all(docs.map(async (doc) => {
+    const res = await fetch('https://www.googleapis.com/drive/v3/files/' + doc.id + '?alt=media', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    })
+    const blob = await res.blob()
+    return new File([blob], doc.name, { type: doc.mimeType })
+  }))
+}
+
 const style = document.createElement('style')
 style.textContent = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
@@ -447,6 +525,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
   const [editCoverUrl, setEditCoverUrl] = useState(post.cover_url || '')
   const [uploadingCover, setUploadingCover] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [importingDrive, setImportingDrive] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [downloading, setDownloading] = useState(false)
   const fileRef = useRef()
@@ -470,8 +549,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
     setUploadError(null)
   }, [post.id])
 
-  const handleFile = async (e) => {
-    const files = e.target.files
+  const processFiles = async (files) => {
     if (!files || !files.length) return
     setUploadError(null)
     setUploading(true)
@@ -479,6 +557,22 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
     if (urls.length) setEditImages(prev => [...prev, ...urls])
     if (error) setUploadError(error)
     setUploading(false)
+  }
+
+  const handleFile = async (e) => {
+    await processFiles(e.target.files)
+  }
+
+  const handleDriveImport = async () => {
+    setUploadError(null); setImportingDrive(true)
+    try {
+      const files = await pickFilesFromDrive({ multiple: editFormat === 'carousel' })
+      await processFiles(files)
+    } catch (err) {
+      console.error('Drive import error:', err)
+      setUploadError('Could not import from Drive. Please try again.')
+    }
+    setImportingDrive(false)
   }
 
   const handleCoverFile = async (e) => {
@@ -603,6 +697,10 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
             <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ {editFormat === 'carousel' ? 'Add photos (select multiple)' : 'Replace asset'}</div>
             <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginTop: 4 }}>Image, GIF, or video (max 50MB each)</div>
           </div>
+          <button type="button" onClick={handleDriveImport} disabled={importingDrive} style={{ width: '100%', marginTop: 6, padding: '8px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', color: PALETTE.espresso, fontFamily: F.body, fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M8.6 15l3.43-5.94L19.4 15H8.6z" fill="#EA4335"/><path d="M1.15 15L7.71 3.5 11.14 9 4.58 20.94 1.15 15z" fill="#4285F4"/><path d="M1.15 15h11.4l3.43 5.94H4.58L1.15 15z" fill="#34A853"/><path d="M7.71 3.5h5.15L19.4 15H8.6L7.71 3.5z" fill="#FBBC04"/></svg>
+            {importingDrive ? 'Importing from Drive...' : 'Import from Google Drive'}
+          </button>
           {uploadError && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', marginTop: 6 }}>{uploadError}</div>}
           <input ref={fileRef} type="file" accept="image/*,video/*,.gif" multiple={editFormat === 'carousel'} onChange={handleFile} style={{ display: 'none' }} />
 
@@ -988,19 +1086,35 @@ function ComposeModal({ clients, onClose, onSaved }) {
   const [coverUrl, setCoverUrl] = useState('')
   const [uploadingCover, setUploadingCover] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [importingDrive, setImportingDrive] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
   const coverFileRef = useRef()
 
-  const handleFile = async (e) => {
-    const files = e.target.files
+  const processFiles = async (files) => {
     if (!files || !files.length) return
     setUploadError(null); setUploading(true)
     const { urls, error } = await uploadMultiple(files)
     if (urls.length) setImages(prev => [...prev, ...urls])
     if (error) setUploadError(error)
     setUploading(false)
+  }
+
+  const handleFile = async (e) => {
+    await processFiles(e.target.files)
+  }
+
+  const handleDriveImport = async () => {
+    setUploadError(null); setImportingDrive(true)
+    try {
+      const files = await pickFilesFromDrive({ multiple: format === 'carousel' })
+      await processFiles(files)
+    } catch (err) {
+      console.error('Drive import error:', err)
+      setUploadError('Could not import from Drive. Please try again.')
+    }
+    setImportingDrive(false)
   }
 
   const handleCoverFile = async (e) => {
@@ -1061,6 +1175,10 @@ function ComposeModal({ clients, onClose, onSaved }) {
               <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>{format === 'carousel' ? 'Click to upload photos (select multiple)' : 'Click to upload'}</div>
               <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>Image, GIF, or video · max 50MB each</div>
             </div>
+            <button type="button" onClick={handleDriveImport} disabled={importingDrive} style={{ width: '100%', marginTop: 8, padding: '9px 0', borderRadius: 7, border: '0.5px solid ' + PALETTE.border, background: '#fff', color: PALETTE.espresso, fontFamily: F.body, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M8.6 15l3.43-5.94L19.4 15H8.6z" fill="#EA4335"/><path d="M1.15 15L7.71 3.5 11.14 9 4.58 20.94 1.15 15z" fill="#4285F4"/><path d="M1.15 15h11.4l3.43 5.94H4.58L1.15 15z" fill="#34A853"/><path d="M7.71 3.5h5.15L19.4 15H8.6L7.71 3.5z" fill="#FBBC04"/></svg>
+              {importingDrive ? 'Importing from Drive...' : 'Import from Google Drive'}
+            </button>
             <input ref={fileRef} type="file" accept="image/*,video/*,.gif" multiple={format === 'carousel'} onChange={handleFile} style={{ display: 'none' }} />
           </div>
           {images[0] && isVideo(images[0]) && (
