@@ -573,7 +573,7 @@ function DashboardCarousel({ images, published }) {
   )
 }
 
-function RightPanel({ post, comments, versions, statusChanges, designOptions, clients, onRefresh, onClose, isMobile }) {
+function RightPanel({ post, comments, versions, statusChanges, designOptions, clients, onRefresh, onClose, isMobile, currentUserName }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
@@ -708,7 +708,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
 
     if (changes.length > 0) {
       await supabase.from('versions').insert(
-        changes.map((note, i) => ({ post_id: post.id, version_number: versions.length + i + 1, note, author: 'Brown Butter' }))
+        changes.map((note, i) => ({ post_id: post.id, version_number: versions.length + i + 1, note, author: currentUserName }))
       )
     }
 
@@ -718,7 +718,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
   const sendComment = async () => {
     if (!newComment.trim()) return
     setSaving(true)
-    await supabase.from('comments').insert({ post_id: post.id, author: 'Brown Butter', author_type: 'agency', text: newComment.trim() })
+    await supabase.from('comments').insert({ post_id: post.id, author: currentUserName, author_type: 'agency', text: newComment.trim() })
     setNewComment(''); setSaving(false); onRefresh()
   }
 
@@ -729,7 +729,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
       alert('Could not update status: ' + error.message)
       return
     }
-    await supabase.from('status_changes').insert({ post_id: post.id, status, changed_by: 'Brown Butter' })
+    await supabase.from('status_changes').insert({ post_id: post.id, status, changed_by: currentUserName })
     onRefresh()
   }
 
@@ -1081,7 +1081,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
               : comments.map(c => (
                 <div key={c.id} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '0.5px dashed ' + PALETTE.borderLight }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, alignItems: 'baseline' }}>
-                    <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 500, color: PALETTE.espresso }}>{c.author_type === 'agency' ? 'Brown Butter' : c.author + (client ? ' (' + client.name + ')' : '')}</span>
+                    <span style={{ fontFamily: F.body, fontSize: 12, fontWeight: 500, color: PALETTE.espresso }}>{c.author_type === 'agency' ? (c.author || 'Brown Butter') : c.author + (client ? ' (' + client.name + ')' : '')}</span>
                     <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{fmtShort(c.created_at)}</span>
                   </div>
                   <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.65 }}>{c.text}</p>
@@ -1173,7 +1173,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
             icon: '+',
             iconColor: PALETTE.caramel,
             iconBg: PALETTE.caramelLight,
-            who: 'Brown Butter',
+            who: post.created_by || 'Brown Butter',
             action: 'created this post',
             detail: null,
             tag: null,
@@ -1214,7 +1214,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
   )
 }
 
-function ComposeModal({ clients, onClose, onSaved }) {
+function ComposeModal({ clients, onClose, onSaved, currentUserName }) {
   const [clientId, setClientId] = useState(clients[0]?.id || '')
   const [caption, setCaption] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
@@ -1228,10 +1228,13 @@ function ComposeModal({ clients, onClose, onSaved }) {
   const [uploadingCover, setUploadingCover] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [importingDrive, setImportingDrive] = useState(false)
+  const [designOptionUrls, setDesignOptionUrls] = useState([])
+  const [uploadingOptions, setUploadingOptions] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
   const coverFileRef = useRef()
+  const optionsFileRef = useRef()
 
   const processFiles = async (files) => {
     if (!files || !files.length) return
@@ -1258,6 +1261,18 @@ function ComposeModal({ clients, onClose, onSaved }) {
     setImportingDrive(false)
   }
 
+  const handleAddDesignOptions = async (e) => {
+    const files = e.target.files
+    if (!files || !files.length) return
+    setUploadingOptions(true)
+    const { urls, error } = await uploadMultiple(files)
+    if (urls.length) setDesignOptionUrls(prev => [...prev, ...urls])
+    if (error) setUploadError(error)
+    setUploadingOptions(false)
+  }
+
+  const removeDesignOption = (i) => setDesignOptionUrls(prev => prev.filter((_, idx) => idx !== i))
+
   const handleCoverFile = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -1274,15 +1289,23 @@ function ComposeModal({ clients, onClose, onSaved }) {
 
   const handleSave = async () => {
     if (!canSave) return; setSaving(true)
-    await supabase.from('posts').insert({
+    const { data: newPost, error } = await supabase.from('posts').insert({
       client_id: clientId, caption: caption.trim(), scheduled_at: new Date(scheduledAt).toISOString(),
       image_url: images[0] || null,
       images: format === 'carousel' && images.length > 1 ? images : null,
       cover_url: images[0] && isVideo(images[0]) ? (coverUrl || null) : null,
       platforms, status: 'pending', format,
       slide_count: format === 'carousel' ? (images.length || (slideCount ? parseInt(slideCount) : null)) : null,
-      designer: designer.trim(), campaign: campaign.trim() || null
-    })
+      designer: designer.trim(), campaign: campaign.trim() || null,
+      created_by: currentUserName
+    }).select().single()
+
+    if (!error && newPost && designOptionUrls.length > 0) {
+      await supabase.from('design_options').insert(
+        designOptionUrls.map((url, i) => ({ post_id: newPost.id, image_url: url, label: 'Option ' + (i + 1) }))
+      )
+    }
+
     setSaving(false); onSaved(); onClose()
   }
 
@@ -1338,12 +1361,69 @@ function ComposeModal({ clients, onClose, onSaved }) {
               <input ref={coverFileRef} type="file" accept="image/*" onChange={handleCoverFile} style={{ display: 'none' }} />
             </div>
           )}
+          <div>
+            {fieldLabel('Design Options (optional)')}
+            <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 8, lineHeight: 1.5 }}>Instead of a single final asset, upload a few directions and the client picks their favorite — that pick becomes the post's asset and approves it in one step.</div>
+            {designOptionUrls.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+                {designOptionUrls.map((url, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <AssetPreview url={url} onRemove={() => removeDesignOption(i)} maxHeight={90} />
+                    <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 9, padding: '1px 5px', borderRadius: 3, fontFamily: F.body }}>Option {i + 1}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {uploadingOptions && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, marginBottom: 6 }}>Uploading...</div>}
+            <div onClick={() => optionsFileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 8, padding: '16px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
+              <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ Add design option(s)</div>
+            </div>
+            <input ref={optionsFileRef} type="file" accept="image/*,video/*" multiple onChange={handleAddDesignOptions} style={{ display: 'none' }} />
+          </div>
           <div>{fieldLabel('Caption', true)}<textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write your caption..." rows={4} style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }} /><div style={{ fontFamily: F.body, fontSize: 9, color: caption.length > 2200 ? '#C0392B' : PALETTE.mutedLight, textAlign: 'right', marginTop: 2 }}>{caption.length} / 2,200</div></div>
           <div>{fieldLabel('Schedule date and time', true)}<input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={inputStyle} /></div>
           <button onClick={handleSave} disabled={saving || !canSave} style={{ padding: '12px 0', borderRadius: 8, border: 'none', background: canSave ? PALETTE.espresso : PALETTE.creamDark, color: canSave ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: canSave ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>{saving ? 'Saving...' : 'Send to Client for Review'}</button>
           {!designer.trim() && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', textAlign: 'center', marginTop: -8 }}>Assigned to is required</div>}
         </div>
       </div>
+    </div>
+  )
+}
+
+function LoginScreen() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleLogin = async (e) => {
+    e.preventDefault()
+    if (!email.trim() || !password) return
+    setLoading(true); setError(null)
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    if (error) setError(error.message === 'Invalid login credentials' ? 'Incorrect email or password.' : error.message)
+    setLoading(false)
+  }
+
+  const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 14, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
+
+  return (
+    <div className="bb-app-shell" style={{ background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 340 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontFamily: F.display, fontSize: 26, color: PALETTE.espresso, marginBottom: 4 }}>Brown Butter</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Content Calendar</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <input type="email" autoComplete="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
+          <input type="password" autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+          {error && <div style={{ fontFamily: F.body, fontSize: 12, color: '#C0392B', textAlign: 'center' }}>{error}</div>}
+          <button type="submit" disabled={loading || !email.trim() || !password} style={{ padding: '12px 0', borderRadius: 8, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 14, fontWeight: 500, cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+        </div>
+        <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, textAlign: 'center', marginTop: 20 }}>Need an account? Ask whoever set up the dashboard to add you in Supabase.</div>
+      </form>
     </div>
   )
 }
@@ -1610,7 +1690,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     const post = clientPosts.find(p => p.id === c.post_id)
     activity.push({
       ts: new Date(c.created_at).getTime(), date: c.created_at,
-      text: (c.author_type === 'agency' ? 'Brown Butter' : c.author) + ' commented on "' + (post?.caption || 'a post') + '"',
+      text: (c.author_type === 'agency' ? (c.author || 'Brown Butter') : c.author) + ' commented on "' + (post?.caption || 'a post') + '"',
       post,
     })
   })
@@ -1725,6 +1805,14 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
 }
 
 export default function Dashboard() {
+  const [session, setSession] = useState(undefined) // undefined = still checking, null = logged out
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    return () => subscription.unsubscribe()
+  }, [])
+  const currentUserName = session?.user?.user_metadata?.full_name || session?.user?.email || 'Brown Butter'
+
   const [clients, setClients] = useState([])
   const [posts, setPosts] = useState([])
   const [comments, setComments] = useState([])
@@ -1923,6 +2011,18 @@ export default function Dashboard() {
 
   const pageTitle = filter === 'active' ? "Today's pass" : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : filter === 'scheduled' ? 'Scheduled' : 'Published'
 
+  if (session === undefined) {
+    return (
+      <div className="bb-app-shell" style={{ background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontFamily: F.display, fontSize: 18, color: PALETTE.mutedLight }}>Loading…</span>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return <LoginScreen />
+  }
+
   return (
     <div className="bb-app-shell" style={{ background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => showNotifications && setShowNotifications(false)}>
       <div style={{ background: PALETTE.espresso, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, position: 'relative' }}>
@@ -1946,6 +2046,15 @@ export default function Dashboard() {
             onMouseEnter={e => e.currentTarget.style.background = '#5F493B'}
             onMouseLeave={e => e.currentTarget.style.background = PALETTE.caramel}
           >+ New Post</button>
+          {!isMobile && (
+            <button onClick={() => supabase.auth.signOut()} title={'Signed in as ' + currentUserName} style={{ background: 'none', border: '0.5px solid #4a3a28', borderRadius: 6, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              <span style={{ fontFamily: F.body, fontSize: 11, color: '#c9b89a', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUserName}</span>
+              <span style={{ fontFamily: F.body, fontSize: 10, color: '#7a5a3a' }}>Log out</span>
+            </button>
+          )}
         </div>
         {showNotifications && <NotificationsPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkAllRead={markAllRead} onSelect={handleNotificationClick} />}
       </div>
@@ -2265,11 +2374,12 @@ export default function Dashboard() {
             onRefresh={fetchAll}
             onClose={() => setSelectedPost(null)}
             isMobile={isMobile}
+            currentUserName={currentUserName}
           />
         )}
       </div>
 
-      {composing && <ComposeModal clients={clients} onClose={() => setComposing(false)} onSaved={fetchAll} />}
+      {composing && <ComposeModal clients={clients} onClose={() => setComposing(false)} onSaved={fetchAll} currentUserName={currentUserName} />}
       {hubClientId && <ClientHubModal client={clients.find(c => c.id === hubClientId)} onClose={() => setHubClientId(null)} />}
     </div>
   )
