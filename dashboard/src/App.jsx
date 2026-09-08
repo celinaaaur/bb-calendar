@@ -2293,17 +2293,25 @@ export default function Dashboard() {
 
   const pageTitle = filter === 'active' ? "Today's pass" : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : filter === 'scheduled' ? 'Scheduled' : 'Published'
 
-  // "What you need to see" summary — mirrors the sidebar counts but scoped to
-  // things that actually need action, plus what's publishing today, so it
-  // reads as a to-do digest rather than a repeat of the filter list.
+  // "What you need to see" summary — scoped to posts assigned to the
+  // logged-in user specifically (via the designer field), so it reads as a
+  // personal to-do digest rather than a team-wide status repeat. Requests
+  // aren't assigned to individual team members, so that count stays team-wide.
+  // Matching is case/whitespace-insensitive since the auth account's display
+  // name and the "Assigned to" dropdown value are two separately-typed fields
+  // that can drift out of exact sync (e.g. "Celina " vs "celina").
+  const normalizeName = (s) => (s || '').trim().toLowerCase()
+  const myPosts = activePosts.filter(p => normalizeName(p.designer) === normalizeName(currentUserName))
+  const myPendingCount = myPosts.filter(p => p.status === 'pending' && (selectedClient === 'all' || p.client_id === selectedClient)).length
+  const myRevisionCount = myPosts.filter(p => p.status === 'revision' && (selectedClient === 'all' || p.client_id === selectedClient)).length
   const todayPostsCount = useMemo(() => {
     const now = new Date()
-    return activePosts.filter(p => {
+    return myPosts.filter(p => {
       if (selectedClient !== 'all' && p.client_id !== selectedClient) return false
       const d = new Date(p.scheduled_at)
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
     }).length
-  }, [activePosts, selectedClient])
+  }, [myPosts, selectedClient])
   const openRequestsCount = requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && (selectedClient === 'all' || r.client_id === selectedClient)).length
 
   if (session === undefined) {
@@ -2456,35 +2464,35 @@ export default function Dashboard() {
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
           <div style={{ padding: '20px 26px 20px' }}>
             <div style={{ fontFamily: F.display, fontSize: 15, color: PALETTE.espresso, marginBottom: 14 }}>Hello, {currentUserFirstName}!</div>
-            {(counts.revision > 0 || counts.pending > 0 || todayPostsCount > 0 || openRequestsCount > 0) ? (
+            {(myRevisionCount > 0 || myPendingCount > 0 || todayPostsCount > 0 || openRequestsCount > 0) ? (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {counts.revision > 0 && (
+                {myRevisionCount > 0 && (
                   <button onClick={() => { setFilter('revision'); setView('queue') }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: '0.5px solid #F4A59F', background: '#FEECEA', fontFamily: F.body, fontSize: 11, color: '#7A2018', fontWeight: 500 }}>
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C0392B' }} />
-                    {counts.revision} revision{counts.revision !== 1 ? 's' : ''} requested
+                    {myRevisionCount} assigned to you — revision{myRevisionCount !== 1 ? 's' : ''} needed
                   </button>
                 )}
-                {counts.pending > 0 && (
+                {myPendingCount > 0 && (
                   <button onClick={() => { setFilter('pending'); setView('queue') }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: '0.5px solid #E8C87A', background: '#FFF6E6', fontFamily: F.body, fontSize: 11, color: '#8A5A00', fontWeight: 500 }}>
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C4893A' }} />
-                    {counts.pending} awaiting approval
+                    {myPendingCount} assigned to you — awaiting approval
                   </button>
                 )}
                 {todayPostsCount > 0 && (
                   <button onClick={() => setView('queue')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + PALETTE.border, background: PALETTE.caramelLight, fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, fontWeight: 500 }}>
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: PALETTE.caramel }} />
-                    {todayPostsCount} publishing today
+                    {todayPostsCount} assigned to you — publishing today
                   </button>
                 )}
                 {openRequestsCount > 0 && (
                   <button onClick={() => setView('requests')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: '0.5px solid #A9C6E8', background: '#E8F1FC', fontFamily: F.body, fontSize: 11, color: '#1E4E8A', fontWeight: 500 }}>
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3B72B8' }} />
-                    {openRequestsCount} new request{openRequestsCount !== 1 ? 's' : ''}
+                    {openRequestsCount} new client request{openRequestsCount !== 1 ? 's' : ''}
                   </button>
                 )}
               </div>
             ) : (
-              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', marginBottom: 4 }}>You're all caught up — nothing needs your attention right now.</div>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', marginBottom: 4 }}>Nothing assigned to you needs attention right now.</div>
             )}
           </div>
           {view !== 'overview' && view !== 'hub' && (
