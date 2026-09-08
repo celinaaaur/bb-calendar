@@ -2081,6 +2081,9 @@ export default function Dashboard() {
     return () => subscription.unsubscribe()
   }, [])
   const currentUserName = session?.user?.user_metadata?.full_name || session?.user?.email || 'Brown Butter'
+  const currentUserFirstName = (session?.user?.user_metadata?.full_name || session?.user?.email || 'there').split(/[\s@]/)[0]
+  const currentUserAvatarUrl = session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture || null
+  const currentUserInitials = currentUserName.slice(0, 2).toUpperCase()
 
   const [clients, setClients] = useState([])
   const [posts, setPosts] = useState([])
@@ -2326,10 +2329,13 @@ export default function Dashboard() {
             onMouseLeave={e => e.currentTarget.style.background = PALETTE.caramel}
           >+ New Post</button>
           {!isMobile && (
-            <button onClick={() => supabase.auth.signOut()} title={'Signed in as ' + currentUserName} style={{ background: 'none', border: '0.5px solid #4a3a28', borderRadius: 6, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+            <button onClick={() => supabase.auth.signOut()} title={'Signed in as ' + currentUserName} style={{ background: 'none', border: '0.5px solid #4a3a28', borderRadius: 6, padding: '6px 10px 6px 6px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
             >
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: PALETTE.cream, fontFamily: F.body, flexShrink: 0, overflow: 'hidden' }}>
+                {currentUserAvatarUrl ? <img src={currentUserAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : currentUserInitials}
+              </div>
               <span style={{ fontFamily: F.body, fontSize: 11, color: '#c9b89a', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUserName}</span>
               <span style={{ fontFamily: F.body, fontSize: 10, color: '#7a5a3a' }}>Log out</span>
             </button>
@@ -2435,6 +2441,9 @@ export default function Dashboard() {
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ padding: '18px 26px 0' }}>
+            <span style={{ fontFamily: F.display, fontSize: 15, color: PALETTE.espresso }}>Hello, {currentUserFirstName}!</span>
+          </div>
           {view !== 'overview' && view !== 'hub' && (
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             {view === 'requests' ? (
