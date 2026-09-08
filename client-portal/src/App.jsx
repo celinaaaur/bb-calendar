@@ -503,7 +503,7 @@ function IGMockup({ post, client }) {
   )
 }
 
-function PostPanel({ post, comments, versions, statusChanges, client, onClose, onRefresh, isMobile }) {
+function PostPanel({ post, comments, versions, statusChanges, designOptions, client, onClose, onRefresh, isMobile }) {
   const [newComment, setNewComment] = useState('')
   const [authorName, setAuthorName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -532,6 +532,23 @@ function PostPanel({ post, comments, versions, statusChanges, client, onClose, o
     if (isMobile) onClose()
   }
 
+  const chooseDesignOption = async (option) => {
+    await supabase.from('posts').update({
+      image_url: option.image_url,
+      selected_option_id: option.id,
+      status: 'approved',
+    }).eq('id', post.id)
+    await supabase.from('status_changes').insert({ post_id: post.id, status: 'approved', changed_by: client?.name || 'Client' })
+    await supabase.from('comments').insert({
+      post_id: post.id,
+      author: client?.name || 'Client',
+      author_type: 'client',
+      text: 'Chose "' + (option.label || 'a design option') + '" as the final design.'
+    })
+    onRefresh()
+    if (isMobile) onClose()
+  }
+
   const handleKeyDown = (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendComment()
   }
@@ -552,7 +569,33 @@ function PostPanel({ post, comments, versions, statusChanges, client, onClose, o
         <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, color: PALETTE.mutedLight, lineHeight: 1, flexShrink: 0, padding: 4 }}>✕</button>
       </div>
 
-      <IGMockup post={post} client={client} />
+      {designOptions.length > 0 && !post.selected_option_id ? (
+        <div style={{ padding: '16px 18px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso, marginBottom: 4 }}>Pick your favorite</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 14, lineHeight: 1.5 }}>Brown Butter put together a few directions for this post. Tap the one you like best — that becomes the final design and approves the post.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+            {designOptions.map(opt => (
+              <div key={opt.id} onClick={() => chooseDesignOption(opt)} style={{ cursor: 'pointer', background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden', transition: 'all 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = brandColor}
+                onMouseLeave={e => e.currentTarget.style.borderColor = PALETTE.borderLight}
+              >
+                <div style={{ aspectRatio: '4/5', background: PALETTE.creamDark }}>
+                  {isVideo(opt.image_url)
+                    ? <video src={opt.image_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+                    : <img src={opt.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  }
+                </div>
+                <div style={{ padding: '8px 10px' }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, fontWeight: 500, marginBottom: 4 }}>{opt.label}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: brandColor, fontWeight: 500 }}>Choose this →</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <IGMockup post={post} client={client} />
+      )}
 
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
         {[['details', 'Details'], ['discussion', 'Comments' + (comments.length > 0 ? ' (' + comments.length + ')' : '')], ['history', 'History']].map(([k, l]) => (
@@ -584,7 +627,7 @@ function PostPanel({ post, comments, versions, statusChanges, client, onClose, o
               ))}
             </div>
 
-            {!isPublished && post.status !== 'archived' && (
+            {!isPublished && post.status !== 'archived' && !(designOptions.length > 0 && !post.selected_option_id) && (
               <>
                 <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -928,6 +971,7 @@ export default function ClientPortal() {
   const [comments, setComments] = useState([])
   const [versions, setVersions] = useState([])
   const [statusChanges, setStatusChanges] = useState([])
+  const [designOptions, setDesignOptions] = useState([])
   const [selectedPost, setSelectedPost] = useState(null)
   const [filter, setFilter] = useState('all')
   const [view, setView] = useState('list') // 'list' | 'calendar'
@@ -963,14 +1007,15 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
-    const [p, cm, v, mn, bc, rq, sc] = await Promise.all([
+    const [p, cm, v, mn, bc, rq, sc, dop] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
       supabase.from('meeting_notes').select('*').eq('client_id', clientData.id).order('meeting_date', { ascending: false }),
       supabase.from('billing_cycles').select('*').eq('client_id', clientData.id).order('cycle_start', { ascending: false }),
       supabase.from('requests').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false }),
-      supabase.from('status_changes').select('*').order('created_at')
+      supabase.from('status_changes').select('*').order('created_at'),
+      supabase.from('design_options').select('*').order('created_at')
     ])
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
@@ -979,6 +1024,7 @@ export default function ClientPortal() {
     if (bc.data) setBillingCycles(bc.data)
     if (rq.data) setRequests(rq.data)
     if (sc.data) setStatusChanges(sc.data)
+    if (dop.data) setDesignOptions(dop.data)
     setLoading(false)
   }
 
@@ -1005,7 +1051,8 @@ export default function ClientPortal() {
     const s4 = supabase.channel('cp-billing').on('postgres_changes', { event: '*', schema: 'public', table: 'billing_cycles' }, fetchAll).subscribe()
     const s5 = supabase.channel('cp-requests').on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, fetchAll).subscribe()
     const s6 = supabase.channel('cp-status-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'status_changes' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe() }
+    const s7 = supabase.channel('cp-design-options').on('postgres_changes', { event: '*', schema: 'public', table: 'design_options' }, fetchAll).subscribe()
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe() }
   }, [])
 
   if (loading) return (
@@ -1375,6 +1422,7 @@ export default function ClientPortal() {
             comments={comments.filter(c => c.post_id === selectedPost.id)}
             versions={versions.filter(v => v.post_id === selectedPost.id)}
             statusChanges={statusChanges.filter(s => s.post_id === selectedPost.id)}
+            designOptions={designOptions.filter(d => d.post_id === selectedPost.id)}
             client={client}
             onClose={() => setSelectedPost(null)}
             onRefresh={fetchAll}
@@ -1390,6 +1438,7 @@ export default function ClientPortal() {
           comments={comments.filter(c => c.post_id === selectedPost.id)}
           versions={versions.filter(v => v.post_id === selectedPost.id)}
           statusChanges={statusChanges.filter(s => s.post_id === selectedPost.id)}
+          designOptions={designOptions.filter(d => d.post_id === selectedPost.id)}
           client={client}
           onClose={() => setSelectedPost(null)}
           onRefresh={fetchAll}
