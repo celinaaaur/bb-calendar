@@ -1511,7 +1511,7 @@ function RichTextEditor({ value, onChange, placeholder }) {
   )
 }
 
-function ClientHubModal({ client, onClose, initialTab, onClientUpdated }) {
+function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
   const [tab, setTab] = useState(initialTab || 'notes') // 'notes' | 'billing' | 'links'
   const [notes, setNotes] = useState([])
   const [cycles, setCycles] = useState([])
@@ -1641,33 +1641,36 @@ function ClientHubModal({ client, onClose, initialTab, onClientUpdated }) {
   const sortedCycles = [...cycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(44,31,14,0.2)' }}>
-        <div style={{ padding: '16px 22px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, flexShrink: 0 }}>
-          <span style={{ fontFamily: F.display, color: PALETTE.cream, fontSize: 17 }}>{client.name} — Client Hub</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.cream, fontSize: 18, lineHeight: 1 }}>✕</button>
+    <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '16px 26px', borderBottom: '0.5px solid ' + PALETTE.borderLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PALETTE.espresso, flexShrink: 0, gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: PALETTE.cream, fontFamily: F.body, fontSize: 12, opacity: 0.8, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, padding: 0 }}>
+            ← Back
+          </button>
+          <span style={{ fontFamily: F.display, color: PALETTE.cream, fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{client.name} — Client Hub</span>
         </div>
+      </div>
 
-        <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-          {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
-          ))}
+      <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0, background: '#fff' }}>
+        {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
+        ))}
+      </div>
+
+      <div style={{ padding: '14px 26px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, background: '#fff' }}>
+        <div style={{ width: 44, height: 44, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, overflow: 'hidden', border: '2px solid ' + PALETTE.caramel }}>
+          {client.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client.name || 'BB').slice(0, 2).toUpperCase()}
         </div>
-
-        <div style={{ padding: '14px 20px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, overflow: 'hidden', border: '2px solid ' + PALETTE.caramel }}>
-            {client.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client.name || 'BB').slice(0, 2).toUpperCase()}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 4 }}>Client Logo</div>
-            <button onClick={() => logoFileRef.current.click()} disabled={uploadingLogo} style={{ padding: '6px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso }}>
-              {uploadingLogo ? 'Uploading...' : client.logo_url ? 'Change logo' : 'Upload logo'}
-            </button>
-          </div>
-          <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 4 }}>Client Logo</div>
+          <button onClick={() => logoFileRef.current.click()} disabled={uploadingLogo} style={{ padding: '6px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso }}>
+            {uploadingLogo ? 'Uploading...' : client.logo_url ? 'Change logo' : 'Upload logo'}
+          </button>
         </div>
+        <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+      </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20, WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex: 1, padding: '28px 40px', maxWidth: 760, WebkitOverflowScrolling: 'touch' }}>
           {loading ? (
             <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, textAlign: 'center', padding: 30 }}>Loading…</div>
           ) : tab === 'notes' ? (
@@ -1747,6 +1750,11 @@ function ClientHubModal({ client, onClose, initialTab, onClientUpdated }) {
             </div>
           ) : (
             <div>
+              <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 24, color: PALETTE.espresso, marginBottom: 4 }}>Important Links</div>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 24, fontWeight: 300 }}>
+                {links.length} link{links.length !== 1 ? 's' : ''} for {client.name} · visible in their Client Portal
+              </div>
+
               {editingLinkId ? (
                 <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div><label style={labelStyle}>Title</label><input value={linkTitle} onChange={e => setLinkTitle(e.target.value)} placeholder="e.g. Canva board" style={inputStyle} /></div>
@@ -1760,25 +1768,26 @@ function ClientHubModal({ client, onClose, initialTab, onClientUpdated }) {
                 <button onClick={startNewLink} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 16 }}>+ New link</button>
               )}
 
-              {links.length === 0 && !editingLinkId && (
-                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>No links yet.</div>
-              )}
-              {links.map(l => (
-                <div key={l.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, fontWeight: 500, marginBottom: 2 }}>{l.title}</div>
+              {links.length === 0 && !editingLinkId ? (
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No links yet</div>
+              ) : links.map(l => (
+                <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 20px', marginBottom: 12, transition: 'background 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                >
+                  <a href={l.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', minWidth: 0, flex: 1 }}>
+                    <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso, marginBottom: 3 }}>{l.title}</div>
                     <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                    <a href={l.url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>Open ↗</a>
-                    <button onClick={() => startEditLink(l)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
+                  </a>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexShrink: 0 }}>
+                    <a href={l.url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.caramel, fontWeight: 500, textDecoration: 'none' }}>Open ↗</a>
+                    <button onClick={() => startEditLink(l)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>Edit</button>
                     <button onClick={() => deleteLink(l.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
       </div>
     </div>
   )
@@ -2393,7 +2402,7 @@ export default function Dashboard() {
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
-          {view !== 'overview' && (
+          {view !== 'overview' && view !== 'hub' && (
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             {view === 'requests' ? (
               <>
@@ -2431,7 +2440,7 @@ export default function Dashboard() {
                       requests={requests}
                       statusChanges={statusChanges}
                       onSelectPost={setSelectedPost}
-                      onOpenHub={(tab) => { setHubInitialTab(tab || 'notes'); setHubClientId(selectedClient) }}
+                      onOpenHub={(tab) => { setHubInitialTab(tab || 'notes'); setHubClientId(selectedClient); setView('hub') }}
                       onGoToRequests={() => setView('requests')}
                       onGoToFilter={(k) => { setFilter(k); setView('queue') }}
                       isMobile={isMobile}
@@ -2439,6 +2448,18 @@ export default function Dashboard() {
                 )
               : view === 'requests'
               ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} onRefresh={fetchAll} />
+              : view === 'hub'
+              ? (clients.find(c => c.id === hubClientId)
+                  ? <ClientHubView
+                      client={clients.find(c => c.id === hubClientId)}
+                      initialTab={hubInitialTab}
+                      onClientUpdated={fetchAll}
+                      onClose={() => { setHubClientId(null); setView('overview') }}
+                    />
+                  : <div style={{ padding: 60, textAlign: 'center' }}>
+                      <div style={{ fontFamily: F.display, fontSize: 18, color: PALETTE.mutedLight }}>No client selected</div>
+                    </div>
+                )
               : view === 'calendar'
               ? <CalendarView posts={filteredPosts} onSelect={setSelectedPost} />
               : filteredPosts.length === 0
@@ -2620,7 +2641,6 @@ export default function Dashboard() {
       </div>
 
       {composing && <ComposeModal clients={clients} teamMembers={teamMembers} onClose={() => setComposing(false)} onSaved={fetchAll} currentUserName={currentUserName} />}
-      {hubClientId && <ClientHubModal client={clients.find(c => c.id === hubClientId)} onClose={() => setHubClientId(null)} initialTab={hubInitialTab} onClientUpdated={fetchAll} />}
     </div>
   )
 }
