@@ -875,6 +875,8 @@ function LinksSection({ links, isMobile }) {
 
 function NotesSection({ notes, isMobile }) {
   const sorted = [...notes].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
+  const [openId, setOpenId] = useState(sorted[0]?.id || null)
+
   return (
     <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px', maxWidth: 720 }}>
       <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, marginBottom: 4 }}>Meeting Notes</div>
@@ -883,15 +885,25 @@ function NotesSection({ notes, isMobile }) {
       </div>
       {sorted.length === 0 ? (
         <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No meeting notes yet</div>
-      ) : sorted.map(n => (
-        <div key={n.id} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '18px 20px', marginBottom: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: PALETTE.espresso }}>{n.title}</div>
-            <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtDateLong(n.meeting_date)}</div>
+      ) : sorted.map(n => {
+        const isOpen = openId === n.id
+        return (
+          <div key={n.id} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, marginBottom: 10, overflow: 'hidden' }}>
+            <button onClick={() => setOpenId(isOpen ? null : n.id)} style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
+                <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: PALETTE.espresso, whiteSpace: 'nowrap' }}>{n.title}</div>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtDateLong(n.meeting_date)}</div>
+              </div>
+              <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
+            </button>
+            {isOpen && (
+              <div style={{ padding: '0 20px 20px', borderTop: '0.5px solid ' + PALETTE.borderLight, paddingTop: 16 }}>
+                <div className="bb-note-body" style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: renderNoteBody(n.body) }} />
+              </div>
+            )}
           </div>
-          <div className="bb-note-body" style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: renderNoteBody(n.body) }} />
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
