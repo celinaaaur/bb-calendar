@@ -286,6 +286,12 @@ const STATUS = {
   archived:  { label: 'ARCHIVED',            color: '#777',    bg: '#F5F5F5', dot: '#AAA',    border: '#DDD'    },
 }
 const FORMATS = ['post', 'carousel', 'reel', 'story']
+const PLATFORMS = ['facebook', 'instagram', 'tiktok']
+const PLATFORM_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok' }
+const formatPlatforms = (platforms) => {
+  if (!Array.isArray(platforms) || platforms.length === 0) return 'Instagram'
+  return platforms.map(p => PLATFORM_LABELS[p] || p).join(', ')
+}
 const BILLING_STATUS = {
   paid:    { label: 'PAID',    color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F' },
   pending: { label: 'PENDING', color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A' },
@@ -320,6 +326,23 @@ function AdaptiveVideo({ src, style }) {
       onLoadedMetadata={handleLoaded}
       style={{ width: '100%', aspectRatio: ratio || '9/16', objectFit: 'contain', display: 'block', background: '#000', ...style }}
     />
+  )
+}
+
+function PlatformPicker({ selected, onChange }) {
+  const toggle = (p) => {
+    if (selected.includes(p)) onChange(selected.filter(x => x !== p))
+    else onChange([...selected, p])
+  }
+  return (
+    <div style={{ display: 'flex', gap: 14 }}>
+      {PLATFORMS.map(p => (
+        <label key={p} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso }}>
+          <input type="checkbox" checked={selected.includes(p)} onChange={() => toggle(p)} style={{ accentColor: PALETTE.caramel, width: 14, height: 14, cursor: 'pointer' }} />
+          {PLATFORM_LABELS[p]}
+        </label>
+      ))}
+    </div>
   )
 }
 
@@ -558,6 +581,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
   const [editCaption, setEditCaption] = useState(post.caption)
   const [editScheduled, setEditScheduled] = useState(toLocalInputValue(post.scheduled_at))
   const [editFormat, setEditFormat] = useState(post.format || 'post')
+  const [editPlatforms, setEditPlatforms] = useState(Array.isArray(post.platforms) && post.platforms.length > 0 ? post.platforms : ['instagram'])
   const [editSlideCount, setEditSlideCount] = useState(post.slide_count || '')
   const [editDesigner, setEditDesigner] = useState(post.designer || '')
   const [editCampaign, setEditCampaign] = useState(post.campaign || '')
@@ -580,6 +604,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
     setEditCaption(post.caption)
     setEditScheduled(toLocalInputValue(post.scheduled_at))
     setEditFormat(post.format || 'post')
+    setEditPlatforms(Array.isArray(post.platforms) && post.platforms.length > 0 ? post.platforms : ['instagram'])
     setEditSlideCount(post.slide_count || '')
     setEditDesigner(post.designer || '')
     setEditCampaign(post.campaign || '')
@@ -642,8 +667,9 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
     if (editCaption.trim() !== (post.caption || '')) changes.push('updated the caption')
     if (newScheduledIso !== post.scheduled_at) changes.push('changed the scheduled time to ' + fmt(newScheduledIso))
     if (editFormat !== (post.format || 'post')) changes.push('changed the format to ' + editFormat.charAt(0).toUpperCase() + editFormat.slice(1))
-    if (editDesigner.trim() !== (post.designer || '')) changes.push('changed the designer to ' + editDesigner.trim())
+    if (editDesigner.trim() !== (post.designer || '')) changes.push('changed who\'s assigned to ' + editDesigner.trim())
     if (newCampaign !== (post.campaign || null)) changes.push('updated the content pillar')
+    if (JSON.stringify([...editPlatforms].sort()) !== JSON.stringify([...(post.platforms || ['instagram'])].sort())) changes.push('changed the platform to ' + formatPlatforms(editPlatforms))
     if (newImageUrl !== (post.image_url || null)) changes.push(post.image_url ? 'replaced the asset' : 'uploaded an asset')
     if (newCoverUrl !== (post.cover_url || null) && newImageUrl === (post.image_url || null)) changes.push('updated the cover photo')
 
@@ -651,6 +677,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
       caption: editCaption.trim(), scheduled_at: newScheduledIso,
       format: editFormat, slide_count: editFormat === 'carousel' ? (editImages.length || (editSlideCount ? parseInt(editSlideCount) : null)) : null,
       designer: editDesigner.trim(), campaign: newCampaign,
+      platforms: editPlatforms,
       image_url: newImageUrl,
       images: editFormat === 'carousel' && editImages.length > 1 ? editImages : null,
       cover_url: newCoverUrl,
@@ -911,6 +938,10 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
 
             {editing ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                <div>
+                  <label style={labelStyle}>Platform</label>
+                  <PlatformPicker selected={editPlatforms} onChange={setEditPlatforms} />
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
                     <label style={labelStyle}>Format</label>
@@ -920,7 +951,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
                   </div>
                   {editFormat === 'carousel' && <div><label style={labelStyle}>Slides</label><input type="number" min="2" max="20" value={editSlideCount} onChange={e => setEditSlideCount(e.target.value)} placeholder="e.g. 4" style={inputStyle} /></div>}
                 </div>
-                <div><label style={{ ...labelStyle, color: !editDesigner.trim() ? '#C0392B' : PALETTE.mutedLight }}>Designer <span style={{ color: '#C0392B' }}>*</span></label><input value={editDesigner} onChange={e => setEditDesigner(e.target.value)} placeholder="Required" style={{ ...inputStyle, borderColor: !editDesigner.trim() ? '#F4A59F' : PALETTE.border }} /></div>
+                <div><label style={{ ...labelStyle, color: !editDesigner.trim() ? '#C0392B' : PALETTE.mutedLight }}>Assigned to <span style={{ color: '#C0392B' }}>*</span></label><input value={editDesigner} onChange={e => setEditDesigner(e.target.value)} placeholder="Required" style={{ ...inputStyle, borderColor: !editDesigner.trim() ? '#F4A59F' : PALETTE.border }} /></div>
                 <div><label style={labelStyle}>Content Pillar (optional)</label><input value={editCampaign} onChange={e => setEditCampaign(e.target.value)} placeholder="e.g. Behind the Scenes" style={inputStyle} /></div>
                 <div>
                   <label style={labelStyle}>Caption</label>
@@ -931,7 +962,7 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
               </div>
             ) : (
               <div style={{ marginBottom: 20 }}>
-                {[['Client', client?.name], ['Platform', 'Instagram'], ['Format', formatLabel], ['Designer', post.designer], post.campaign ? ['Content Pillar', post.campaign] : null, ['Scheduled', fmt(post.scheduled_at)]].filter(Boolean).map(([label, value]) => (
+                {[['Client', client?.name], ['Platform', formatPlatforms(post.platforms)], ['Format', formatLabel], ['Assigned to', post.designer], post.campaign ? ['Content Pillar', post.campaign] : null, ['Scheduled', fmt(post.scheduled_at)]].filter(Boolean).map(([label, value]) => (
                   <div key={label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 10, alignItems: 'start' }}>
                     <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', paddingTop: 1 }}>{label}</span>
                     <span style={{ fontFamily: F.body, fontSize: 12, color: value ? PALETTE.espresso : PALETTE.mutedLight, fontStyle: value ? 'normal' : 'italic' }}>{value || 'Not set'}</span>
@@ -1009,8 +1040,9 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
             const icon = note.includes('caption') ? '✎'
               : note.includes('scheduled time') ? '🕐'
               : note.includes('format') ? '▦'
-              : note.includes('designer') ? '🧑'
+              : note.includes('assigned to') ? '🧑'
               : note.includes('content pillar') ? '🏷'
+              : note.includes('platform') ? '📣'
               : note.includes('asset') ? '🖼'
               : note.includes('cover photo') ? '🎞'
               : '✎'
@@ -1119,6 +1151,7 @@ function ComposeModal({ clients, onClose, onSaved }) {
   const [caption, setCaption] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
   const [format, setFormat] = useState('post')
+  const [platforms, setPlatforms] = useState(['instagram'])
   const [slideCount, setSlideCount] = useState('')
   const [designer, setDesigner] = useState('')
   const [campaign, setCampaign] = useState('')
@@ -1178,7 +1211,7 @@ function ComposeModal({ clients, onClose, onSaved }) {
       image_url: images[0] || null,
       images: format === 'carousel' && images.length > 1 ? images : null,
       cover_url: images[0] && isVideo(images[0]) ? (coverUrl || null) : null,
-      platform: 'instagram', status: 'pending', format,
+      platforms, status: 'pending', format,
       slide_count: format === 'carousel' ? (images.length || (slideCount ? parseInt(slideCount) : null)) : null,
       designer: designer.trim(), campaign: campaign.trim() || null
     })
@@ -1197,12 +1230,13 @@ function ComposeModal({ clients, onClose, onSaved }) {
         </div>
         <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>{fieldLabel('Client', true)}<select value={clientId} onChange={e => setClientId(e.target.value)} style={inputStyle}>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div>{fieldLabel('Platform')}<PlatformPicker selected={platforms} onChange={setPlatforms} /></div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>{fieldLabel('Format')}<select value={format} onChange={e => setFormat(e.target.value)} style={inputStyle}>{FORMATS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}</select></div>
             {format === 'carousel' && <div>{fieldLabel('Slides')}<input type="number" min="2" max="20" value={slideCount} onChange={e => setSlideCount(e.target.value)} placeholder="e.g. 4" style={inputStyle} /></div>}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>{fieldLabel('Designer', true)}<input value={designer} onChange={e => setDesigner(e.target.value)} placeholder="e.g. Saoirse L." style={{ ...inputStyle, borderColor: !designer.trim() ? '#F4A59F' : PALETTE.border }} /></div>
+            <div>{fieldLabel('Assigned to', true)}<input value={designer} onChange={e => setDesigner(e.target.value)} placeholder="e.g. Saoirse L." style={{ ...inputStyle, borderColor: !designer.trim() ? '#F4A59F' : PALETTE.border }} /></div>
             <div>{fieldLabel('Content Pillar (optional)')}<input value={campaign} onChange={e => setCampaign(e.target.value)} placeholder="e.g. Behind the Scenes" style={inputStyle} /></div>
           </div>
           <div>
@@ -1239,7 +1273,7 @@ function ComposeModal({ clients, onClose, onSaved }) {
           <div>{fieldLabel('Caption', true)}<textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write your caption..." rows={4} style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }} /><div style={{ fontFamily: F.body, fontSize: 9, color: caption.length > 2200 ? '#C0392B' : PALETTE.mutedLight, textAlign: 'right', marginTop: 2 }}>{caption.length} / 2,200</div></div>
           <div>{fieldLabel('Schedule date and time', true)}<input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={inputStyle} /></div>
           <button onClick={handleSave} disabled={saving || !canSave} style={{ padding: '12px 0', borderRadius: 8, border: 'none', background: canSave ? PALETTE.espresso : PALETTE.creamDark, color: canSave ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: canSave ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>{saving ? 'Saving...' : 'Send to Client for Review'}</button>
-          {!designer.trim() && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', textAlign: 'center', marginTop: -8 }}>Designer name is required</div>}
+          {!designer.trim() && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', textAlign: 'center', marginTop: -8 }}>Assigned to is required</div>}
         </div>
       </div>
     </div>
@@ -1508,7 +1542,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     const post = clientPosts.find(p => p.id === c.post_id)
     activity.push({
       ts: new Date(c.created_at).getTime(), date: c.created_at,
-      text: (c.author_type === 'agency' ? 'Brown Butter' : c.author) + ' commented on "' + (post?.caption?.slice(0, 40) || 'a post') + '"',
+      text: (c.author_type === 'agency' ? 'Brown Butter' : c.author) + ' commented on "' + (post?.caption || 'a post') + '"',
       post,
     })
   })
@@ -1517,7 +1551,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     const post = clientPosts.find(p => p.id === s.post_id)
     activity.push({
       ts: new Date(s.created_at).getTime(), date: s.created_at,
-      text: (s.changed_by || client.name) + (s.status === 'approved' ? ' approved "' : ' requested revisions on "') + (post?.caption?.slice(0, 40) || 'a post') + '"',
+      text: (s.changed_by || client.name) + (s.status === 'approved' ? ' approved "' : ' requested revisions on "') + (post?.caption || 'a post') + '"',
       post,
     })
   })
