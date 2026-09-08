@@ -1,0 +1,142 @@
+// Vercel serverless function — receives a Database Webhook payload from
+// Supabase whenever a row is inserted into comments, status_changes, or
+// requests, and emails Brown Butter when it's something worth knowing about:
+//   - a client leaves a comment
+//   - a client approves a post or requests revisions
+//   - a client submits a new ad hoc request
+// It also emails the specific team member a post is "Assigned to" whenever
+// that post is approved or sent back for revisions, by looking their name
+// up in the team_members table to find their email.
+//
+// Setup required (see chat for full walkthrough):
+//   1. npm install resend
+//   2. Add these env vars in Vercel → Project → Settings → Environment Variables:
+//        SUPABASE_URL          (your project URL, e.g. https://xxxx.supabase.co)
+//        SUPABASE_ANON_KEY     (same anon key your frontend already uses)
+//        RESEND_API_KEY        (from resend.com)
+//        NOTIFY_EMAIL          (where you want the general notifications sent)
+//        WEBHOOK_SECRET        (any random string you make up)
+//   3. In Supabase → Database → Webhooks, create 3 webhooks (comments,
+//      status_changes, requests) on INSERT, all pointing at
+//      https://<your-vercel-domain>/api/notify with header
+//      x-webhook-secret: <same random string>
+//   4. Make sure team_members has a row for each teammate (name + email) —
+//      the "name" has to match what's typed into "Assigned to" on a post
+//      exactly (case-insensitive) for the lookup to find them.
+
+import { Resend } from 'resend'
+import { createClient } from '@supabase/supabase-js'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
+
+const FROM_EMAIL = process.env.NOTIFY_FROM_EMAIL || 'Brown Butter Dashboard <onboarding@resend.dev>'
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Basic shared-secret check so random internet traffic can't trigger emails
+  if (process.env.WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== process.env.WEBHOOK_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const { table, type, record } = req.body || {}
+
+  // Only care about new rows being created
+  if (type !== 'INSERT' || !record) {
+    return res.status(200).json({ skipped: true, reason: 'not an insert' })
+  }
+
+  try {
+    let subject = null
+    let text = null
+
+    if (table === 'comments') {
+      // Only notify on client comments, not the agency's own replies
+      if (record.author_type !== 'client') {
+        return res.status(200).json({ skipped: true, reason: 'agency comment' })
+      }
+      const { data: post } = await supabase.from('posts').select('caption, client_id').eq('id', record.post_id).single()
+      const { data: client } = post
+        ? await supabase.from('clients').select('name').eq('id', post.client_id).single()
+        : { data: null }
+      const who = record.author || client?.name || 'A client'
+      const captionPreview = (post?.caption || '').slice(0, 80)
+      subject = `💬 ${who} left a comment`
+      text = `${who} commented on "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}":\n\n"${record.text}"\n\nOpen the dashboard to reply.`
+    }
+
+    else if (table === 'status_changes') {
+      // Only notify on client-driven approvals/revision requests
+      if (!['approved', 'revision'].includes(record.status)) {
+        return res.status(200).json({ skipped: true, reason: 'not approval/revision' })
+      }
+      const { data: post } = await supabase.from('posts').select('caption, client_id, designer').eq('id', record.post_id).single()
+      const { data: client } = post
+        ? await supabase.from('clients').select('name').eq('id', post.client_id).single()
+        : { data: null }
+      const who = record.changed_by || client?.name || 'A client'
+      const captionPreview = (post?.caption || '').slice(0, 80)
+      const verb = record.status === 'approved' ? '✅ approved' : '↩️ requested revisions on'
+      subject = `${who} ${record.status === 'approved' ? 'approved a post' : 'requested revisions'}`
+      text = `${who} ${verb} "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}".`
+
+      // Also email whoever the post is assigned to, separately from the
+      // general agency notification above
+      if (post?.designer) {
+        const { data: teamMembers } = await supabase
+          .from('team_members')
+          .select('email, name')
+          .ilike('name', post.designer.trim())
+        const assignee = teamMembers?.[0]
+        if (assignee?.email) {
+          const assigneeSubject = record.status === 'approved'
+            ? `✅ Your post was approved: "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}"`
+            : `↩️ Revisions requested on your post: "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}"`
+          const assigneeText = record.status === 'approved'
+            ? `Good news — ${who} approved "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}", which is assigned to you.`
+            : `${who} requested revisions on "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}", which is assigned to you. Open the dashboard to see their notes.`
+          await resend.emails.send({
+            from: FROM_EMAIL,
+            to: assignee.email,
+            subject: assigneeSubject,
+            text: assigneeText,
+          })
+        }
+      }
+    }
+
+    else if (table === 'requests') {
+      // Only notify on newly submitted requests
+      if (record.status !== 'new') {
+        return res.status(200).json({ skipped: true, reason: 'not a new request' })
+      }
+      const { data: client } = await supabase.from('clients').select('name').eq('id', record.client_id).single()
+      const who = client?.name || 'A client'
+      subject = `📥 New request from ${who}`
+      text = `${who} submitted a request: "${record.title}"${record.description ? '\n\n' + record.description : ''}`
+    }
+
+    else {
+      return res.status(200).json({ skipped: true, reason: 'unhandled table' })
+    }
+
+    if (!subject) {
+      return res.status(200).json({ skipped: true, reason: 'nothing to send' })
+    }
+
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: process.env.NOTIFY_EMAIL,
+      subject,
+      text,
+    })
+
+    return res.status(200).json({ sent: true, subject })
+  } catch (err) {
+    console.error('notify.js error:', err)
+    return res.status(500).json({ error: err.message })
+  }
+}
