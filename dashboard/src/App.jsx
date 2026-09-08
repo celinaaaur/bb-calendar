@@ -85,6 +85,11 @@ style.textContent = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
   * { box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  .bb-rich-text:empty:before { content: attr(data-placeholder); color: #B8A898; }
+  .bb-rich-text ul { margin: 0; padding-left: 20px; }
+  .bb-rich-text ol { margin: 0; padding-left: 20px; }
+  .bb-note-body ul { margin: 4px 0; padding-left: 20px; }
+  .bb-note-body ol { margin: 4px 0; padding-left: 20px; }
   body { margin: 0; background: #F5F0E8; }
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -306,6 +311,14 @@ const REQUEST_STATUS = {
 const REQUEST_STATUS_ORDER = ['new', 'in_progress', 'done', 'declined']
 const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+// Notes saved before rich text existed are plain text with real newline
+// characters, which HTML ignores — convert those to <br> so old notes don't
+// lose their line breaks. New notes already contain real HTML tags, so
+// they're left as-is.
+const renderNoteBody = (body) => {
+  if (!body) return ''
+  return /</.test(body) ? body : body.replace(/\n/g, '<br>')
+}
 const statusLine = (s) => ({ pending: 'Awaiting client approval', approved: 'Approved — ready to schedule', scheduled: 'Scheduled — will auto-mark as published 24h after posting time', revision: 'Client requested revisions', published: 'Published', archived: 'Archived' }[s] || '')
 
 // Renders a video sized to its real aspect ratio (read from the file itself once
@@ -1436,6 +1449,49 @@ function LoginScreen() {
   )
 }
 
+// Lightweight rich text editor for meeting notes — uses the browser's own
+// contentEditable + formatting commands rather than pulling in a whole
+// editor library. Stores/returns HTML; keep it to simple formatting only
+// (bold, italic, bullet/numbered lists) since that's all the toolbar exposes.
+function RichTextEditor({ value, onChange, placeholder }) {
+  const editorRef = useRef()
+  const initialized = useRef(false)
+
+  useEffect(() => {
+    if (editorRef.current && !initialized.current) {
+      editorRef.current.innerHTML = value || ''
+      initialized.current = true
+    }
+  }, [])
+
+  const exec = (command) => {
+    editorRef.current.focus()
+    document.execCommand(command, false, null)
+    onChange(editorRef.current.innerHTML)
+  }
+
+  const toolbarBtnStyle = { background: '#fff', border: '0.5px solid ' + PALETTE.border, borderRadius: 5, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+        <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => exec('bold')} style={{ ...toolbarBtnStyle, fontWeight: 700 }}>B</button>
+        <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => exec('italic')} style={{ ...toolbarBtnStyle, fontStyle: 'italic' }}>I</button>
+        <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => exec('insertUnorderedList')} style={toolbarBtnStyle}>•≡</button>
+        <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => exec('insertOrderedList')} style={toolbarBtnStyle}>1≡</button>
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        onInput={e => onChange(e.currentTarget.innerHTML)}
+        data-placeholder={placeholder || ''}
+        className="bb-rich-text"
+        style={{ width: '100%', minHeight: 120, padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, fontFamily: F.body, lineHeight: 1.6, boxSizing: 'border-box', overflowY: 'auto' }}
+      />
+    </div>
+  )
+}
+
 function ClientHubModal({ client, onClose, initialTab }) {
   const [tab, setTab] = useState(initialTab || 'notes') // 'notes' | 'billing' | 'links'
   const [notes, setNotes] = useState([])
@@ -1477,7 +1533,7 @@ function ClientHubModal({ client, onClose, initialTab }) {
   useEffect(() => { fetchHub() }, [client.id])
 
   const startNewNote = () => { setEditingNoteId('new'); setNoteTitle(''); setNoteDate(new Date().toISOString().slice(0, 10)); setNoteBody('') }
-  const startEditNote = (n) => { setEditingNoteId(n.id); setNoteTitle(n.title); setNoteDate(n.meeting_date); setNoteBody(n.body || '') }
+  const startEditNote = (n) => { setEditingNoteId(n.id); setNoteTitle(n.title); setNoteDate(n.meeting_date); setNoteBody(renderNoteBody(n.body)) }
 
   const saveNote = async () => {
     if (!noteTitle.trim() || !noteDate) return
@@ -1573,7 +1629,7 @@ function ClientHubModal({ client, onClose, initialTab }) {
                 <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div><label style={labelStyle}>Title</label><input value={noteTitle} onChange={e => setNoteTitle(e.target.value)} placeholder="e.g. Q3 Strategy Check-in" style={inputStyle} /></div>
                   <div><label style={labelStyle}>Date</label><input type="date" value={noteDate} onChange={e => setNoteDate(e.target.value)} style={inputStyle} /></div>
-                  <div><label style={labelStyle}>Notes</label><textarea value={noteBody} onChange={e => setNoteBody(e.target.value)} rows={6} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} /></div>
+                  <div><label style={labelStyle}>Notes</label><RichTextEditor key={editingNoteId} value={noteBody} onChange={setNoteBody} placeholder="Write your notes..." /></div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setEditingNoteId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
                     <button onClick={saveNote} disabled={saving || !noteTitle.trim() || !noteDate} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 12, color: PALETTE.cream, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save note'}</button>
@@ -1592,7 +1648,7 @@ function ClientHubModal({ client, onClose, initialTab }) {
                     <div style={{ fontFamily: F.display, fontSize: 14, color: PALETTE.espresso }}>{n.title}</div>
                     <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtDateLong(n.meeting_date)}</div>
                   </div>
-                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>
+                  <div className="bb-note-body" style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: renderNoteBody(n.body) }} />
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button onClick={() => startEditNote(n)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
                     <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
