@@ -9,12 +9,14 @@
 // up in the team_members table to find their email.
 //
 // Setup required (see chat for full walkthrough):
-//   1. npm install resend
+//   1. npm install resend ws
 //   2. Add these env vars in Vercel → Project → Settings → Environment Variables:
 //        SUPABASE_URL          (your project URL, e.g. https://xxxx.supabase.co)
 //        SUPABASE_ANON_KEY     (same anon key your frontend already uses)
 //        RESEND_API_KEY        (from resend.com)
-//        NOTIFY_EMAIL          (where you want the general notifications sent)
+//        NOTIFY_EMAIL          (where you want the general notifications sent —
+//                                supports multiple addresses, comma-separated,
+//                                e.g. "celina@brown-butter.com, arjay@brown-butter.com")
 //        WEBHOOK_SECRET        (any random string you make up)
 //   3. In Supabase → Database → Webhooks, create 3 webhooks (comments,
 //      status_changes, requests) on INSERT, all pointing at
@@ -26,11 +28,26 @@
 
 import { Resend } from 'resend'
 import { createClient } from '@supabase/supabase-js'
+import ws from 'ws'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
+// The Supabase client always tries to set up a realtime (WebSocket)
+// connection internally, even though this function never uses it — on
+// Node < 22 there's no built-in WebSocket, which crashes the whole
+// function before it even runs. Passing the ws package explicitly as
+// the transport (Supabase's own documented fix for this) avoids that.
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+  realtime: { transport: ws },
+})
 
 const FROM_EMAIL = process.env.NOTIFY_FROM_EMAIL || 'Brown Butter Dashboard <onboarding@resend.dev>'
+
+// NOTIFY_EMAIL can be one address or several, comma-separated — Resend's
+// "to" field accepts an array, so split on commas and trim any stray spaces.
+const NOTIFY_RECIPIENTS = (process.env.NOTIFY_EMAIL || '')
+  .split(',')
+  .map(e => e.trim())
+  .filter(Boolean)
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -126,10 +143,13 @@ export default async function handler(req, res) {
     if (!subject) {
       return res.status(200).json({ skipped: true, reason: 'nothing to send' })
     }
+    if (NOTIFY_RECIPIENTS.length === 0) {
+      return res.status(200).json({ skipped: true, reason: 'NOTIFY_EMAIL not configured' })
+    }
 
     await resend.emails.send({
       from: FROM_EMAIL,
-      to: process.env.NOTIFY_EMAIL,
+      to: NOTIFY_RECIPIENTS,
       subject,
       text,
     })
