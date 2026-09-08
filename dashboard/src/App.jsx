@@ -1436,8 +1436,8 @@ function LoginScreen() {
   )
 }
 
-function ClientHubModal({ client, onClose }) {
-  const [tab, setTab] = useState('notes') // 'notes' | 'billing' | 'links'
+function ClientHubModal({ client, onClose, initialTab }) {
+  const [tab, setTab] = useState(initialTab || 'notes') // 'notes' | 'billing' | 'links'
   const [notes, setNotes] = useState([])
   const [cycles, setCycles] = useState([])
   const [links, setLinks] = useState([])
@@ -1820,7 +1820,8 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' }}>
-        <button onClick={onOpenHub} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>Meeting notes & billing</button>
+        <button onClick={() => onOpenHub('notes')} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>Meeting notes & billing</button>
+        <button onClick={() => onOpenHub('links')} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>Important Links</button>
         <button onClick={onGoToRequests} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>
           Requests{openRequests > 0 ? ' (' + openRequests + ')' : ''}
         </button>
@@ -1835,12 +1836,12 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
             : (
               <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
                 {upcoming.map((p, i) => (
-                  <div key={p.id} onClick={() => onSelectPost(p)} style={{ padding: '10px 14px', borderTop: i > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}
+                  <div key={p.id} onClick={() => onSelectPost(p)} style={{ padding: '10px 14px', borderTop: i > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer' }}
                     onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.caption?.slice(0, 44) || 'Untitled'}</span>
-                    <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtShort(p.scheduled_at)}</span>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{p.caption || 'Untitled'}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>{fmtShort(p.scheduled_at)}</div>
                   </div>
                 ))}
               </div>
@@ -1927,6 +1928,7 @@ export default function Dashboard() {
   const [pwDraft, setPwDraft] = useState('')
   const [pwSaving, setPwSaving] = useState(false)
   const [hubClientId, setHubClientId] = useState(null)
+  const [hubInitialTab, setHubInitialTab] = useState('notes')
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
@@ -2278,7 +2280,7 @@ export default function Dashboard() {
                       requests={requests}
                       statusChanges={statusChanges}
                       onSelectPost={setSelectedPost}
-                      onOpenHub={() => setHubClientId(selectedClient)}
+                      onOpenHub={(tab) => { setHubInitialTab(tab || 'notes'); setHubClientId(selectedClient) }}
                       onGoToRequests={() => setView('requests')}
                       onGoToFilter={(k) => { setFilter(k); setView('queue') }}
                       isMobile={isMobile}
@@ -2466,7 +2468,7 @@ export default function Dashboard() {
       </div>
 
       {composing && <ComposeModal clients={clients} onClose={() => setComposing(false)} onSaved={fetchAll} currentUserName={currentUserName} />}
-      {hubClientId && <ClientHubModal client={clients.find(c => c.id === hubClientId)} onClose={() => setHubClientId(null)} />}
+      {hubClientId && <ClientHubModal client={clients.find(c => c.id === hubClientId)} onClose={() => setHubClientId(null)} initialTab={hubInitialTab} />}
     </div>
   )
 }
