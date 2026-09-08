@@ -2209,7 +2209,7 @@ export default function Dashboard() {
       const caption = p.caption?.slice(0, 40) + (p.caption?.length > 40 ? '…' : '')
       if (p.status === 'approved') notifs.push({ id: 'post-approved-' + p.id, message: '"' + caption + '" was approved', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-approved-' + p.id), postId: p.id })
       if (p.status === 'revision') notifs.push({ id: 'post-revision-' + p.id, message: '"' + caption + '" — revisions requested', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-revision-' + p.id), postId: p.id })
-      if (namesMatch(p.designer, currentUserName)) notifs.push({ id: 'post-assigned-' + p.id, message: '"' + caption + '" was assigned to you', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-assigned-' + p.id), postId: p.id })
+      if (namesMatch(p.designer, currentUserName)) notifs.push({ id: 'post-assigned-' + p.id, message: 'A post from ' + clientName + ' was assigned to you', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-assigned-' + p.id), postId: p.id })
     })
     comments.filter(c => c.author_type === 'client').forEach(c => {
       const post = posts.find(p => p.id === c.post_id)
