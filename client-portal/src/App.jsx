@@ -1270,6 +1270,7 @@ export default function ClientPortal() {
         {!isMobile && (
           <div style={{ width: 192, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '22px 16px 0' }}>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>This is your space to review, approve, and stay in the loop.</div>
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Portal</div>
               {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links'], ['requests', 'Requests']].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: section === k ? PALETTE.espresso : 'transparent', color: section === k ? PALETTE.cream : PALETTE.muted, fontWeight: section === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
@@ -1342,6 +1343,11 @@ export default function ClientPortal() {
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
 
           {/* Mobile primary section tabs */}
+          {isMobile && (
+            <div style={{ padding: '14px 20px 0', background: PALETTE.cream }}>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontStyle: 'italic', marginBottom: 10 }}>This is your space to review, approve, and stay in the loop.</div>
+            </div>
+          )}
           {isMobile && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream, paddingBottom: 8 }}>
               {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links'], ['requests', 'Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
