@@ -1,12 +1,16 @@
 // Vercel serverless function — receives a Database Webhook payload from
 // Supabase whenever a row is inserted into comments, status_changes, or
-// requests, and emails Brown Butter when it's something worth knowing about:
-//   - a client leaves a comment
-//   - a client approves a post or requests revisions
-//   - a client submits a new ad hoc request
-// It also emails the specific team member a post is "Assigned to" whenever
-// that post is approved or sent back for revisions, by looking their name
-// up in the team_members table to find their email.
+// requests.
+//
+// Two separate notification paths:
+//   - General notifications (to everyone in NOTIFY_EMAIL): a client leaves
+//     a comment, or a client submits a new ad hoc request.
+//   - Personal notifications (to just the assigned teammate): a post gets
+//     approved or sent back for revisions. This does NOT go to the general
+//     NOTIFY_EMAIL list — only to whoever is listed in "Assigned to" on
+//     that post, looked up by name in the team_members table. If nobody's
+//     assigned (or their name doesn't match anyone in team_members),
+//     nothing gets sent for that event at all.
 //
 // Setup required (see chat for full walkthrough):
 //   1. npm install resend ws
@@ -75,7 +79,8 @@ export default async function handler(req, res) {
       if (record.author_type !== 'client') {
         return res.status(200).json({ skipped: true, reason: 'agency comment' })
       }
-      const { data: post } = await supabase.from('posts').select('caption, client_id').eq('id', record.post_id).single()
+      const { data: post, error: postError } = await supabase.from('posts').select('caption, client_id').eq('id', record.post_id).single()
+      if (postError) console.error('Failed to fetch post for comment notification (continuing anyway):', postError)
       const { data: client } = post
         ? await supabase.from('clients').select('name').eq('id', post.client_id).single()
         : { data: null }
@@ -90,7 +95,11 @@ export default async function handler(req, res) {
       if (!['approved', 'revision'].includes(record.status)) {
         return res.status(200).json({ skipped: true, reason: 'not approval/revision' })
       }
-      const { data: post } = await supabase.from('posts').select('caption, client_id, designer').eq('id', record.post_id).single()
+      const { data: post, error: postError } = await supabase.from('posts').select('caption, client_id, designer').eq('id', record.post_id).single()
+      if (postError) {
+        console.error('Failed to fetch post for status_changes notification:', postError)
+        return res.status(500).json({ error: 'post lookup failed', details: postError })
+      }
       const { data: client } = post
         ? await supabase.from('clients').select('name').eq('id', post.client_id).single()
         : { data: null }
@@ -104,10 +113,14 @@ export default async function handler(req, res) {
       if (!post?.designer) {
         return res.status(200).json({ skipped: true, reason: 'no one assigned to this post' })
       }
-      const { data: teamMembers } = await supabase
+      const { data: teamMembers, error: teamError } = await supabase
         .from('team_members')
         .select('email, name')
         .ilike('name', post.designer.trim())
+      if (teamError) {
+        console.error('Failed to query team_members:', teamError)
+        return res.status(500).json({ error: 'team_members lookup failed', details: teamError })
+      }
       const assignee = teamMembers?.[0]
       if (!assignee?.email) {
         return res.status(200).json({ skipped: true, reason: 'assignee not found in team_members' })
