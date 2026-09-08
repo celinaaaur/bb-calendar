@@ -669,7 +669,7 @@ function PostPanel({ post, comments, versions, statusChanges, designOptions, cli
               <div key={c.id} style={{ marginBottom: 18, paddingBottom: 18, borderBottom: '0.5px dashed ' + PALETTE.borderLight }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'baseline' }}>
                   <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 500, color: PALETTE.espresso }}>
-                    {c.author_type === 'agency' ? 'Brown Butter' : c.author}
+                    {c.author_type === 'agency' ? (c.author || 'Brown Butter') : c.author}
                   </span>
                   <span style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight }}>{fmtShort(c.created_at)}</span>
                 </div>
@@ -726,7 +726,7 @@ function PostPanel({ post, comments, versions, statusChanges, designOptions, cli
             timeline.push({
               ts: new Date(c.created_at).getTime(), date: c.created_at,
               icon: '💬', iconColor: PALETTE.espresso, iconBg: PALETTE.creamMid,
-              who: c.author_type === 'agency' ? 'Brown Butter' : (c.author || client?.name || 'Client'),
+              who: c.author_type === 'agency' ? (c.author || 'Brown Butter') : (c.author || client?.name || 'Client'),
               action: 'commented',
               detail: c.text ? (c.text.length > 140 ? c.text.slice(0, 140) + '…' : c.text) : null,
             })
