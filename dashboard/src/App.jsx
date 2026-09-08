@@ -53,9 +53,10 @@ async function pickFilesFromDrive({ multiple = false } = {}) {
   const accessToken = await getDriveAccessToken()
 
   const docs = await new Promise((resolve) => {
-    const view = new window.google.picker.DocsView(window.google.picker.ViewId.DOCS_IMAGES_AND_VIDEOS)
-      .setIncludeFolders(false)
+    const view = new window.google.picker.DocsView(window.google.picker.ViewId.DOCS)
+      .setIncludeFolders(true)
       .setSelectFolderEnabled(false)
+      .setMimeTypes('image/png,image/jpeg,image/gif,image/webp,video/mp4,video/quicktime,video/x-msvideo,video/webm')
     const builder = new window.google.picker.PickerBuilder()
       .addView(view)
       .setOAuthToken(accessToken)
@@ -123,11 +124,50 @@ const imgSrc = (url, published = false) => {
   return url
 }
 
+// Resizes/re-encodes large images before upload to cut Supabase storage usage.
+// Skips GIFs (would destroy animation) and videos (no practical client-side
+// video compression in a browser — that needs a real transcoding step).
+// Only swaps in the compressed version if it actually comes out smaller.
+const compressImage = (file, { maxDimension = 1920, quality = 0.82 } = {}) => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+      resolve(file)
+      return
+    }
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      let { width, height } = img
+      if (width > maxDimension || height > maxDimension) {
+        const ratio = Math.min(maxDimension / width, maxDimension / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      canvas.toBlob((blob) => {
+        if (blob && blob.size < file.size) {
+          const newName = file.name.replace(/\.\w+$/, '') + '.jpg'
+          resolve(new File([blob], newName, { type: 'image/jpeg' }))
+        } else {
+          resolve(file)
+        }
+      }, 'image/jpeg', quality)
+    }
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file) }
+    img.src = objectUrl
+  })
+}
+
 const uploadAsset = async (file) => {
   if (file.size > MAX_FILE_SIZE) return { error: 'File is too large. Maximum size is 50MB.' }
-  const ext = file.name.split('.').pop()
+  const toUpload = await compressImage(file)
+  const ext = toUpload.name.split('.').pop()
   const filename = Date.now() + '.' + ext
-  const { error } = await supabase.storage.from('post-assets').upload(filename, file, { upsert: true })
+  const { error } = await supabase.storage.from('post-assets').upload(filename, toUpload, { upsert: true })
   if (!error) {
     const { data } = supabase.storage.from('post-assets').getPublicUrl(filename)
     return { url: data.publicUrl }
