@@ -592,7 +592,7 @@ function DashboardCarousel({ images, published }) {
   )
 }
 
-function RightPanel({ post, comments, versions, statusChanges, designOptions, clients, onRefresh, onClose, isMobile, currentUserName }) {
+function RightPanel({ post, comments, versions, statusChanges, designOptions, clients, teamMembers, onRefresh, onClose, isMobile, currentUserName }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
@@ -993,7 +993,12 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
                   </div>
                   {editFormat === 'carousel' && <div><label style={labelStyle}>Slides</label><input type="number" min="2" max="20" value={editSlideCount} onChange={e => setEditSlideCount(e.target.value)} placeholder="e.g. 4" style={inputStyle} /></div>}
                 </div>
-                <div><label style={{ ...labelStyle, color: !editDesigner.trim() ? '#C0392B' : PALETTE.mutedLight }}>Assigned to <span style={{ color: '#C0392B' }}>*</span></label><input value={editDesigner} onChange={e => setEditDesigner(e.target.value)} placeholder="Required" style={{ ...inputStyle, borderColor: !editDesigner.trim() ? '#F4A59F' : PALETTE.border }} /></div>
+                <div><label style={{ ...labelStyle, color: !editDesigner.trim() ? '#C0392B' : PALETTE.mutedLight }}>Assigned to <span style={{ color: '#C0392B' }}>*</span></label>
+                  <select value={editDesigner} onChange={e => setEditDesigner(e.target.value)} style={{ ...inputStyle, borderColor: !editDesigner.trim() ? '#F4A59F' : PALETTE.border }}>
+                    <option value="">Select a team member</option>
+                    {teamMembers.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+                  </select>
+                </div>
                 <div><label style={labelStyle}>Content Pillar (optional)</label><input value={editCampaign} onChange={e => setEditCampaign(e.target.value)} placeholder="e.g. Behind the Scenes" style={inputStyle} /></div>
                 <div>
                   <label style={labelStyle}>Caption</label>
@@ -1233,7 +1238,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
   )
 }
 
-function ComposeModal({ clients, onClose, onSaved, currentUserName }) {
+function ComposeModal({ clients, teamMembers, onClose, onSaved, currentUserName }) {
   const [clientId, setClientId] = useState(clients[0]?.id || '')
   const [caption, setCaption] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
@@ -1354,7 +1359,12 @@ function ComposeModal({ clients, onClose, onSaved, currentUserName }) {
             {format === 'carousel' && <div>{fieldLabel('Slides')}<input type="number" min="2" max="20" value={slideCount} onChange={e => setSlideCount(e.target.value)} placeholder="e.g. 4" style={inputStyle} /></div>}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>{fieldLabel('Assigned to', true)}<input value={designer} onChange={e => setDesigner(e.target.value)} placeholder="e.g. Saoirse L." style={{ ...inputStyle, borderColor: !designer.trim() ? '#F4A59F' : PALETTE.border }} /></div>
+            <div>{fieldLabel('Assigned to', true)}
+              <select value={designer} onChange={e => setDesigner(e.target.value)} style={{ ...inputStyle, borderColor: !designer.trim() ? '#F4A59F' : PALETTE.border }}>
+                <option value="">Select a team member</option>
+                {teamMembers.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+              </select>
+            </div>
             <div>{fieldLabel('Content Pillar (optional)')}<input value={campaign} onChange={e => setCampaign(e.target.value)} placeholder="e.g. Behind the Scenes" style={inputStyle} /></div>
           </div>
           <div>
@@ -2013,6 +2023,7 @@ export default function Dashboard() {
   const [requests, setRequests] = useState([])
   const [statusChanges, setStatusChanges] = useState([])
   const [designOptions, setDesignOptions] = useState([])
+  const [teamMembers, setTeamMembers] = useState([])
   const [selectedClient, setSelectedClient] = useState('all')
   const [filter, setFilter] = useState('pending')
   const [view, setView] = useState('queue')
@@ -2038,14 +2049,15 @@ export default function Dashboard() {
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
-    const [c, p, cm, v, rq, sc, dop] = await Promise.all([
+    const [c, p, cm, v, rq, sc, dop, tm] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('posts').select('*').neq('status', 'archived').order('scheduled_at').limit(150),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
       supabase.from('requests').select('*').order('created_at', { ascending: false }),
       supabase.from('status_changes').select('*').order('created_at'),
-      supabase.from('design_options').select('*').order('created_at')
+      supabase.from('design_options').select('*').order('created_at'),
+      supabase.from('team_members').select('*').order('name')
     ])
     if (c.data) setClients(c.data)
     if (p.data) setPosts(p.data)
@@ -2054,6 +2066,7 @@ export default function Dashboard() {
     if (rq.data) setRequests(rq.data)
     if (sc.data) setStatusChanges(sc.data)
     if (dop.data) setDesignOptions(dop.data)
+    if (tm.data) setTeamMembers(tm.data)
     setLoading(false)
   }
 
@@ -2097,7 +2110,13 @@ export default function Dashboard() {
           .then(({ data }) => { if (data) setDesignOptions(data) })
       }).subscribe()
 
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe() }
+    const s7 = supabase.channel('dash-team-members')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
+        supabase.from('team_members').select('*').order('name')
+          .then(({ data }) => { if (data) setTeamMembers(data) })
+      }).subscribe()
+
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe() }
   }, [])
 
   // ── SPEED FIX 3: notifications built with useMemo instead of useEffect + setState ──
@@ -2564,6 +2583,7 @@ export default function Dashboard() {
             statusChanges={statusChanges.filter(s => s.post_id === selectedPost.id)}
             designOptions={designOptions.filter(d => d.post_id === selectedPost.id)}
             clients={clients}
+            teamMembers={teamMembers}
             onRefresh={fetchAll}
             onClose={() => setSelectedPost(null)}
             isMobile={isMobile}
@@ -2572,7 +2592,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {composing && <ComposeModal clients={clients} onClose={() => setComposing(false)} onSaved={fetchAll} currentUserName={currentUserName} />}
+      {composing && <ComposeModal clients={clients} teamMembers={teamMembers} onClose={() => setComposing(false)} onSaved={fetchAll} currentUserName={currentUserName} />}
       {hubClientId && <ClientHubModal client={clients.find(c => c.id === hubClientId)} onClose={() => setHubClientId(null)} initialTab={hubInitialTab} onClientUpdated={fetchAll} />}
     </div>
   )
