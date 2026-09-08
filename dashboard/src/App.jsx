@@ -1518,6 +1518,8 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
   const [links, setLinks] = useState([])
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const logoFileRef = useRef()
+  const [uploadingInvoice, setUploadingInvoice] = useState(false)
+  const invoiceFileRef = useRef()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -1607,6 +1609,22 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
     }
     if (error) alert('Could not upload logo: ' + error)
     setUploadingLogo(false)
+  }
+
+  const handleInvoiceUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingInvoice(true)
+    const { url, error } = await uploadAsset(file)
+    if (url) setCycleInvoiceUrl(url)
+    if (error) alert('Could not upload invoice: ' + error)
+    setUploadingInvoice(false)
+    e.target.value = ''
+  }
+
+  const invoiceFileName = (url) => {
+    if (!url) return ''
+    try { return decodeURIComponent(url.split('/').pop().split('?')[0]) } catch { return url }
   }
 
   const startNewCycle = () => { setEditingCycleId('new'); setCycleStart(''); setCycleEnd(''); setCycleAmount(''); setCycleStatus('pending'); setCycleInvoiceUrl(''); setCycleNotes('') }
@@ -1718,7 +1736,22 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
                     <div><label style={labelStyle}>Amount (₱)</label><input type="number" step="0.01" value={cycleAmount} onChange={e => setCycleAmount(e.target.value)} placeholder="e.g. 45000" style={inputStyle} /></div>
                     <div><label style={labelStyle}>Status</label><select value={cycleStatus} onChange={e => setCycleStatus(e.target.value)} style={inputStyle}><option value="pending">Pending</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></div>
                   </div>
-                  <div><label style={labelStyle}>Invoice link (optional)</label><input value={cycleInvoiceUrl} onChange={e => setCycleInvoiceUrl(e.target.value)} placeholder="https://..." style={inputStyle} /></div>
+                  <div>
+                    <label style={labelStyle}>Invoice (optional)</label>
+                    {cycleInvoiceUrl ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
+                        <span style={{ flex: 1, minWidth: 0, fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{invoiceFileName(cycleInvoiceUrl)}</span>
+                        <a href={cycleInvoiceUrl} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, flexShrink: 0 }}>View</a>
+                        <button onClick={() => invoiceFileRef.current.click()} disabled={uploadingInvoice} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.muted, flexShrink: 0 }}>{uploadingInvoice ? 'Uploading…' : 'Replace'}</button>
+                        <button onClick={() => setCycleInvoiceUrl('')} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B', flexShrink: 0 }}>Remove</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => invoiceFileRef.current.click()} disabled={uploadingInvoice} style={{ width: '100%', padding: '9px 0', borderRadius: 6, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>
+                        {uploadingInvoice ? 'Uploading…' : '+ Upload invoice (PDF or image)'}
+                      </button>
+                    )}
+                    <input ref={invoiceFileRef} type="file" accept="application/pdf,image/*" onChange={handleInvoiceUpload} style={{ display: 'none' }} />
+                  </div>
                   <div><label style={labelStyle}>Notes (optional)</label><textarea value={cycleNotes} onChange={e => setCycleNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} /></div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setEditingCycleId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
