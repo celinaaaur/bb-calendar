@@ -2276,6 +2276,11 @@ export default function Dashboard() {
                     onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                     onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
                   ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.name}</span>
+                    {c.id !== 'all' && (
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, overflow: 'hidden' }}>
+                        {c.logo_url ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (c.name || 'BB').slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     {c.id !== 'all' && openRequestCountByClient[c.id] > 0 && (
                       <span style={{ flexShrink: 0, background: PALETTE.caramel, color: '#fff', borderRadius: 8, minWidth: 15, height: 15, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{openRequestCountByClient[c.id]}</span>
                     )}
@@ -2310,7 +2315,7 @@ export default function Dashboard() {
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
-            {[['overview', 'Overview'], ['queue', 'Queue'], ['grid', 'Grid Preview'], ['calendar', 'Calendar'], ['requests', 'Requests']].map(([k, l]) => (
+            {[['overview', '📊 Overview'], ['queue', '🗂️ Queue'], ['grid', '🔲 Grid Preview'], ['calendar', '📅 Calendar'], ['requests', '📥 Requests']].map(([k, l]) => (
               <button key={k} onClick={() => { setView(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
