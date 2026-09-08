@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 
 const style = document.createElement('style')
 style.textContent = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;700;900&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
   * { box-sizing: border-box; }
   body { margin: 0; background: #F5F0E8; }
   ::-webkit-scrollbar { width: 4px; }
@@ -61,7 +61,7 @@ style.textContent = `
 document.head.appendChild(style)
 
 const F = {
-  display: "'DM Serif Display', Georgia, serif",
+  display: "'Unbounded', 'Helvetica Neue', Arial, sans-serif",
   body: "'DM Sans', system-ui, sans-serif"
 }
 
