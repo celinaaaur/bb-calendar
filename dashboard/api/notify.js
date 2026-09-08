@@ -47,6 +47,30 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANO
 const FROM_EMAIL = process.env.NOTIFY_FROM_EMAIL || 'Brown Butter Dashboard <onboarding@resend.dev>'
 const DASHBOARD_URL = 'https://dashboard.brown-butter.com'
 
+const REQUEST_TYPE_LABELS = {
+  collateral_design: 'Collateral Design',
+  social_media_post: 'Social Media Post',
+  campaign: 'Campaign',
+  paid_ads: 'Paid Ads Request',
+}
+const PLATFORM_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok' }
+
+// Small rounded badge, matching the tag style already used throughout the
+// dashboard (e.g. the content pillar tags on post rows).
+const pill = (text) =>
+  `<span style="display: inline-block; background-color: #EEEBE3; color: #2C1F0E; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; margin: 0 6px 6px 0; font-family: Arial, Helvetica, sans-serif;">${text}</span>`
+
+// Highlighted quote/note block — used for comment text and pegs/inspiration.
+const calloutBlock = (label, content) =>
+  `<div style="border-left: 3px solid #3C2211; background: #F7F6F2; padding: 12px 16px; margin: 0 0 18px; border-radius: 0 6px 6px 0; font-family: Arial, Helvetica, sans-serif;">
+    ${label ? `<div style="font-size: 11px; font-weight: bold; color: #8A7560; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">${label}</div>` : ''}
+    <div style="font-size: 14px; line-height: 1.6; color: #2C1F0E;">${content}</div>
+  </div>`
+
+const emailButton = (label, url) =>
+  `<a href="${url}" style="display: inline-block; padding: 12px 28px; background-color: #2C1F0E; color: #EEEBE3; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">${label}</a>`
+
+
 // NOTIFY_EMAIL can be one address or several, comma-separated — Resend's
 // "to" field accepts an array, so split on commas and trim any stray spaces.
 const NOTIFY_RECIPIENTS = (process.env.NOTIFY_EMAIL || '')
@@ -74,6 +98,7 @@ export default async function handler(req, res) {
   try {
     let subject = null
     let text = null
+    let html = null
 
     if (table === 'comments') {
       // Only notify on client comments, not the agency's own replies
@@ -87,8 +112,18 @@ export default async function handler(req, res) {
         : { data: null }
       const who = record.author || client?.name || 'A client'
       const captionPreview = (post?.caption || '').slice(0, 80)
+      const captionSuffix = post?.caption?.length > 80 ? '…' : ''
       subject = `💬 New comment from ${who}`
-      text = `${who} commented on "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}":\n\n"${record.text}"\n\nReply here: ${DASHBOARD_URL}`
+      text = `${who} commented on "${captionPreview}${captionSuffix}":\n\n"${record.text}"\n\nReply here: ${DASHBOARD_URL}`
+      html = `
+        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; padding: 8px;">
+          <p style="font-size: 15px; line-height: 1.6; color: #2C1F0E; margin: 0 0 14px;">
+            ${pill(who)} commented on "${captionPreview}${captionSuffix}"
+          </p>
+          ${calloutBlock(null, `"${record.text}"`)}
+          ${emailButton('Reply', DASHBOARD_URL)}
+        </div>
+      `
     }
 
     else if (table === 'status_changes') {
@@ -201,8 +236,48 @@ export default async function handler(req, res) {
       }
       const { data: client } = await supabase.from('clients').select('name').eq('id', record.client_id).single()
       const who = client?.name || 'A client'
+
+      const details = []
+      if (record.request_type) details.push(`Type: ${REQUEST_TYPE_LABELS[record.request_type] || record.request_type}`)
+      if (record.deadline) {
+        const deadlineLabel = new Date(record.deadline + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        details.push(`Deadline: ${deadlineLabel}`)
+      }
+      if (record.budget) details.push(`Budget: ${record.budget}`)
+      if (record.goal) details.push(`Goal: ${record.goal}`)
+      if (record.platforms && record.platforms.length) {
+        details.push(`Platform: ${record.platforms.map(p => PLATFORM_LABELS[p] || p).join(', ')}`)
+      }
+
       subject = `📥 New request from ${who}`
-      text = `${who} submitted a request: "${record.title}"${record.description ? '\n\n' + record.description : ''}\n\nView in dashboard: ${DASHBOARD_URL}`
+      text = `${who} submitted a request: "${record.title}"`
+        + (details.length ? '\n\n' + details.join('\n') : '')
+        + (record.pegs ? '\n\nPegs / Inspiration:\n' + record.pegs : '')
+        + (record.description ? '\n\nDetails:\n' + record.description : '')
+        + `\n\nView in dashboard: ${DASHBOARD_URL}`
+
+      const pillDetails = []
+      if (record.request_type) pillDetails.push(pill(REQUEST_TYPE_LABELS[record.request_type] || record.request_type))
+      if (record.deadline) {
+        const deadlineLabel = new Date(record.deadline + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        pillDetails.push(pill('Due ' + deadlineLabel))
+      }
+      if (record.budget) pillDetails.push(pill(record.budget))
+      if (record.goal) pillDetails.push(pill(record.goal))
+      if (record.platforms && record.platforms.length) {
+        pillDetails.push(pill(record.platforms.map(p => PLATFORM_LABELS[p] || p).join(', ')))
+      }
+
+      html = `
+        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; padding: 8px;">
+          <p style="font-size: 15px; line-height: 1.6; color: #2C1F0E; margin: 0 0 4px;">${pill(who)} submitted a request</p>
+          <p style="font-size: 18px; font-weight: bold; color: #2C1F0E; margin: 12px 0 14px;">${record.title}</p>
+          ${pillDetails.length ? `<div style="margin: 0 0 16px;">${pillDetails.join('')}</div>` : ''}
+          ${record.pegs ? calloutBlock('Pegs / Inspiration', record.pegs) : ''}
+          ${record.description ? calloutBlock('Details', record.description) : ''}
+          ${emailButton('View in dashboard', DASHBOARD_URL)}
+        </div>
+      `
     }
 
     else {
@@ -220,6 +295,7 @@ export default async function handler(req, res) {
       from: FROM_EMAIL,
       to: NOTIFY_RECIPIENTS,
       subject,
+      html,
       text,
     })
 
