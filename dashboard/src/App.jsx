@@ -297,6 +297,12 @@ const formatPlatforms = (platforms) => {
   if (!Array.isArray(platforms) || platforms.length === 0) return 'Instagram'
   return platforms.map(p => PLATFORM_LABELS[p] || p).join(', ')
 }
+const REQUEST_TYPES = [
+  { value: 'collateral_design', label: 'Collateral Design' },
+  { value: 'social_media_post', label: 'Social Media Post' },
+  { value: 'campaign', label: 'Campaign' },
+  { value: 'paid_ads', label: 'Paid Ads Request' },
+]
 const BILLING_STATUS = {
   paid:    { label: 'PAID',    color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F' },
   pending: { label: 'PENDING', color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A' },
@@ -1798,6 +1804,22 @@ function RequestsView({ requests, clients, selectedClient }) {
               </div>
               <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
             </div>
+            {r.request_type && (
+              <div style={{ display: 'inline-block', fontFamily: F.body, fontSize: 10, color: PALETTE.muted, background: PALETTE.creamMid, padding: '2px 8px', borderRadius: 10, marginBottom: 8 }}>
+                {REQUEST_TYPES.find(t => t.value === r.request_type)?.label || r.request_type}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', marginBottom: 8 }}>
+              {r.deadline && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>Needed by </span>{fmtDateLong(r.deadline)}</div>}
+              {r.budget && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>Budget </span>{r.budget}</div>}
+              {r.goal && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>Goal </span>{r.goal}</div>}
+              {r.platforms && r.platforms.length > 0 && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>Platform </span>{formatPlatforms(r.platforms)}</div>}
+            </div>
+            {r.pegs && (
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 10, background: PALETTE.creamMid, borderRadius: 6, padding: '8px 10px' }}>
+                <span style={{ color: PALETTE.mutedLight, fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Pegs / Inspiration</span><br />{r.pegs}
+              </div>
+            )}
             {r.description && <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.65, marginBottom: 10 }}>{r.description}</div>}
             <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginBottom: 14 }}>Submitted {fmtAgo(r.created_at)}</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
