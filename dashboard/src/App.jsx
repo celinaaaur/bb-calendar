@@ -1300,10 +1300,18 @@ function ComposeModal({ clients, onClose, onSaved, currentUserName }) {
       created_by: currentUserName
     }).select().single()
 
-    if (!error && newPost && designOptionUrls.length > 0) {
-      await supabase.from('design_options').insert(
+    if (error) {
+      console.error('Post creation error:', error)
+      setSaving(false)
+      alert('Could not create the post: ' + error.message)
+      return
+    }
+
+    if (newPost && designOptionUrls.length > 0) {
+      const { error: optError } = await supabase.from('design_options').insert(
         designOptionUrls.map((url, i) => ({ post_id: newPost.id, image_url: url, label: 'Option ' + (i + 1) }))
       )
+      if (optError) console.error('Design option insert error:', optError)
     }
 
     setSaving(false); onSaved(); onClose()
