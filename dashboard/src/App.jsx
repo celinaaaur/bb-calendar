@@ -446,13 +446,16 @@ function TodayQueue({ posts, clients, onSelect }) {
   )
 }
 
-function IGGrid({ posts }) {
+function IGGrid({ posts, onSelectPost }) {
   const grid = [...posts].filter(p => p.status !== 'archived').sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at)).slice(0, 9)
   while (grid.length < 9) grid.push(null)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2 }}>
       {grid.map((p, i) => (
-        <div key={i} style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative', background: p ? (p.image_url ? 'transparent' : 'hsl(' + (28 + i * 8) + ',20%,' + (86 - i * 2) + '%)') : '#E8E0D0' }}>
+        <div key={i} onClick={() => p && onSelectPost && onSelectPost(p)} style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative', background: p ? (p.image_url ? 'transparent' : 'hsl(' + (28 + i * 8) + ',20%,' + (86 - i * 2) + '%)') : '#E8E0D0', cursor: p && onSelectPost ? 'pointer' : 'default', transition: 'opacity 0.12s' }}
+          onMouseEnter={e => { if (p && onSelectPost) e.currentTarget.style.opacity = 0.75 }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = 1 }}
+        >
           {p?.image_url && !isVideo(p.image_url) && <img src={imgSrc(p.image_url, p.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
           {p?.image_url && isVideo(p.image_url) && (
             p.cover_url
@@ -1987,7 +1990,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
 
           <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, margin: '22px 0 10px' }}>Feed preview</div>
           <div style={{ borderRadius: 8, overflow: 'hidden', border: '0.5px solid ' + PALETTE.borderLight }}>
-            <IGGrid posts={clientPosts} />
+            <IGGrid posts={clientPosts} onSelectPost={onSelectPost} />
           </div>
         </div>
 
@@ -2380,9 +2383,12 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-          <div style={{ margin: '12px 14px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
-            <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>IG Grid Preview</div>
-            <IGGrid posts={selectedClient === 'all' ? posts : posts.filter(p => p.client_id === selectedClient)} />
+          <div style={{ margin: '12px 8px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
+            <button onClick={() => setView('grid')} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', background: PALETTE.creamDark, border: 'none', cursor: 'pointer', fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              IG Grid Preview
+              <span style={{ fontSize: 9, color: PALETTE.caramel, textTransform: 'none', letterSpacing: 'normal', fontWeight: 500 }}>View all →</span>
+            </button>
+            <IGGrid posts={selectedClient === 'all' ? posts : posts.filter(p => p.client_id === selectedClient)} onSelectPost={setSelectedPost} />
           </div>
         </div>
 
