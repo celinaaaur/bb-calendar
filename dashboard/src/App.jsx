@@ -2231,12 +2231,6 @@ export default function Dashboard() {
                     )}
                   </button>
                   {c.id !== 'all' && (
-                    <button onClick={() => setHubClientId(c.id)} title="Manage meeting notes & billing" style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: PALETTE.mutedLight, opacity: 0.6 }}
-                      onMouseEnter={e => e.currentTarget.style.opacity = 1}
-                      onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
-                    >🗂</button>
-                  )}
-                  {c.id !== 'all' && (
                     <button onClick={() => pwEditClientId === c.id ? setPwEditClientId(null) : startEditPassword(c)} title={c.portal_password ? 'Portal password set' : 'Set portal password'} style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: c.portal_password ? PALETTE.caramel : PALETTE.mutedLight, opacity: pwEditClientId === c.id ? 1 : 0.6 }}
                       onMouseEnter={e => e.currentTarget.style.opacity = 1}
                       onMouseLeave={e => e.currentTarget.style.opacity = pwEditClientId === c.id ? 1 : 0.6}
