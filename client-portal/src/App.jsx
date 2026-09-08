@@ -10,6 +10,8 @@ style.textContent = `
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #D4C9B0; border-radius: 4px; }
   textarea:focus, input:focus { outline: none; }
+  .bb-note-body ul { margin: 4px 0; padding-left: 20px; }
+  .bb-note-body ol { margin: 4px 0; padding-left: 20px; }
   button { cursor: pointer; }
 
   .filter-scroll {
@@ -825,6 +827,10 @@ const BILLING_STATUS = {
 }
 const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+const renderNoteBody = (body) => {
+  if (!body) return ''
+  return /</.test(body) ? body : body.replace(/\n/g, '<br>')
+}
 
 // ── Requests helpers ──────────────────────────────────────────────────────────
 const REQUEST_STATUS = {
@@ -875,9 +881,7 @@ function NotesSection({ notes, isMobile }) {
             <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 16, color: PALETTE.espresso }}>{n.title}</div>
             <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, whiteSpace: 'nowrap' }}>{fmtDateLong(n.meeting_date)}</div>
           </div>
-          <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.7 }}>
-            {(n.body || '').split('\n').map((line, i, arr) => <span key={i}>{line}{i < arr.length - 1 && <br />}</span>)}
-          </div>
+          <div className="bb-note-body" style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: renderNoteBody(n.body) }} />
         </div>
       ))}
     </div>
