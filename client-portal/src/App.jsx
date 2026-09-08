@@ -135,11 +135,19 @@ const greeting = () => {
   return 'Good evening'
 }
 
+const PLATFORMS = ['facebook', 'instagram', 'tiktok']
 const PLATFORM_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok' }
 const formatPlatforms = (platforms) => {
   if (!Array.isArray(platforms) || platforms.length === 0) return 'Instagram'
   return platforms.map(p => PLATFORM_LABELS[p] || p).join(', ')
 }
+
+const REQUEST_TYPES = [
+  { value: 'collateral_design', label: 'Collateral Design', titleLabel: 'What do you need designed?', titlePlaceholder: 'e.g. Table tent for new menu launch' },
+  { value: 'social_media_post', label: 'Social Media Post', titleLabel: "What's the post about?", titlePlaceholder: 'e.g. Boost the grand opening reel' },
+  { value: 'campaign', label: 'Campaign', titleLabel: 'Campaign name / objective', titlePlaceholder: 'e.g. September relaunch push' },
+  { value: 'paid_ads', label: 'Paid Ads Request', titleLabel: 'What are we promoting?', titlePlaceholder: 'e.g. New matcha line' },
+]
 
 const STATUS = {
   pending:   { label: 'AWAITING APPROVAL',   color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
@@ -946,21 +954,51 @@ function BillingSection({ cycles, isMobile }) {
 // ── Requests section ───────────────────────────────────────────────────────────
 function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
   const [formOpen, setFormOpen] = useState(false)
+  const [requestType, setRequestType] = useState('collateral_design')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [deadline, setDeadline] = useState('')
+  const [pegs, setPegs] = useState('')
+  const [goal, setGoal] = useState('')
+  const [budget, setBudget] = useState('')
+  const [platforms, setPlatforms] = useState([])
   const [saving, setSaving] = useState(false)
 
   const sorted = [...requests].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const typeConfig = REQUEST_TYPES.find(t => t.value === requestType)
 
-  const openForm = () => { setFormOpen(true); setTitle(''); setDescription('') }
+  const openForm = () => {
+    setFormOpen(true)
+    setRequestType('collateral_design'); setTitle(''); setDescription(''); setDeadline('')
+    setPegs(''); setGoal(''); setBudget(''); setPlatforms([])
+  }
+
+  const togglePlatform = (p) => {
+    setPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])
+  }
+
+  const isValid = () => {
+    if (!title.trim() || !deadline || !description.trim()) return false
+    if (requestType === 'collateral_design' && !pegs.trim()) return false
+    if (requestType === 'social_media_post' && platforms.length === 0) return false
+    if (requestType === 'campaign' && !goal.trim()) return false
+    if (requestType === 'paid_ads' && (!goal.trim() || !budget.trim())) return false
+    return true
+  }
 
   const submitRequest = async () => {
-    if (!title.trim()) return
+    if (!isValid()) return
     setSaving(true)
     await supabase.from('requests').insert({
       client_id: clientId,
+      request_type: requestType,
       title: title.trim(),
-      description: description.trim() || null,
+      description: description.trim(),
+      deadline,
+      pegs: requestType === 'collateral_design' ? pegs.trim() : null,
+      goal: (requestType === 'campaign' || requestType === 'paid_ads') ? goal.trim() : null,
+      budget: requestType === 'paid_ads' ? budget.trim() : null,
+      platforms: requestType === 'social_media_post' ? platforms : null,
       status: 'new'
     })
     setSaving(false)
@@ -970,6 +1008,7 @@ function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
 
   const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 13, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
   const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
+  const req = <span style={{ color: '#C0392B' }}> *</span>
 
   return (
     <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px', maxWidth: 720 }}>
@@ -977,7 +1016,7 @@ function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
         <div>
           <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso }}>Requests</div>
           <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 4, fontWeight: 300 }}>
-            Ask Brown Butter for something ad hoc — a boost, a rush edit, anything outside the usual calendar.
+            Ask Brown Butter for something ad hoc — a design, a post, a campaign, or a paid ad push.
           </div>
         </div>
         {!formOpen && (
@@ -986,18 +1025,74 @@ function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
       </div>
 
       {formOpen && (
-        <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '18px 20px', margin: '20px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '18px 20px', margin: '20px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
           <div>
-            <label style={labelStyle}>What do you need?</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Boost the grand opening reel" style={inputStyle} autoFocus />
+            <label style={labelStyle}>Request Type{req}</label>
+            <select value={requestType} onChange={e => setRequestType(e.target.value)} style={inputStyle}>
+              {REQUEST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
           </div>
+
           <div>
-            <label style={labelStyle}>Details (optional)</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Any deadline, budget, or context that would help." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+            <label style={labelStyle}>{typeConfig.titleLabel}{req}</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder={typeConfig.titlePlaceholder} style={inputStyle} />
           </div>
+
+          {requestType === 'collateral_design' && (
+            <div>
+              <label style={labelStyle}>Pegs / Inspiration{req}</label>
+              <textarea value={pegs} onChange={e => setPegs(e.target.value)} rows={2} placeholder="Links, references, or examples of the look you want" style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+            </div>
+          )}
+
+          {requestType === 'social_media_post' && (
+            <div>
+              <label style={labelStyle}>Platform{req}</label>
+              <div style={{ display: 'flex', gap: 14 }}>
+                {PLATFORMS.map(p => (
+                  <label key={p} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: F.body, fontSize: 13, color: PALETTE.espresso }}>
+                    <input type="checkbox" checked={platforms.includes(p)} onChange={() => togglePlatform(p)} style={{ accentColor: PALETTE.caramel, width: 15, height: 15, cursor: 'pointer' }} />
+                    {PLATFORM_LABELS[p]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {requestType === 'campaign' && (
+            <div>
+              <label style={labelStyle}>Goal{req}</label>
+              <input value={goal} onChange={e => setGoal(e.target.value)} placeholder="e.g. Drive foot traffic during launch week" style={inputStyle} />
+            </div>
+          )}
+
+          {requestType === 'paid_ads' && (
+            <>
+              <div>
+                <label style={labelStyle}>Budget{req}</label>
+                <input value={budget} onChange={e => setBudget(e.target.value)} placeholder="e.g. ₱15,000 for 2 weeks" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Goal{req}</label>
+                <input value={goal} onChange={e => setGoal(e.target.value)} placeholder="e.g. Awareness, traffic, conversions" style={inputStyle} />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label style={labelStyle}>Deadline / Date Needed{req}</label>
+            <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} style={inputStyle} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Details{req}</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Anything else that would help us get this right." style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
+          </div>
+
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setFormOpen(false)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 13, color: PALETTE.muted }}>Cancel</button>
-            <button onClick={submitRequest} disabled={saving || !title.trim()} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: title.trim() ? PALETTE.espresso : PALETTE.creamDark, color: title.trim() ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: title.trim() ? 'pointer' : 'not-allowed', opacity: saving ? 0.6 : 1 }}>{saving ? 'Sending…' : 'Send request'}</button>
+            <button onClick={submitRequest} disabled={saving || !isValid()} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: isValid() ? PALETTE.espresso : PALETTE.creamDark, color: isValid() ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: isValid() ? 'pointer' : 'not-allowed', opacity: saving ? 0.6 : 1 }}>{saving ? 'Sending…' : 'Send request'}</button>
           </div>
         </div>
       )}
@@ -1007,12 +1102,27 @@ function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
           <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No requests yet</div>
         ) : sorted.map(r => {
           const s = REQUEST_STATUS[r.status] || REQUEST_STATUS.new
+          const typeLabel = REQUEST_TYPES.find(t => t.value === r.request_type)?.label
           return (
             <div key={r.id} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso }}>{r.title}</div>
                 <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
               </div>
+              {typeLabel && (
+                <div style={{ display: 'inline-block', fontFamily: F.body, fontSize: 10, color: PALETTE.muted, background: PALETTE.creamMid, padding: '2px 8px', borderRadius: 10, marginBottom: 8 }}>{typeLabel}</div>
+              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', marginBottom: 8 }}>
+                {r.deadline && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>Needed by </span>{fmtDateLong(r.deadline)}</div>}
+                {r.budget && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>Budget </span>{r.budget}</div>}
+                {r.goal && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>Goal </span>{r.goal}</div>}
+                {r.platforms && r.platforms.length > 0 && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>Platform </span>{formatPlatforms(r.platforms)}</div>}
+              </div>
+              {r.pegs && (
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8, background: PALETTE.creamMid, borderRadius: 6, padding: '6px 10px' }}>
+                  <span style={{ color: PALETTE.mutedLight, fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Pegs / Inspiration</span><br />{r.pegs}
+                </div>
+              )}
               {r.description && <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8 }}>{r.description}</div>}
               <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight }}>Submitted {fmtAgo(r.created_at)}</div>
             </div>
@@ -1272,7 +1382,7 @@ export default function ClientPortal() {
             <div style={{ padding: '22px 16px 0' }}>
               <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>This is your space to review, approve, and stay in the loop.</div>
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Portal</div>
-              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links'], ['requests', 'Requests']].map(([k, l]) => (
+              {[['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['links', '🔗 Links'], ['requests', '📥 Requests']].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: section === k ? PALETTE.espresso : 'transparent', color: section === k ? PALETTE.cream : PALETTE.muted, fontWeight: section === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                   onMouseEnter={e => { if (section !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                   onMouseLeave={e => { if (section !== k) e.currentTarget.style.background = 'transparent' }}
@@ -1350,7 +1460,7 @@ export default function ClientPortal() {
           )}
           {isMobile && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream, paddingBottom: 8 }}>
-              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links'], ['requests', 'Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
+              {[['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['links', '🔗 Links'], ['requests', '📥 Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (section === k ? brandColor : PALETTE.border), background: section === k ? PALETTE.espresso : '#fff', color: section === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: section === k ? 500 : 400, whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
