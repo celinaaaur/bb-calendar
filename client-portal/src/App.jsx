@@ -259,7 +259,7 @@ function AdaptiveVideo({ src, style }) {
 
 function IGGrid({ posts }) {
   const grid = [...posts].filter(p => p.status !== 'archived')
-    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+    .sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
     .slice(0, 9)
   while (grid.length < 9) grid.push(null)
   return (
