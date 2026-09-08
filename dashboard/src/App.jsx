@@ -1437,9 +1437,10 @@ function LoginScreen() {
 }
 
 function ClientHubModal({ client, onClose }) {
-  const [tab, setTab] = useState('notes') // 'notes' | 'billing'
+  const [tab, setTab] = useState('notes') // 'notes' | 'billing' | 'links'
   const [notes, setNotes] = useState([])
   const [cycles, setCycles] = useState([])
+  const [links, setLinks] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -1456,14 +1457,20 @@ function ClientHubModal({ client, onClose }) {
   const [cycleInvoiceUrl, setCycleInvoiceUrl] = useState('')
   const [cycleNotes, setCycleNotes] = useState('')
 
+  const [editingLinkId, setEditingLinkId] = useState(null)
+  const [linkTitle, setLinkTitle] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
+
   const fetchHub = async () => {
     setLoading(true)
-    const [n, c] = await Promise.all([
+    const [n, c, l] = await Promise.all([
       supabase.from('meeting_notes').select('*').eq('client_id', client.id).order('meeting_date', { ascending: false }),
-      supabase.from('billing_cycles').select('*').eq('client_id', client.id).order('cycle_start', { ascending: false })
+      supabase.from('billing_cycles').select('*').eq('client_id', client.id).order('cycle_start', { ascending: false }),
+      supabase.from('important_links').select('*').eq('client_id', client.id).order('created_at', { ascending: false })
     ])
     if (n.data) setNotes(n.data)
     if (c.data) setCycles(c.data)
+    if (l.data) setLinks(l.data)
     setLoading(false)
   }
 
@@ -1487,6 +1494,28 @@ function ClientHubModal({ client, onClose }) {
   const deleteNote = async (id) => {
     if (!window.confirm('Delete this meeting note?')) return
     await supabase.from('meeting_notes').delete().eq('id', id)
+    fetchHub()
+  }
+
+  const startNewLink = () => { setEditingLinkId('new'); setLinkTitle(''); setLinkUrl('') }
+  const startEditLink = (l) => { setEditingLinkId(l.id); setLinkTitle(l.title); setLinkUrl(l.url) }
+
+  const saveLink = async () => {
+    if (!linkTitle.trim() || !linkUrl.trim()) return
+    setSaving(true)
+    const url = /^https?:\/\//i.test(linkUrl.trim()) ? linkUrl.trim() : 'https://' + linkUrl.trim()
+    if (editingLinkId === 'new') {
+      await supabase.from('important_links').insert({ client_id: client.id, title: linkTitle.trim(), url })
+    } else {
+      await supabase.from('important_links').update({ title: linkTitle.trim(), url }).eq('id', editingLinkId)
+    }
+    setSaving(false); setEditingLinkId(null)
+    fetchHub()
+  }
+
+  const deleteLink = async (id) => {
+    if (!window.confirm('Delete this link?')) return
+    await supabase.from('important_links').delete().eq('id', id)
     fetchHub()
   }
 
@@ -1530,7 +1559,7 @@ function ClientHubModal({ client, onClose }) {
         </div>
 
         <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
-          {[['notes', 'Meeting Notes'], ['billing', 'Billing']].map(([k, l]) => (
+          {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
           ))}
         </div>
@@ -1571,7 +1600,7 @@ function ClientHubModal({ client, onClose }) {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : tab === 'billing' ? (
             <div>
               {editingCycleId ? (
                 <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1609,6 +1638,38 @@ function ClientHubModal({ client, onClose }) {
                     <button onClick={() => startEditCycle(c)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
                     <button onClick={() => deleteCycle(c.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
                     {c.invoice_url && <a href={c.invoice_url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginLeft: 'auto' }}>Invoice ↗</a>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>
+              {editingLinkId ? (
+                <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div><label style={labelStyle}>Title</label><input value={linkTitle} onChange={e => setLinkTitle(e.target.value)} placeholder="e.g. Canva board" style={inputStyle} /></div>
+                  <div><label style={labelStyle}>URL</label><input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://..." style={inputStyle} /></div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setEditingLinkId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
+                    <button onClick={saveLink} disabled={saving || !linkTitle.trim() || !linkUrl.trim()} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 12, color: PALETTE.cream, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save link'}</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={startNewLink} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 16 }}>+ New link</button>
+              )}
+
+              {links.length === 0 && !editingLinkId && (
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>No links yet.</div>
+              )}
+              {links.map(l => (
+                <div key={l.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, fontWeight: 500, marginBottom: 2 }}>{l.title}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                    <a href={l.url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>Open ↗</a>
+                    <button onClick={() => startEditLink(l)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
+                    <button onClick={() => deleteLink(l.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
                   </div>
                 </div>
               ))}
@@ -1699,7 +1760,8 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     const who = c.author_type === 'agency' ? (c.author || 'Brown Butter') : c.author
     activity.push({
       ts: new Date(c.created_at).getTime(), date: c.created_at,
-      who, rest: ' commented on "' + (post?.caption || 'a post') + '"',
+      who, action: 'commented',
+      detail: post?.caption || 'a post',
       post,
     })
   })
@@ -1709,14 +1771,16 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     activity.push({
       ts: new Date(s.created_at).getTime(), date: s.created_at,
       who: s.changed_by || client.name,
-      rest: (s.status === 'approved' ? ' approved "' : ' requested revisions on "') + (post?.caption || 'a post') + '"',
+      action: s.status === 'approved' ? 'approved' : 'requested revisions',
+      detail: post?.caption || 'a post',
       post,
     })
   })
   clientRequests.forEach(r => {
     activity.push({
       ts: new Date(r.created_at).getTime(), date: r.created_at,
-      who: client.name, rest: ' submitted a request: "' + r.title + '"',
+      who: client.name, action: 'submitted a request',
+      detail: r.title,
       post: null,
     })
   })
@@ -1795,17 +1859,27 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
             ? <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic' }}>Nothing yet.</div>
             : (
               <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
-                {recentActivity.map((a, i) => (
-                  <div key={i} onClick={() => a.post && onSelectPost(a.post)} style={{ padding: '10px 14px', borderTop: i > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: a.post ? 'pointer' : 'default' }}
-                    onMouseEnter={e => { if (a.post) e.currentTarget.style.background = PALETTE.creamMid }}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>
-                      <span style={{ fontWeight: 700, color: PALETTE.caramel }}>{a.who}</span>{a.rest}
+                {recentActivity.map((a, i) => {
+                  const actionColors = {
+                    commented: { bg: PALETTE.caramelLight, color: PALETTE.caramel },
+                    approved: { bg: '#E8F8EE', color: '#2A7D4F' },
+                    'requested revisions': { bg: '#FEECEA', color: '#C0392B' },
+                    'submitted a request': { bg: '#E8F1FC', color: '#1E4E8A' },
+                  }
+                  const ac = actionColors[a.action] || actionColors.commented
+                  return (
+                    <div key={i} onClick={() => a.post && onSelectPost(a.post)} style={{ padding: '10px 14px', borderTop: i > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: a.post ? 'pointer' : 'default' }}
+                      onMouseEnter={e => { if (a.post) e.currentTarget.style.background = PALETTE.creamMid }}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ display: 'inline-block', background: ac.bg, color: ac.color, fontFamily: F.body, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6, marginBottom: 6 }}>
+                        {a.who} {a.action}
+                      </div>
+                      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>"{a.detail}"</div>
+                      <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 4 }}>{fmtAgo(a.date)}</div>
                     </div>
-                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{fmtAgo(a.date)}</div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )
           }
