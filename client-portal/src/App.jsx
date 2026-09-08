@@ -133,6 +133,12 @@ const greeting = () => {
   return 'Good evening'
 }
 
+const PLATFORM_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok' }
+const formatPlatforms = (platforms) => {
+  if (!Array.isArray(platforms) || platforms.length === 0) return 'Instagram'
+  return platforms.map(p => PLATFORM_LABELS[p] || p).join(', ')
+}
+
 const STATUS = {
   pending:   { label: 'AWAITING APPROVAL',   color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
   approved:  { label: 'APPROVED',            color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F', border: '#7ECBA1' },
@@ -566,7 +572,7 @@ function PostPanel({ post, comments, versions, statusChanges, client, onClose, o
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 14, textTransform: 'uppercase' }}>Details</div>
               {[
-                ['Platform', 'Instagram'],
+                ['Platform', formatPlatforms(post.platforms)],
                 ['Format', formatLabel],
                 post.campaign ? ['Content Pillar', post.campaign] : null,
                 ['Scheduled', fmt(post.scheduled_at)],
