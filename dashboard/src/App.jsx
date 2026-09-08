@@ -1696,9 +1696,10 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   const activity = []
   clientComments.forEach(c => {
     const post = clientPosts.find(p => p.id === c.post_id)
+    const who = c.author_type === 'agency' ? (c.author || 'Brown Butter') : c.author
     activity.push({
       ts: new Date(c.created_at).getTime(), date: c.created_at,
-      text: (c.author_type === 'agency' ? (c.author || 'Brown Butter') : c.author) + ' commented on "' + (post?.caption || 'a post') + '"',
+      who, rest: ' commented on "' + (post?.caption || 'a post') + '"',
       post,
     })
   })
@@ -1707,14 +1708,15 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     const post = clientPosts.find(p => p.id === s.post_id)
     activity.push({
       ts: new Date(s.created_at).getTime(), date: s.created_at,
-      text: (s.changed_by || client.name) + (s.status === 'approved' ? ' approved "' : ' requested revisions on "') + (post?.caption || 'a post') + '"',
+      who: s.changed_by || client.name,
+      rest: (s.status === 'approved' ? ' approved "' : ' requested revisions on "') + (post?.caption || 'a post') + '"',
       post,
     })
   })
   clientRequests.forEach(r => {
     activity.push({
       ts: new Date(r.created_at).getTime(), date: r.created_at,
-      text: client.name + ' submitted a request: "' + r.title + '"',
+      who: client.name, rest: ' submitted a request: "' + r.title + '"',
       post: null,
     })
   })
@@ -1798,7 +1800,9 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
                     onMouseEnter={e => { if (a.post) e.currentTarget.style.background = PALETTE.creamMid }}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{a.text}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 700, color: PALETTE.caramel }}>{a.who}</span>{a.rest}
+                    </div>
                     <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{fmtAgo(a.date)}</div>
                   </div>
                 ))}
