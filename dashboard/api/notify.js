@@ -45,6 +45,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANO
 })
 
 const FROM_EMAIL = process.env.NOTIFY_FROM_EMAIL || 'Brown Butter Dashboard <onboarding@resend.dev>'
+const DASHBOARD_URL = 'https://dashboard.brown-butter.com'
 
 // NOTIFY_EMAIL can be one address or several, comma-separated — Resend's
 // "to" field accepts an array, so split on commas and trim any stray spaces.
@@ -86,8 +87,8 @@ export default async function handler(req, res) {
         : { data: null }
       const who = record.author || client?.name || 'A client'
       const captionPreview = (post?.caption || '').slice(0, 80)
-      subject = `💬 ${who} left a comment`
-      text = `${who} commented on "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}":\n\n"${record.text}"\n\nOpen the dashboard to reply.`
+      subject = `💬 New comment from ${who}`
+      text = `${who} commented on "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}":\n\n"${record.text}"\n\nReply here: ${DASHBOARD_URL}`
     }
 
     else if (table === 'status_changes') {
@@ -95,17 +96,16 @@ export default async function handler(req, res) {
       if (!['approved', 'revision'].includes(record.status)) {
         return res.status(200).json({ skipped: true, reason: 'not approval/revision' })
       }
-      const { data: post, error: postError } = await supabase.from('posts').select('caption, client_id, designer').eq('id', record.post_id).single()
+      const { data: post, error: postError } = await supabase.from('posts').select('caption, client_id, designer, image_url, cover_url, campaign, scheduled_at').eq('id', record.post_id).single()
       if (postError) {
         console.error('Failed to fetch post for status_changes notification:', postError)
         return res.status(500).json({ error: 'post lookup failed', details: postError })
       }
       const { data: client } = post
-        ? await supabase.from('clients').select('name').eq('id', post.client_id).single()
+        ? await supabase.from('clients').select('name, ig_handle, logo_url, brand_color').eq('id', post.client_id).single()
         : { data: null }
-      const who = record.changed_by || client?.name || 'A client'
-      const captionPreview = (post?.caption || '').slice(0, 80)
-      const captionSuffix = post?.caption?.length > 80 ? '…' : ''
+      const clientName = client?.name || 'Client'
+      const who = record.changed_by || clientName
 
       // This only ever emails whoever the post is assigned to — no general
       // broadcast for approvals/revisions. If nobody's assigned (or their
@@ -126,17 +126,64 @@ export default async function handler(req, res) {
         return res.status(200).json({ skipped: true, reason: 'assignee not found in team_members' })
       }
 
-      const assigneeSubject = record.status === 'approved'
-        ? `✅ Your post was approved: "${captionPreview}${captionSuffix}"`
-        : `↩️ Revisions requested on your post: "${captionPreview}${captionSuffix}"`
-      const assigneeText = record.status === 'approved'
-        ? `Good news — ${who} approved "${captionPreview}${captionSuffix}", which is assigned to you.`
-        : `${who} requested revisions on "${captionPreview}${captionSuffix}", which is assigned to you. Open the dashboard to see their notes.`
+      const isApproved = record.status === 'approved'
+      const statusEmoji = isApproved ? '✅' : '↩️'
+      const statusLabel = isApproved ? 'POST APPROVED' : 'REVISIONS REQUESTED'
+      const actionVerb = isApproved ? 'approved this post' : 'requested revisions for this post'
+      const assigneeSubject = `${statusEmoji} ${clientName} ${statusLabel}`
+      // Cover photo takes priority for video posts, since image_url on a
+      // video is just the raw file, not something an email client can
+      // preview like an image.
+      const thumbnailUrl = post?.cover_url || post?.image_url || null
+      const handle = client?.ig_handle || clientName.toLowerCase().replace(/\s+/g, '.')
+      const avatarInitials = clientName.slice(0, 2).toUpperCase()
+      const avatarColor = client?.brand_color || '#3C2211'
+      const scheduledLabel = post?.scheduled_at
+        ? new Date(post.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : ''
+
+      // Built with a <table> for the header row rather than flexbox — email
+      // clients (especially Outlook) render tables far more reliably than
+      // modern CSS layout.
+      const assigneeHtml = `
+        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; padding: 8px;">
+          <p style="font-size: 15px; line-height: 1.6; color: #2C1F0E; margin: 0 0 16px;">${who} ${actionVerb}:</p>
+
+          <div style="border: 1px solid #E0DACE; border-radius: 8px; overflow: hidden; background: #ffffff;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%;">
+              <tr>
+                <td style="padding: 10px 12px; width: 34px; vertical-align: middle;">
+                  ${client?.logo_url
+                    ? `<img src="${client.logo_url}" alt="" style="width: 32px; height: 32px; border-radius: 50%; display: block;" />`
+                    : `<div style="width: 32px; height: 32px; border-radius: 50%; background-color: ${avatarColor}; color: #ffffff; font-size: 11px; font-weight: bold; text-align: center; line-height: 32px;">${avatarInitials}</div>`
+                  }
+                </td>
+                <td style="padding: 10px 12px 10px 0; vertical-align: middle;">
+                  <div style="font-size: 13px; font-weight: bold; color: #111111;">${handle}</div>
+                  ${post?.campaign ? `<div style="font-size: 11px; color: #999999;">${post.campaign}</div>` : ''}
+                </td>
+              </tr>
+            </table>
+            ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="" style="width: 100%; display: block;" />` : ''}
+            <div style="padding: 12px 12px 4px; font-size: 20px; line-height: 1;">&#9825;&nbsp;&nbsp;&#128172;&nbsp;&nbsp;&#10148;</div>
+            <div style="padding: 6px 12px 4px; font-size: 13px; line-height: 1.5; color: #111111;">
+              <span style="font-weight: bold;">${handle}</span> ${post?.caption || ''}
+            </div>
+            ${scheduledLabel ? `<div style="padding: 0 12px 14px; font-size: 11px; color: #999999;">${scheduledLabel}</div>` : ''}
+          </div>
+
+          <div style="margin-top: 20px;">
+            <a href="${DASHBOARD_URL}" style="display: inline-block; padding: 12px 28px; background-color: #2C1F0E; color: #EEEBE3; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: bold; font-family: Arial, Helvetica, sans-serif;">View it</a>
+          </div>
+        </div>
+      `
+      const assigneeText = `${who} ${actionVerb}.\n\nView it: ${DASHBOARD_URL}`
 
       const { data: sendData, error: sendError } = await resend.emails.send({
         from: FROM_EMAIL,
         to: assignee.email,
         subject: assigneeSubject,
+        html: assigneeHtml,
         text: assigneeText,
       })
 
@@ -155,7 +202,7 @@ export default async function handler(req, res) {
       const { data: client } = await supabase.from('clients').select('name').eq('id', record.client_id).single()
       const who = client?.name || 'A client'
       subject = `📥 New request from ${who}`
-      text = `${who} submitted a request: "${record.title}"${record.description ? '\n\n' + record.description : ''}`
+      text = `${who} submitted a request: "${record.title}"${record.description ? '\n\n' + record.description : ''}\n\nView in dashboard: ${DASHBOARD_URL}`
     }
 
     else {
