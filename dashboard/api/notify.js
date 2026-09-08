@@ -115,12 +115,14 @@ export default async function handler(req, res) {
           const assigneeText = record.status === 'approved'
             ? `Good news — ${who} approved "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}", which is assigned to you.`
             : `${who} requested revisions on "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}", which is assigned to you. Open the dashboard to see their notes.`
-          await resend.emails.send({
+          const { data: assigneeSendData, error: assigneeSendError } = await resend.emails.send({
             from: FROM_EMAIL,
             to: assignee.email,
             subject: assigneeSubject,
             text: assigneeText,
           })
+          if (assigneeSendError) console.error('Assignee email failed:', assigneeSendError)
+          else console.log('Assignee email sent:', assigneeSendData?.id)
         }
       }
     }
@@ -147,14 +149,19 @@ export default async function handler(req, res) {
       return res.status(200).json({ skipped: true, reason: 'NOTIFY_EMAIL not configured' })
     }
 
-    await resend.emails.send({
+    const { data: sendData, error: sendError } = await resend.emails.send({
       from: FROM_EMAIL,
       to: NOTIFY_RECIPIENTS,
       subject,
       text,
     })
 
-    return res.status(200).json({ sent: true, subject })
+    if (sendError) {
+      console.error('Resend rejected the email:', sendError)
+      return res.status(502).json({ sent: false, subject, resendError: sendError })
+    }
+
+    return res.status(200).json({ sent: true, subject, id: sendData?.id })
   } catch (err) {
     console.error('notify.js error:', err)
     return res.status(500).json({ error: err.message })
