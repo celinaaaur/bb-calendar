@@ -1452,7 +1452,7 @@ function LoginScreen() {
       <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 340 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontFamily: F.display, fontSize: 26, color: PALETTE.espresso, marginBottom: 4 }}>Brown Butter</div>
-          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Content Calendar</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Team Workspace</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input type="email" autoComplete="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
