@@ -82,7 +82,7 @@ async function pickFilesFromDrive({ multiple = false } = {}) {
 
 const style = document.createElement('style')
 style.textContent = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;700;900&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
   * { box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   .bb-rich-text:empty:before { content: attr(data-placeholder); color: #B8A898; }
@@ -101,7 +101,7 @@ style.textContent = `
 document.head.appendChild(style)
 
 const F = {
-  display: "'DM Serif Display', Georgia, serif",
+  display: "'Unbounded', 'Helvetica Neue', Arial, sans-serif",
   body: "'DM Sans', system-ui, sans-serif"
 }
 
