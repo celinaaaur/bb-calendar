@@ -1781,21 +1781,42 @@ function ClientHubModal({ client, onClose, initialTab, onClientUpdated }) {
   )
 }
 
-function RequestsView({ requests, clients, selectedClient }) {
+function RequestsView({ requests, clients, selectedClient, onRefresh }) {
   const setRequestStatus = async (id, status) => {
-    await supabase.from('requests').update({ status }).eq('id', id)
+    const { error } = await supabase.from('requests').update({ status }).eq('id', id)
+    if (error) {
+      console.error('Failed to update request status:', error)
+      alert('Could not update status: ' + error.message)
+      return
+    }
+    onRefresh && onRefresh()
   }
 
   const deleteRequest = async (id) => {
     if (!window.confirm('Delete this request?')) return
-    await supabase.from('requests').delete().eq('id', id)
+    const { error } = await supabase.from('requests').delete().eq('id', id)
+    if (error) {
+      console.error('Failed to delete request:', error)
+      alert('Could not delete request: ' + error.message)
+      return
+    }
+    onRefresh && onRefresh()
   }
 
-  const filtered = selectedClient === 'all' ? requests : requests.filter(r => r.client_id === selectedClient)
+  const [typeFilter, setTypeFilter] = useState('all')
+
+  const filtered = requests
+    .filter(r => selectedClient === 'all' || r.client_id === selectedClient)
+    .filter(r => typeFilter === 'all' || r.request_type === typeFilter)
   const sorted = [...filtered].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 
   return (
     <div style={{ padding: '28px 40px', maxWidth: 760 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        {[['all', 'All Types'], ...REQUEST_TYPES.map(t => [t.value, t.label])].map(([value, label]) => (
+          <button key={value} onClick={() => setTypeFilter(value)} style={{ padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (typeFilter === value ? PALETTE.caramel : PALETTE.border), background: typeFilter === value ? PALETTE.espresso : '#fff', color: typeFilter === value ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: typeFilter === value ? 500 : 400, whiteSpace: 'nowrap' }}>{label}</button>
+        ))}
+      </div>
       {sorted.length === 0 ? (
         <div style={{ padding: '48px 0', textAlign: 'center' }}>
           <div style={{ fontFamily: F.display, color: PALETTE.mutedLight, fontSize: 18 }}>No requests yet</div>
@@ -2411,7 +2432,7 @@ export default function Dashboard() {
                     />
                 )
               : view === 'requests'
-              ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} />
+              ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} onRefresh={fetchAll} />
               : view === 'calendar'
               ? <CalendarView posts={filteredPosts} onSelect={setSelectedPost} />
               : filteredPosts.length === 0
