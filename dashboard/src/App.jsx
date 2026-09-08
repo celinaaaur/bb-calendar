@@ -316,6 +316,11 @@ const REQUEST_STATUS = {
 }
 const REQUEST_STATUS_ORDER = ['new', 'in_progress', 'done', 'declined']
 const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// Case/whitespace-insensitive name comparison — used to match a logged-in
+// user's auth display name against the "Assigned to" field on posts, since
+// those are two separately-typed strings that can drift slightly out of sync.
+const normalizeName = (s) => (s || '').trim().toLowerCase()
+const namesMatch = (a, b) => normalizeName(a) === normalizeName(b) && normalizeName(a) !== ''
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 // Notes saved before rich text existed are plain text with real newline
 // characters, which HTML ignores — convert those to <br> so old notes don't
@@ -379,7 +384,7 @@ function Badge({ status }) {
   return <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: s.bg, color: s.color, border: '0.5px solid ' + s.border, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
 }
 
-function TodayQueue({ posts, clients, onSelect }) {
+function TodayQueue({ posts, clients, onSelect, currentUserName }) {
   const now = new Date()
   const todayPosts = posts.filter(p => {
     if (p.status === 'archived') return false
@@ -436,7 +441,14 @@ function TodayQueue({ posts, clients, onSelect }) {
                 <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, fontWeight: 500, marginBottom: 2 }}>{fmtTime(post.scheduled_at)}</div>
                 <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted, marginBottom: 4 }}>{client?.name || '—'}{post.campaign ? ' · ' + post.campaign : ''}</div>
                 <p style={{ margin: '0 0 6px', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
-                <Badge status={post.status} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Badge status={post.status} />
+                  {post.designer && (
+                    <span style={{ fontFamily: F.body, fontSize: 9, display: 'flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 9, fontWeight: 500, background: namesMatch(post.designer, currentUserName) ? PALETTE.caramel : PALETTE.creamDark, color: namesMatch(post.designer, currentUserName) ? PALETTE.cream : PALETTE.muted }}>
+                      {post.designer}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )
@@ -2197,6 +2209,7 @@ export default function Dashboard() {
       const caption = p.caption?.slice(0, 40) + (p.caption?.length > 40 ? '…' : '')
       if (p.status === 'approved') notifs.push({ id: 'post-approved-' + p.id, message: '"' + caption + '" was approved', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-approved-' + p.id), postId: p.id })
       if (p.status === 'revision') notifs.push({ id: 'post-revision-' + p.id, message: '"' + caption + '" — revisions requested', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-revision-' + p.id), postId: p.id })
+      if (namesMatch(p.designer, currentUserName)) notifs.push({ id: 'post-assigned-' + p.id, message: '"' + caption + '" was assigned to you', client: clientName, created_at: p.updated_at || p.created_at, read: seenIds.has('post-assigned-' + p.id), postId: p.id })
     })
     comments.filter(c => c.author_type === 'client').forEach(c => {
       const post = posts.find(p => p.id === c.post_id)
@@ -2212,7 +2225,7 @@ export default function Dashboard() {
     })
     notifs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     return notifs
-  }, [posts, comments, clients, requests, seenIds])
+  }, [posts, comments, clients, requests, seenIds, currentUserName])
 
   const markOneRead = (id) => {
     const newSeen = new Set([...seenIds, id])
@@ -2297,11 +2310,7 @@ export default function Dashboard() {
   // logged-in user specifically (via the designer field), so it reads as a
   // personal to-do digest rather than a team-wide status repeat. Requests
   // aren't assigned to individual team members, so that count stays team-wide.
-  // Matching is case/whitespace-insensitive since the auth account's display
-  // name and the "Assigned to" dropdown value are two separately-typed fields
-  // that can drift out of exact sync (e.g. "Celina " vs "celina").
-  const normalizeName = (s) => (s || '').trim().toLowerCase()
-  const myPosts = activePosts.filter(p => normalizeName(p.designer) === normalizeName(currentUserName))
+  const myPosts = activePosts.filter(p => namesMatch(p.designer, currentUserName))
   const myPendingCount = myPosts.filter(p => p.status === 'pending' && (selectedClient === 'all' || p.client_id === selectedClient)).length
   const myRevisionCount = myPosts.filter(p => p.status === 'revision' && (selectedClient === 'all' || p.client_id === selectedClient)).length
   const todayPostsCount = useMemo(() => {
@@ -2516,7 +2525,7 @@ export default function Dashboard() {
           )}
 
           {!loading && view === 'queue' && (
-            <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} />
+            <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} currentUserName={currentUserName} />
           )}
 
           {loading
@@ -2702,6 +2711,12 @@ export default function Dashboard() {
                               <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{formatLabel}</span>
                               {client && selectedClient === 'all' && <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>· {client.name}</span>}
                               {post.campaign && <span style={{ fontFamily: F.body, fontSize: 9, background: PALETTE.creamDark, color: PALETTE.espresso, padding: '2px 7px', borderRadius: 10, fontWeight: 500 }}>{post.campaign}</span>}
+                              {post.designer && (
+                                <span style={{ fontFamily: F.body, fontSize: 9, display: 'flex', alignItems: 'center', gap: 4, padding: '2px 7px', borderRadius: 10, fontWeight: 500, background: namesMatch(post.designer, currentUserName) ? PALETTE.caramelLight : PALETTE.creamDark, color: namesMatch(post.designer, currentUserName) ? PALETTE.caramel : PALETTE.muted }}>
+                                  <span style={{ width: 12, height: 12, borderRadius: '50%', background: namesMatch(post.designer, currentUserName) ? PALETTE.caramel : PALETTE.mutedLight, color: '#fff', fontSize: 6, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{post.designer.slice(0, 1).toUpperCase()}</span>
+                                  {post.designer}
+                                </span>
+                              )}
                               {hasUnread && <span style={{ fontFamily: F.body, fontSize: 9, background: PALETTE.caramelLight, color: PALETTE.caramel, padding: '1px 6px', borderRadius: 3, fontWeight: 500 }}>New comment</span>}
                             </div>
                             <p style={{ margin: 0, fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 300 }}>{post.caption}</p>
