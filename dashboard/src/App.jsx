@@ -852,8 +852,8 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
                   </div>
                   {/* Header: avatar + handle */}
                   <div style={{ position: 'absolute', top: 18, left: 6, right: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 10 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, border: '1.5px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0 }}>
-                      {(client?.name || 'BB').slice(0, 2).toUpperCase()}
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, border: '1.5px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, overflow: 'hidden' }}>
+                      {client?.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client?.name || 'BB').slice(0, 2).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: F.body, fontSize: 8, fontWeight: 600, color: '#fff', lineHeight: 1.2, textShadow: '0 1px 3px rgba(0,0,0,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{handle}</div>
@@ -883,7 +883,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
             /* ── Carousel mockup ── */
             <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
               <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>{(client?.name || 'BB').slice(0, 2).toUpperCase()}</div>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel, overflow: 'hidden' }}>{client?.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client?.name || 'BB').slice(0, 2).toUpperCase()}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: '#111' }}>{handle}</div>
                   {post.campaign && <div style={{ fontFamily: F.body, fontSize: 9, color: '#999' }}>{post.campaign}</div>}
@@ -906,7 +906,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
             /* ── Feed / Reel mockup ── */
             <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden' }}>
               <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel }}>{(client?.name || 'BB').slice(0, 2).toUpperCase()}</div>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '1.5px solid ' + PALETTE.caramel, overflow: 'hidden' }}>{client?.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client?.name || 'BB').slice(0, 2).toUpperCase()}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: '#111' }}>{handle}</div>
                   {post.campaign && <div style={{ fontFamily: F.body, fontSize: 9, color: '#999' }}>{post.campaign}</div>}
@@ -1492,11 +1492,13 @@ function RichTextEditor({ value, onChange, placeholder }) {
   )
 }
 
-function ClientHubModal({ client, onClose, initialTab }) {
+function ClientHubModal({ client, onClose, initialTab, onClientUpdated }) {
   const [tab, setTab] = useState(initialTab || 'notes') // 'notes' | 'billing' | 'links'
   const [notes, setNotes] = useState([])
   const [cycles, setCycles] = useState([])
   const [links, setLinks] = useState([])
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoFileRef = useRef()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -1575,6 +1577,19 @@ function ClientHubModal({ client, onClose, initialTab }) {
     fetchHub()
   }
 
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingLogo(true)
+    const { url, error } = await uploadAsset(file)
+    if (url) {
+      await supabase.from('clients').update({ logo_url: url }).eq('id', client.id)
+      onClientUpdated && onClientUpdated()
+    }
+    if (error) alert('Could not upload logo: ' + error)
+    setUploadingLogo(false)
+  }
+
   const startNewCycle = () => { setEditingCycleId('new'); setCycleStart(''); setCycleEnd(''); setCycleAmount(''); setCycleStatus('pending'); setCycleInvoiceUrl(''); setCycleNotes('') }
   const startEditCycle = (c) => { setEditingCycleId(c.id); setCycleStart(c.cycle_start); setCycleEnd(c.cycle_end); setCycleAmount(c.amount ?? ''); setCycleStatus(c.status || 'pending'); setCycleInvoiceUrl(c.invoice_url || ''); setCycleNotes(c.notes || '') }
 
@@ -1618,6 +1633,19 @@ function ClientHubModal({ client, onClose, initialTab }) {
           {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
           ))}
+        </div>
+
+        <div style={{ padding: '14px 20px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, overflow: 'hidden', border: '2px solid ' + PALETTE.caramel }}>
+            {client.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client.name || 'BB').slice(0, 2).toUpperCase()}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 4 }}>Client Logo</div>
+            <button onClick={() => logoFileRef.current.click()} disabled={uploadingLogo} style={{ padding: '6px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso }}>
+              {uploadingLogo ? 'Uploading...' : client.logo_url ? 'Change logo' : 'Upload logo'}
+            </button>
+          </div>
+          <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 20, WebkitOverflowScrolling: 'touch' }}>
@@ -1860,7 +1888,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     <div style={{ padding: isMobile ? '18px 16px 40px' : '24px 26px 48px' }}>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel }}>{(client.name || 'BB').slice(0, 2).toUpperCase()}</div>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel, overflow: 'hidden' }}>{client.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client.name || 'BB').slice(0, 2).toUpperCase()}</div>
         <div>
           <div style={{ fontFamily: F.display, fontSize: 24, color: PALETTE.espresso, lineHeight: 1.1 }}>{client.name}</div>
           {client.ig_handle && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, marginTop: 2 }}>@{client.ig_handle}</div>}
@@ -2518,7 +2546,7 @@ export default function Dashboard() {
       </div>
 
       {composing && <ComposeModal clients={clients} onClose={() => setComposing(false)} onSaved={fetchAll} currentUserName={currentUserName} />}
-      {hubClientId && <ClientHubModal client={clients.find(c => c.id === hubClientId)} onClose={() => setHubClientId(null)} initialTab={hubInitialTab} />}
+      {hubClientId && <ClientHubModal client={clients.find(c => c.id === hubClientId)} onClose={() => setHubClientId(null)} initialTab={hubInitialTab} onClientUpdated={fetchAll} />}
     </div>
   )
 }
