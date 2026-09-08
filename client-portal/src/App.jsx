@@ -1243,6 +1243,20 @@ export default function ClientPortal() {
     return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe() }
   }, [])
 
+  // Swap the browser tab's favicon + title to match whichever client's portal
+  // is loaded, falling back to the Brown Butter mark if the client has no logo.
+  useEffect(() => {
+    if (!client) return
+    let link = document.querySelector("link[rel~='icon']")
+    if (!link) {
+      link = document.createElement('link')
+      link.rel = 'icon'
+      document.head.appendChild(link)
+    }
+    link.href = client.logo_url || '/favicon.png'
+    document.title = (client.name ? client.name + ' | ' : '') + 'Client Portal'
+  }, [client])
+
   if (loading) return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
