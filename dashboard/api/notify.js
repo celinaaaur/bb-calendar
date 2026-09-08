@@ -96,35 +96,42 @@ export default async function handler(req, res) {
         : { data: null }
       const who = record.changed_by || client?.name || 'A client'
       const captionPreview = (post?.caption || '').slice(0, 80)
-      const verb = record.status === 'approved' ? '✅ approved' : '↩️ requested revisions on'
-      subject = `${who} ${record.status === 'approved' ? 'approved a post' : 'requested revisions'}`
-      text = `${who} ${verb} "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}".`
+      const captionSuffix = post?.caption?.length > 80 ? '…' : ''
 
-      // Also email whoever the post is assigned to, separately from the
-      // general agency notification above
-      if (post?.designer) {
-        const { data: teamMembers } = await supabase
-          .from('team_members')
-          .select('email, name')
-          .ilike('name', post.designer.trim())
-        const assignee = teamMembers?.[0]
-        if (assignee?.email) {
-          const assigneeSubject = record.status === 'approved'
-            ? `✅ Your post was approved: "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}"`
-            : `↩️ Revisions requested on your post: "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}"`
-          const assigneeText = record.status === 'approved'
-            ? `Good news — ${who} approved "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}", which is assigned to you.`
-            : `${who} requested revisions on "${captionPreview}${post?.caption?.length > 80 ? '…' : ''}", which is assigned to you. Open the dashboard to see their notes.`
-          const { data: assigneeSendData, error: assigneeSendError } = await resend.emails.send({
-            from: FROM_EMAIL,
-            to: assignee.email,
-            subject: assigneeSubject,
-            text: assigneeText,
-          })
-          if (assigneeSendError) console.error('Assignee email failed:', assigneeSendError)
-          else console.log('Assignee email sent:', assigneeSendData?.id)
-        }
+      // This only ever emails whoever the post is assigned to — no general
+      // broadcast for approvals/revisions. If nobody's assigned (or their
+      // name doesn't match anyone in team_members), nothing gets sent.
+      if (!post?.designer) {
+        return res.status(200).json({ skipped: true, reason: 'no one assigned to this post' })
       }
+      const { data: teamMembers } = await supabase
+        .from('team_members')
+        .select('email, name')
+        .ilike('name', post.designer.trim())
+      const assignee = teamMembers?.[0]
+      if (!assignee?.email) {
+        return res.status(200).json({ skipped: true, reason: 'assignee not found in team_members' })
+      }
+
+      const assigneeSubject = record.status === 'approved'
+        ? `✅ Your post was approved: "${captionPreview}${captionSuffix}"`
+        : `↩️ Revisions requested on your post: "${captionPreview}${captionSuffix}"`
+      const assigneeText = record.status === 'approved'
+        ? `Good news — ${who} approved "${captionPreview}${captionSuffix}", which is assigned to you.`
+        : `${who} requested revisions on "${captionPreview}${captionSuffix}", which is assigned to you. Open the dashboard to see their notes.`
+
+      const { data: sendData, error: sendError } = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: assignee.email,
+        subject: assigneeSubject,
+        text: assigneeText,
+      })
+
+      if (sendError) {
+        console.error('Resend rejected the assignee email:', sendError)
+        return res.status(502).json({ sent: false, subject: assigneeSubject, resendError: sendError })
+      }
+      return res.status(200).json({ sent: true, subject: assigneeSubject, to: assignee.email, id: sendData?.id })
     }
 
     else if (table === 'requests') {
