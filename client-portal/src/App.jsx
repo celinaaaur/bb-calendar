@@ -508,6 +508,7 @@ function PostPanel({ post, comments, versions, statusChanges, designOptions, cli
   const [authorName, setAuthorName] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
+  const [lightboxUrl, setLightboxUrl] = useState(null)
   const brandColor = client?.brand_color || PALETTE.caramel
   const isPublished = post.status === 'published'
 
@@ -549,6 +550,11 @@ function PostPanel({ post, comments, versions, statusChanges, designOptions, cli
     if (isMobile) onClose()
   }
 
+  const changeDesignPick = async () => {
+    await supabase.from('posts').update({ selected_option_id: null }).eq('id', post.id)
+    onRefresh()
+  }
+
   const handleKeyDown = (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendComment()
   }
@@ -572,29 +578,53 @@ function PostPanel({ post, comments, versions, statusChanges, designOptions, cli
       {designOptions.length > 0 && !post.selected_option_id ? (
         <div style={{ padding: '16px 18px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
           <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso, marginBottom: 4 }}>Pick your favorite</div>
-          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 14, lineHeight: 1.5 }}>Brown Butter put together a few directions for this post. Tap the one you like best — that becomes the final design and approves the post.</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 10, lineHeight: 1.5 }}>Brown Butter put together a few directions for this post. Tap an image to view it larger, then choose your favorite — that becomes the final design and approves the post.</div>
+          {post.caption && (
+            <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 6, padding: '8px 10px', marginBottom: 14 }}>
+              <div style={{ fontFamily: F.body, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: PALETTE.mutedLight, marginBottom: 4 }}>Caption</div>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{post.caption}</div>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
             {designOptions.map(opt => (
-              <div key={opt.id} onClick={() => chooseDesignOption(opt)} style={{ cursor: 'pointer', background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden', transition: 'all 0.15s' }}
+              <div key={opt.id} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, overflow: 'hidden', transition: 'all 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = brandColor}
                 onMouseLeave={e => e.currentTarget.style.borderColor = PALETTE.borderLight}
               >
-                <div style={{ aspectRatio: '4/5', background: PALETTE.creamDark }}>
+                <div onClick={() => setLightboxUrl(opt.image_url)} style={{ aspectRatio: '4/5', background: PALETTE.creamDark, cursor: 'zoom-in', position: 'relative' }}>
                   {isVideo(opt.image_url)
                     ? <video src={opt.image_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
                     : <img src={opt.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   }
+                  <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 4, fontFamily: F.body }}>Tap to view</div>
                 </div>
                 <div style={{ padding: '8px 10px' }}>
-                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, fontWeight: 500, marginBottom: 4 }}>{opt.label}</div>
-                  <div style={{ fontFamily: F.body, fontSize: 10, color: brandColor, fontWeight: 500 }}>Choose this →</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, fontWeight: 500, marginBottom: 6 }}>{opt.label}</div>
+                  <button onClick={() => chooseDesignOption(opt)} style={{ width: '100%', padding: '6px 0', borderRadius: 5, border: 'none', background: brandColor, color: '#fff', fontFamily: F.body, fontSize: 10, fontWeight: 500, cursor: 'pointer' }}>Choose this</button>
                 </div>
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <IGMockup post={post} client={client} />
+        <>
+          <IGMockup post={post} client={client} />
+          {designOptions.length > 0 && post.selected_option_id && (
+            <div style={{ padding: '10px 18px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0, textAlign: 'center' }}>
+              <button onClick={changeDesignPick} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 12, color: brandColor, fontWeight: 500, cursor: 'pointer' }}>← Change your pick</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {lightboxUrl && (
+        <div onClick={() => setLightboxUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+          <button onClick={() => setLightboxUrl(null)} style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 36, height: 36, color: '#fff', fontSize: 18, cursor: 'pointer' }}>✕</button>
+          {isVideo(lightboxUrl)
+            ? <video src={lightboxUrl} controls autoPlay style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 8 }} onClick={e => e.stopPropagation()} />
+            : <img src={lightboxUrl} alt="" style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
+          }
+        </div>
       )}
 
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0 }}>
