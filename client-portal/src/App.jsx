@@ -835,6 +835,30 @@ const REQUEST_STATUS = {
 }
 
 // ── Meeting Notes section ────────────────────────────────────────────────────
+function LinksSection({ links, isMobile }) {
+  const sorted = [...links].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  return (
+    <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px', maxWidth: 720 }}>
+      <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, marginBottom: 4 }}>Important Links</div>
+      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 24, fontWeight: 300 }}>
+        {sorted.length} link{sorted.length !== 1 ? 's' : ''} from Brown Butter
+      </div>
+      {sorted.length === 0 ? (
+        <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No links yet</div>
+      ) : sorted.map(l => (
+        <a key={l.id} href={l.url} target="_blank" rel="noreferrer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 20px', marginBottom: 12, textDecoration: 'none', transition: 'all 0.15s' }}
+          onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+        >
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso }}>{l.title}</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.caramel, fontWeight: 500, flexShrink: 0 }}>Open ↗</div>
+        </a>
+      ))}
+    </div>
+  )
+}
+
+
 function NotesSection({ notes, isMobile }) {
   const sorted = [...notes].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
   return (
@@ -1014,6 +1038,7 @@ export default function ClientPortal() {
   const [unlocking, setUnlocking] = useState(false)
   const [section, setSection] = useState('content') // 'content' | 'notes' | 'billing' | 'requests'
   const [notes, setNotes] = useState([])
+  const [links, setLinks] = useState([])
   const [billingCycles, setBillingCycles] = useState([])
   const [requests, setRequests] = useState([])
 
@@ -1037,7 +1062,7 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
-    const [p, cm, v, mn, bc, rq, sc, dop] = await Promise.all([
+    const [p, cm, v, mn, bc, rq, sc, dop, il] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
@@ -1045,7 +1070,8 @@ export default function ClientPortal() {
       supabase.from('billing_cycles').select('*').eq('client_id', clientData.id).order('cycle_start', { ascending: false }),
       supabase.from('requests').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false }),
       supabase.from('status_changes').select('*').order('created_at'),
-      supabase.from('design_options').select('*').order('created_at')
+      supabase.from('design_options').select('*').order('created_at'),
+      supabase.from('important_links').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false })
     ])
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
@@ -1055,6 +1081,7 @@ export default function ClientPortal() {
     if (rq.data) setRequests(rq.data)
     if (sc.data) setStatusChanges(sc.data)
     if (dop.data) setDesignOptions(dop.data)
+    if (il.data) setLinks(il.data)
     setLoading(false)
   }
 
@@ -1082,7 +1109,8 @@ export default function ClientPortal() {
     const s5 = supabase.channel('cp-requests').on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, fetchAll).subscribe()
     const s6 = supabase.channel('cp-status-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'status_changes' }, fetchAll).subscribe()
     const s7 = supabase.channel('cp-design-options').on('postgres_changes', { event: '*', schema: 'public', table: 'design_options' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe() }
+    const s8 = supabase.channel('cp-links').on('postgres_changes', { event: '*', schema: 'public', table: 'important_links' }, fetchAll).subscribe()
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe() }
   }, [])
 
   if (loading) return (
@@ -1239,7 +1267,7 @@ export default function ClientPortal() {
           <div style={{ width: 192, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '22px 16px 0' }}>
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Portal</div>
-              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['requests', 'Requests']].map(([k, l]) => (
+              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links'], ['requests', 'Requests']].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: section === k ? PALETTE.espresso : 'transparent', color: section === k ? PALETTE.cream : PALETTE.muted, fontWeight: section === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                   onMouseEnter={e => { if (section !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                   onMouseLeave={e => { if (section !== k) e.currentTarget.style.background = 'transparent' }}
@@ -1312,7 +1340,7 @@ export default function ClientPortal() {
           {/* Mobile primary section tabs */}
           {isMobile && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream, paddingBottom: 8 }}>
-              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['requests', 'Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
+              {[['content', 'Content'], ['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links'], ['requests', 'Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (section === k ? brandColor : PALETTE.border), background: section === k ? PALETTE.espresso : '#fff', color: section === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: section === k ? 500 : 400, whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
@@ -1348,6 +1376,9 @@ export default function ClientPortal() {
 
           {/* Billing section */}
           {section === 'billing' && <BillingSection cycles={billingCycles} isMobile={isMobile} />}
+
+          {/* Links section */}
+          {section === 'links' && <LinksSection links={links} isMobile={isMobile} />}
 
           {/* Requests section */}
           {section === 'requests' && <RequestsSection requests={requests} clientId={client.id} isMobile={isMobile} onRefresh={fetchAll} />}
