@@ -257,7 +257,7 @@ function AdaptiveVideo({ src, style }) {
   )
 }
 
-function IGGrid({ posts }) {
+function IGGrid({ posts, onSelectPost }) {
   const grid = [...posts].filter(p => p.status !== 'archived')
     .sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
     .slice(0, 9)
@@ -265,10 +265,14 @@ function IGGrid({ posts }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2 }}>
       {grid.map((p, i) => (
-        <div key={i} style={{
+        <div key={i} onClick={() => p && onSelectPost && onSelectPost(p)} style={{
           aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative',
-          background: p ? (p.image_url ? 'transparent' : `hsl(${28 + i * 8},20%,${86 - i * 2}%)`) : '#E8E0D0'
-        }}>
+          background: p ? (p.image_url ? 'transparent' : `hsl(${28 + i * 8},20%,${86 - i * 2}%)`) : '#E8E0D0',
+          cursor: p && onSelectPost ? 'pointer' : 'default', transition: 'opacity 0.12s'
+        }}
+          onMouseEnter={e => { if (p && onSelectPost) e.currentTarget.style.opacity = 0.75 }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = 1 }}
+        >
           {p?.image_url && !isVideo(p.image_url) && <img src={imgSrc(p.image_url, p.status === 'published')} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
           {p?.image_url && isVideo(p.image_url) && (
             p.cover_url
@@ -1449,9 +1453,9 @@ export default function ClientPortal() {
             )}
             {section === 'content' && <div style={{ height: '0.5px', background: PALETTE.border, margin: '0 16px' }} />}
             {section === 'content' && (
-              <div style={{ margin: '18px 16px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
-                <div style={{ padding: '7px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
-                <IGGrid posts={posts} />
+              <div style={{ margin: '18px 10px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
+                <div style={{ padding: '8px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
+                <IGGrid posts={posts} onSelectPost={setSelectedPost} />
               </div>
             )}
             <div style={{ padding: '20px 16px', marginTop: 'auto' }}>
