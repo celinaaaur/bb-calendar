@@ -573,7 +573,7 @@ function DashboardCarousel({ images, published }) {
   )
 }
 
-function RightPanel({ post, comments, versions, statusChanges, clients, onRefresh, onClose, isMobile }) {
+function RightPanel({ post, comments, versions, statusChanges, designOptions, clients, onRefresh, onClose, isMobile }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
@@ -590,10 +590,12 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
   const [uploadingCover, setUploadingCover] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [importingDrive, setImportingDrive] = useState(false)
+  const [uploadingOptions, setUploadingOptions] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [downloading, setDownloading] = useState(false)
   const fileRef = useRef()
   const coverFileRef = useRef()
+  const optionsFileRef = useRef()
 
   const client = clients.find(c => c.id === post.client_id)
   const handle = client?.ig_handle || client?.name?.toLowerCase().replace(/\s+/g, '.') || 'handle'
@@ -638,6 +640,27 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
       setUploadError('Could not import from Drive. Please try again.')
     }
     setImportingDrive(false)
+  }
+
+  const handleAddDesignOptions = async (e) => {
+    const files = e.target.files
+    if (!files || !files.length) return
+    setUploadingOptions(true)
+    const results = await Promise.all(Array.from(files).map(uploadAsset))
+    const successful = results.filter(r => r.url)
+    if (successful.length) {
+      await supabase.from('design_options').insert(
+        successful.map((r, i) => ({ post_id: post.id, image_url: r.url, label: 'Option ' + (designOptions.length + i + 1) }))
+      )
+    }
+    setUploadingOptions(false)
+    onRefresh()
+  }
+
+  const deleteDesignOption = async (id) => {
+    if (!window.confirm('Delete this design option?')) return
+    await supabase.from('design_options').delete().eq('id', id)
+    onRefresh()
   }
 
   const handleCoverFile = async (e) => {
@@ -968,6 +991,51 @@ function RightPanel({ post, comments, versions, statusChanges, clients, onRefres
                     <span style={{ fontFamily: F.body, fontSize: 12, color: value ? PALETTE.espresso : PALETTE.mutedLight, fontStyle: value ? 'normal' : 'italic' }}>{value || 'Not set'}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            <div style={{ height: '0.5px', background: PALETTE.borderLight, marginBottom: 18 }} />
+
+            {post.status !== 'archived' && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase' }}>Design Options</span>
+                  {post.selected_option_id && <span style={{ fontFamily: F.body, fontSize: 10, color: '#2A7D4F', fontWeight: 500 }}>Client picked one ✓</span>}
+                </div>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginBottom: 10, lineHeight: 1.5 }}>
+                  {post.selected_option_id
+                    ? 'The client already chose their favorite — it\'s now the post\'s asset above.'
+                    : 'Upload a few design directions and the client will pick their favorite instead of the usual approve/revise flow.'}
+                </div>
+                {designOptions.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+                    {designOptions.map(opt => (
+                      <div key={opt.id} style={{ position: 'relative' }}>
+                        <div style={{ aspectRatio: '1', borderRadius: 6, overflow: 'hidden', border: '1.5px solid ' + (opt.id === post.selected_option_id ? '#2A7D4F' : PALETTE.borderLight), background: PALETTE.creamDark }}>
+                          {isVideo(opt.image_url)
+                            ? <video src={opt.image_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+                            : <img src={opt.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          }
+                        </div>
+                        <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginTop: 3, textAlign: 'center' }}>{opt.label}</div>
+                        {opt.id === post.selected_option_id && (
+                          <div style={{ position: 'absolute', top: 4, right: 4, width: 16, height: 16, borderRadius: '50%', background: '#2A7D4F', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 9 }}>✓</div>
+                        )}
+                        {!post.selected_option_id && (
+                          <button onClick={() => deleteDesignOption(opt.id)} style={{ position: 'absolute', top: 4, right: 4, width: 16, height: 16, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', fontSize: 10, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!post.selected_option_id && (
+                  <>
+                    <button onClick={() => optionsFileRef.current.click()} disabled={uploadingOptions} style={{ width: '100%', padding: '8px 0', borderRadius: 6, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>
+                      {uploadingOptions ? 'Uploading...' : '+ Add design option(s)'}
+                    </button>
+                    <input ref={optionsFileRef} type="file" accept="image/*,video/*" multiple onChange={handleAddDesignOptions} style={{ display: 'none' }} />
+                  </>
+                )}
               </div>
             )}
 
@@ -1663,6 +1731,7 @@ export default function Dashboard() {
   const [versions, setVersions] = useState([])
   const [requests, setRequests] = useState([])
   const [statusChanges, setStatusChanges] = useState([])
+  const [designOptions, setDesignOptions] = useState([])
   const [selectedClient, setSelectedClient] = useState('all')
   const [filter, setFilter] = useState('pending')
   const [view, setView] = useState('queue')
@@ -1687,13 +1756,14 @@ export default function Dashboard() {
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
-    const [c, p, cm, v, rq, sc] = await Promise.all([
+    const [c, p, cm, v, rq, sc, dop] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('posts').select('*').neq('status', 'archived').order('scheduled_at').limit(150),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
       supabase.from('requests').select('*').order('created_at', { ascending: false }),
-      supabase.from('status_changes').select('*').order('created_at')
+      supabase.from('status_changes').select('*').order('created_at'),
+      supabase.from('design_options').select('*').order('created_at')
     ])
     if (c.data) setClients(c.data)
     if (p.data) setPosts(p.data)
@@ -1701,6 +1771,7 @@ export default function Dashboard() {
     if (v.data) setVersions(v.data)
     if (rq.data) setRequests(rq.data)
     if (sc.data) setStatusChanges(sc.data)
+    if (dop.data) setDesignOptions(dop.data)
     setLoading(false)
   }
 
@@ -1738,7 +1809,13 @@ export default function Dashboard() {
           .then(({ data }) => { if (data) setStatusChanges(data) })
       }).subscribe()
 
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe() }
+    const s6 = supabase.channel('dash-design-options')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'design_options' }, () => {
+        supabase.from('design_options').select('*').order('created_at')
+          .then(({ data }) => { if (data) setDesignOptions(data) })
+      }).subscribe()
+
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe() }
   }, [])
 
   // ── SPEED FIX 3: notifications built with useMemo instead of useEffect + setState ──
@@ -2183,6 +2260,7 @@ export default function Dashboard() {
             comments={comments.filter(c => c.post_id === selectedPost.id)}
             versions={versions.filter(v => v.post_id === selectedPost.id)}
             statusChanges={statusChanges.filter(s => s.post_id === selectedPost.id)}
+            designOptions={designOptions.filter(d => d.post_id === selectedPost.id)}
             clients={clients}
             onRefresh={fetchAll}
             onClose={() => setSelectedPost(null)}
