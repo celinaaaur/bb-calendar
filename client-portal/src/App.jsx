@@ -908,6 +908,12 @@ function ReportsSection({ reports, isMobile, clientName }) {
 
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
+  const [expandedIds, setExpandedIds] = useState(() => new Set()) // report history rows are collapsed by default
+  const toggleExpanded = (id) => setExpandedIds(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
   // A report "matches" the filter if its period overlaps the selected range
   // at all, rather than requiring the whole period to fall inside it — so
   // filtering to a single month still surfaces a report spanning that month.
@@ -1084,26 +1090,36 @@ function ReportsSection({ reports, isMobile, clientName }) {
           )}
 
           <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 12, marginTop: 4 }}>Report history</div>
-          {[...sorted].reverse().map(r => (
-            <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10, background: '#fff' }}>
-              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500, marginBottom: 8 }}>{fmtDateLong(r.period_start)} – {fmtDateLong(r.period_end)}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                {[
-                  ['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions],
-                  ['Engagement rate', engagementRateOf(r) != null ? engagementRateOf(r) + '%' : null],
-                  ['CTR', ctrOf(r) != null ? ctrOf(r) + '%' : null],
-                  ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps],
-                  ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves],
-                  ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story],
-                  ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null],
-                  ['Non-followers reached', r.nonfollowers_pct != null ? r.nonfollowers_pct + '%' : null]
-                ].filter(([, v]) => v != null).map(([lbl, v]) => (
-                  <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{typeof v === 'number' ? v.toLocaleString() : v}</div>
-                ))}
+          {[...sorted].reverse().map(r => {
+            const isOpen = expandedIds.has(r.id)
+            return (
+            <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, marginBottom: 10, background: '#fff', overflow: 'hidden' }}>
+              <div onClick={() => toggleExpanded(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', cursor: 'pointer' }}>
+                <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{fmtDateLong(r.period_start)} – {fmtDateLong(r.period_end)}</span>
               </div>
-              {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{r.notes}</div>}
+              {isOpen && (
+                <div style={{ padding: '0 14px 14px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                    {[
+                      ['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions],
+                      ['Engagement rate', engagementRateOf(r) != null ? engagementRateOf(r) + '%' : null],
+                      ['CTR', ctrOf(r) != null ? ctrOf(r) + '%' : null],
+                      ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps],
+                      ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves],
+                      ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story],
+                      ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null],
+                      ['Non-followers reached', r.nonfollowers_pct != null ? r.nonfollowers_pct + '%' : null]
+                    ].filter(([, v]) => v != null).map(([lbl, v]) => (
+                      <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{typeof v === 'number' ? v.toLocaleString() : v}</div>
+                    ))}
+                  </div>
+                  {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{r.notes}</div>}
+                </div>
+              )}
             </div>
-          ))}
+            )
+          })}
 
           <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, textAlign: 'center', marginTop: 20, lineHeight: 1.6, maxWidth: 640, marginLeft: 'auto', marginRight: 'auto' }}>
             Food &amp; beverage engagement benchmark ({FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%) sourced from {FNB_ENGAGEMENT_BENCHMARK.source}.
