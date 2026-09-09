@@ -1388,6 +1388,27 @@ export default function ClientPortal() {
 
   const slug = window.location.pathname.replace('/', '').split('/')[0] || ''
   const unlockKey = 'bb_portal_unlocked_' + slug
+  const seenReportKey = 'bb_portal_seen_report_' + slug
+
+  // Newest report by period_start, and whether this browser has already
+  // opened the Marketing Reports section since that report was logged —
+  // tracked in localStorage rather than a DB column, since "has this visitor
+  // seen it" is a per-browser thing, not something that needs to sync
+  // across devices or notify the agency side.
+  const latestReport = analyticsReports.length
+    ? [...analyticsReports].sort((a, b) => new Date(b.period_start) - new Date(a.period_start))[0]
+    : null
+  const [seenReportId, setSeenReportId] = useState(() => {
+    try { return localStorage.getItem(seenReportKey) } catch { return null }
+  })
+  const hasNewReport = !!(latestReport && latestReport.id !== seenReportId)
+
+  useEffect(() => {
+    if (section === 'reports' && latestReport && latestReport.id !== seenReportId) {
+      setSeenReportId(latestReport.id)
+      try { localStorage.setItem(seenReportKey, latestReport.id) } catch {}
+    }
+  }, [section, latestReport])
 
   const fetchAll = async () => {
     const { data: clientData } = await supabase.from('clients').select('*').eq('slug', slug).single()
@@ -1629,6 +1650,9 @@ export default function ClientPortal() {
                   onMouseLeave={e => { if (section !== k) e.currentTarget.style.background = 'transparent' }}
                 >
                   <span>{l}</span>
+                  {k === 'reports' && hasNewReport && (
+                    <span style={{ background: section === k ? PALETTE.caramel : '#C0392B', color: '#fff', borderRadius: 8, minWidth: 15, height: 15, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', whiteSpace: 'nowrap' }}>New</span>
+                  )}
                   {k === 'requests' && openRequestCount > 0 && (
                     <span style={{ background: section === k ? PALETTE.caramel : PALETTE.caramelLight, color: section === k ? '#fff' : PALETTE.caramel, borderRadius: 8, minWidth: 15, height: 15, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{openRequestCount}</span>
                   )}
@@ -1701,7 +1725,7 @@ export default function ClientPortal() {
           )}
           {isMobile && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream, paddingBottom: 8 }}>
-              {[['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports'], ['links', '🔗 Links'], ['requests', '📥 Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
+              {[['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports' + (hasNewReport ? ' (New)' : '')], ['links', '🔗 Links'], ['requests', '📥 Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (section === k ? brandColor : PALETTE.border), background: section === k ? PALETTE.espresso : '#fff', color: section === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: section === k ? 500 : 400, whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
