@@ -1875,10 +1875,10 @@ function MarketingReportsView({ client }) {
 
   const blankForm = {
     period_start: '', period_end: '', followers: '', reach: '', impressions: '',
-    profile_visits: '', website_clicks: '', bio_link_taps: '',
+    profile_visits: '', bio_link_taps: '',
     likes: '', comments: '', shares: '', reposts: '', saves: '',
-    views_post: '', views_carousel: '', views_reel: '', views_story: '',
-    followers_pct_post: '', followers_pct_carousel: '', followers_pct_reel: '', followers_pct_story: '',
+    views_post: '', views_reel: '', views_story: '',
+    followers_pct: '',
     notes: ''
   }
   const [form, setForm] = useState(blankForm)
@@ -1897,10 +1897,10 @@ function MarketingReportsView({ client }) {
     setForm({
       period_start: r.period_start, period_end: r.period_end,
       followers: r.followers ?? '', reach: r.reach ?? '', impressions: r.impressions ?? '',
-      profile_visits: r.profile_visits ?? '', website_clicks: r.website_clicks ?? '', bio_link_taps: r.bio_link_taps ?? '',
+      profile_visits: r.profile_visits ?? '', bio_link_taps: r.bio_link_taps ?? '',
       likes: r.likes ?? '', comments: r.comments ?? '', shares: r.shares ?? '', reposts: r.reposts ?? '', saves: r.saves ?? '',
-      views_post: r.views_post ?? '', views_carousel: r.views_carousel ?? '', views_reel: r.views_reel ?? '', views_story: r.views_story ?? '',
-      followers_pct_post: r.followers_pct_post ?? '', followers_pct_carousel: r.followers_pct_carousel ?? '', followers_pct_reel: r.followers_pct_reel ?? '', followers_pct_story: r.followers_pct_story ?? '',
+      views_post: r.views_post ?? '', views_reel: r.views_reel ?? '', views_story: r.views_story ?? '',
+      followers_pct: r.followers_pct ?? '',
       notes: r.notes || ''
     })
   }
@@ -1916,10 +1916,10 @@ function MarketingReportsView({ client }) {
     const payload = {
       client_id: client.id, period_start: form.period_start, period_end: form.period_end,
       followers: numOrNull(form.followers), reach: numOrNull(form.reach), impressions: numOrNull(form.impressions),
-      profile_visits: numOrNull(form.profile_visits), website_clicks: numOrNull(form.website_clicks), bio_link_taps: numOrNull(form.bio_link_taps),
+      profile_visits: numOrNull(form.profile_visits), bio_link_taps: numOrNull(form.bio_link_taps),
       likes: numOrNull(form.likes), comments: numOrNull(form.comments), shares: numOrNull(form.shares), reposts: numOrNull(form.reposts), saves: numOrNull(form.saves),
-      views_post: numOrNull(form.views_post), views_carousel: numOrNull(form.views_carousel), views_reel: numOrNull(form.views_reel), views_story: numOrNull(form.views_story),
-      followers_pct_post: pctOrNull(form.followers_pct_post), followers_pct_carousel: pctOrNull(form.followers_pct_carousel), followers_pct_reel: pctOrNull(form.followers_pct_reel), followers_pct_story: pctOrNull(form.followers_pct_story),
+      views_post: numOrNull(form.views_post), views_reel: numOrNull(form.views_reel), views_story: numOrNull(form.views_story),
+      followers_pct: pctOrNull(form.followers_pct),
       notes: form.notes.trim() || null
     }
     if (editingId === 'new') {
@@ -2003,23 +2003,20 @@ function MarketingReportsView({ client }) {
                 <div><label style={labelStyle}>Period end</label><input type="date" value={form.period_end} onChange={e => setForm({ ...form, period_end: e.target.value })} style={inputStyle} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-                {[['followers', 'Followers'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['profile_visits', 'Profile Visits'], ['website_clicks', 'Website Clicks'], ['bio_link_taps', 'Bio Link Taps'], ['likes', 'Likes'], ['comments', 'Comments'], ['shares', 'Shares'], ['reposts', 'Reposts'], ['saves', 'Saves']].map(([key, lbl]) => (
+                {[['followers', 'Followers'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['profile_visits', 'Profile Visits'], ['bio_link_taps', 'Bio Link Taps'], ['likes', 'Likes'], ['comments', 'Comments'], ['shares', 'Shares'], ['reposts', 'Reposts'], ['saves', 'Saves']].map(([key, lbl]) => (
                   <div key={key}><label style={labelStyle}>{lbl}</label><input type="number" min="0" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="0" style={inputStyle} /></div>
                 ))}
               </div>
 
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6 }}>Views by content type (optional)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
-                {[['views_post', 'Post'], ['views_carousel', 'Carousel'], ['views_reel', 'Reel'], ['views_story', 'Story']].map(([key, lbl]) => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                {[['views_post', 'Post'], ['views_reel', 'Reel'], ['views_story', 'Story']].map(([key, lbl]) => (
                   <div key={key}><label style={labelStyle}>{lbl}</label><input type="number" min="0" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="0" style={inputStyle} /></div>
                 ))}
               </div>
 
-              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6 }}>% of viewers who follow you, by content type (optional)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
-                {[['followers_pct_post', 'Post'], ['followers_pct_carousel', 'Carousel'], ['followers_pct_reel', 'Reel'], ['followers_pct_story', 'Story']].map(([key, lbl]) => (
-                  <div key={key}><label style={labelStyle}>{lbl} %</label><input type="number" min="0" max="100" step="0.1" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="0" style={inputStyle} /></div>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 12, alignItems: 'end' }}>
+                <div><label style={labelStyle}>% of viewers who follow you (optional)</label><input type="number" min="0" max="100" step="0.1" value={form.followers_pct} onChange={e => setForm({ ...form, followers_pct: e.target.value })} placeholder="0" style={inputStyle} /></div>
               </div>
 
               <div style={{ marginBottom: 14 }}><label style={labelStyle}>Notes (optional)</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Any context worth remembering about this period" /></div>
@@ -2099,14 +2096,13 @@ function MarketingReportsView({ client }) {
                 </div>
               )}
 
-              {latest && (latest.views_post != null || latest.views_carousel != null || latest.views_reel != null || latest.views_story != null) && (
+              {latest && (latest.views_post != null || latest.views_reel != null || latest.views_story != null) && (
                 <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
                   <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Views by content type</div>
                   <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
                   <ReportBarChart
                     data={[
                       { label: 'Post', value: latest.views_post },
-                      { label: 'Carousel', value: latest.views_carousel },
                       { label: 'Reel', value: latest.views_reel },
                       { label: 'Story', value: latest.views_story },
                     ]}
@@ -2115,26 +2111,18 @@ function MarketingReportsView({ client }) {
                 </div>
               )}
 
-              {latest && (latest.followers_pct_post != null || latest.followers_pct_carousel != null || latest.followers_pct_reel != null || latest.followers_pct_story != null) && (
+              {latest && latest.followers_pct != null && (
                 <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 28 }}>
-                  <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Followers vs. non-followers reached, by content type</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Followers vs. non-followers reached</div>
                   <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 14 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
-                  {[['views_post', 'followers_pct_post', 'Post'], ['views_carousel', 'followers_pct_carousel', 'Carousel'], ['views_reel', 'followers_pct_reel', 'Reel'], ['views_story', 'followers_pct_story', 'Story']].map(([, pctKey, lbl]) => {
-                    const pct = latest[pctKey]
-                    if (pct == null) return null
-                    return (
-                      <div key={pctKey} style={{ marginBottom: 12 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 500 }}>{lbl}</span>
-                          <span style={{ color: PALETTE.mutedLight }}>{pct}% followers · {Math.round((100 - pct) * 10) / 10}% non-followers</span>
-                        </div>
-                        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: PALETTE.creamDark }}>
-                          <div style={{ width: pct + '%', background: PALETTE.caramel }} />
-                          <div style={{ width: (100 - pct) + '%', background: PALETTE.creamDark }} />
-                        </div>
-                      </div>
-                    )
-                  })}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, marginBottom: 6 }}>
+                    <span>{latest.followers_pct}% followers</span>
+                    <span style={{ color: PALETTE.mutedLight }}>{Math.round((100 - latest.followers_pct) * 10) / 10}% non-followers</span>
+                  </div>
+                  <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: PALETTE.creamDark }}>
+                    <div style={{ width: latest.followers_pct + '%', background: PALETTE.caramel }} />
+                    <div style={{ width: (100 - latest.followers_pct) + '%', background: PALETTE.creamDark }} />
+                  </div>
                 </div>
               )}
 
@@ -2149,7 +2137,7 @@ function MarketingReportsView({ client }) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                    {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Website clicks', r.website_clicks], ['Bio link taps', r.bio_link_taps], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves], ['Post views', r.views_post], ['Carousel views', r.views_carousel], ['Reel views', r.views_reel], ['Story views', r.views_story]].filter(([, v]) => v != null).map(([lbl, v]) => (
+                    {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves], ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story], ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null]].filter(([, v]) => v != null).map(([lbl, v]) => (
                       <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{v.toLocaleString()}</div>
                     ))}
                   </div>
