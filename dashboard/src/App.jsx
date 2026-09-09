@@ -1872,6 +1872,12 @@ function MarketingReportsView({ client }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null) // null | 'new' | report id
+  const [expandedIds, setExpandedIds] = useState(() => new Set()) // report history rows are collapsed by default
+  const toggleExpanded = (id) => setExpandedIds(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
 
   const blankForm = {
     period_start: '', period_end: '', followers: '', reach: '', impressions: '',
@@ -2128,23 +2134,33 @@ function MarketingReportsView({ client }) {
               )}
 
               <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 12 }}>All reports</div>
-              {[...sorted].reverse().map(r => (
-                <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10, background: '#fff' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{fmtDateLong(r.period_start)} – {fmtDateLong(r.period_end)}</div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+              {[...sorted].reverse().map(r => {
+                const isOpen = expandedIds.has(r.id)
+                return (
+                <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, marginBottom: 10, background: '#fff', overflow: 'hidden' }}>
+                  <div onClick={() => toggleExpanded(r.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', gap: 8, flexWrap: 'wrap', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                      <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{fmtDateLong(r.period_start)} – {fmtDateLong(r.period_end)}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
                       <button onClick={() => startEdit(r)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
                       <button onClick={() => deleteReport(r.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                    {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves], ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story], ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null], ['Non-followers reached', r.nonfollowers_pct != null ? r.nonfollowers_pct + '%' : null]].filter(([, v]) => v != null).map(([lbl, v]) => (
-                      <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{v.toLocaleString()}</div>
-                    ))}
-                  </div>
-                  {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{r.notes}</div>}
+                  {isOpen && (
+                    <div style={{ padding: '0 14px 14px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                        {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves], ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story], ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null], ['Non-followers reached', r.nonfollowers_pct != null ? r.nonfollowers_pct + '%' : null]].filter(([, v]) => v != null).map(([lbl, v]) => (
+                          <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{v.toLocaleString()}</div>
+                        ))}
+                      </div>
+                      {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{r.notes}</div>}
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </>
           )}
         </>
