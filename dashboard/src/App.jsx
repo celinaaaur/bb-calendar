@@ -2454,6 +2454,9 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const avatarFileRef = useRef()
   const [seenIds, setSeenIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('bb_seen_notifs') || '[]')) } catch { return new Set() }
   })
@@ -2586,6 +2589,21 @@ export default function Dashboard() {
     try { localStorage.setItem('bb_seen_notifs', JSON.stringify([...newSeen])) } catch {}
   }
 
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingAvatar(true)
+    const { url, error } = await uploadAsset(file)
+    if (url) {
+      const { error: updateError } = await supabase.auth.updateUser({ data: { avatar_url: url } })
+      if (updateError) alert('Could not update your avatar: ' + updateError.message)
+    }
+    if (error) alert('Could not upload avatar: ' + error)
+    setUploadingAvatar(false)
+    setShowUserMenu(false)
+    e.target.value = ''
+  }
+
   const startEditPassword = (client) => {
     setPwEditClientId(client.id)
     setPwDraft(client.portal_password || '')
@@ -2671,7 +2689,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="bb-app-shell" style={{ background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => showNotifications && setShowNotifications(false)}>
+    <div className="bb-app-shell" style={{ background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => { showNotifications && setShowNotifications(false); showUserMenu && setShowUserMenu(false) }}>
       <div style={{ background: PALETTE.espresso, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {isMobile && (
@@ -2694,16 +2712,31 @@ export default function Dashboard() {
             onMouseLeave={e => e.currentTarget.style.background = PALETTE.caramel}
           >+ New Post</button>
           {!isMobile && (
-            <button onClick={() => supabase.auth.signOut()} title={'Signed in as ' + currentUserName} style={{ background: 'none', border: '0.5px solid #4a3a28', borderRadius: 6, padding: '6px 10px 6px 6px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: PALETTE.cream, fontFamily: F.body, flexShrink: 0, overflow: 'hidden' }}>
-                {currentUserAvatarUrl ? <img src={currentUserAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : currentUserInitials}
-              </div>
-              <span style={{ fontFamily: F.body, fontSize: 11, color: '#c9b89a', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUserName}</span>
-              <span style={{ fontFamily: F.body, fontSize: 10, color: '#7a5a3a' }}>Log out</span>
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button onClick={e => { e.stopPropagation(); setShowUserMenu(o => !o) }} title={'Signed in as ' + currentUserName} style={{ background: 'none', border: '0.5px solid #4a3a28', borderRadius: 6, padding: '6px 10px 6px 6px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                <div style={{ width: 22, height: 22, borderRadius: '50%', background: PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: PALETTE.cream, fontFamily: F.body, flexShrink: 0, overflow: 'hidden' }}>
+                  {currentUserAvatarUrl ? <img src={currentUserAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : currentUserInitials}
+                </div>
+                <span style={{ fontFamily: F.body, fontSize: 11, color: '#c9b89a', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUserName}</span>
+                <span style={{ fontFamily: F.body, fontSize: 10, color: '#7a5a3a' }}>▾</span>
+              </button>
+              {showUserMenu && (
+                <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 42, right: 0, width: 190, background: '#fff', borderRadius: 10, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.16)', zIndex: 300, overflow: 'hidden' }}>
+                  <button onClick={() => avatarFileRef.current.click()} disabled={uploadingAvatar} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, borderBottom: '0.5px solid ' + PALETTE.borderLight }}
+                    onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >{uploadingAvatar ? 'Uploading…' : 'Change avatar'}</button>
+                  <button onClick={() => supabase.auth.signOut()} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', fontFamily: F.body, fontSize: 12, color: '#C0392B' }}
+                    onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >Log out</button>
+                </div>
+              )}
+              <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} />
+            </div>
           )}
         </div>
         {showNotifications && <NotificationsPanel notifications={notifications} onClose={() => setShowNotifications(false)} onMarkAllRead={markAllRead} onSelect={handleNotificationClick} />}
