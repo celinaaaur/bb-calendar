@@ -1878,7 +1878,7 @@ function MarketingReportsView({ client }) {
     profile_visits: '', bio_link_taps: '',
     likes: '', comments: '', shares: '', reposts: '', saves: '',
     views_post: '', views_reel: '', views_story: '',
-    followers_pct: '',
+    followers_pct: '', nonfollowers_pct: '',
     notes: ''
   }
   const [form, setForm] = useState(blankForm)
@@ -1900,7 +1900,7 @@ function MarketingReportsView({ client }) {
       profile_visits: r.profile_visits ?? '', bio_link_taps: r.bio_link_taps ?? '',
       likes: r.likes ?? '', comments: r.comments ?? '', shares: r.shares ?? '', reposts: r.reposts ?? '', saves: r.saves ?? '',
       views_post: r.views_post ?? '', views_reel: r.views_reel ?? '', views_story: r.views_story ?? '',
-      followers_pct: r.followers_pct ?? '',
+      followers_pct: r.followers_pct ?? '', nonfollowers_pct: r.nonfollowers_pct ?? '',
       notes: r.notes || ''
     })
   }
@@ -1919,7 +1919,7 @@ function MarketingReportsView({ client }) {
       profile_visits: numOrNull(form.profile_visits), bio_link_taps: numOrNull(form.bio_link_taps),
       likes: numOrNull(form.likes), comments: numOrNull(form.comments), shares: numOrNull(form.shares), reposts: numOrNull(form.reposts), saves: numOrNull(form.saves),
       views_post: numOrNull(form.views_post), views_reel: numOrNull(form.views_reel), views_story: numOrNull(form.views_story),
-      followers_pct: pctOrNull(form.followers_pct),
+      followers_pct: pctOrNull(form.followers_pct), nonfollowers_pct: pctOrNull(form.nonfollowers_pct),
       notes: form.notes.trim() || null
     }
     if (editingId === 'new') {
@@ -2015,8 +2015,9 @@ function MarketingReportsView({ client }) {
                 ))}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 12, alignItems: 'end' }}>
-                <div><label style={labelStyle}>% of viewers who follow you (optional)</label><input type="number" min="0" max="100" step="0.1" value={form.followers_pct} onChange={e => setForm({ ...form, followers_pct: e.target.value })} placeholder="0" style={inputStyle} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div><label style={labelStyle}>% Followers (optional)</label><input type="number" min="0" max="100" step="0.1" value={form.followers_pct} onChange={e => setForm({ ...form, followers_pct: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                <div><label style={labelStyle}>% Non-followers (optional)</label><input type="number" min="0" max="100" step="0.1" value={form.nonfollowers_pct} onChange={e => setForm({ ...form, nonfollowers_pct: e.target.value })} placeholder="0" style={inputStyle} /></div>
               </div>
 
               <div style={{ marginBottom: 14 }}><label style={labelStyle}>Notes (optional)</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Any context worth remembering about this period" /></div>
@@ -2111,17 +2112,17 @@ function MarketingReportsView({ client }) {
                 </div>
               )}
 
-              {latest && latest.followers_pct != null && (
+              {latest && (latest.followers_pct != null || latest.nonfollowers_pct != null) && (
                 <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 28 }}>
                   <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Followers vs. non-followers reached</div>
                   <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 14 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, marginBottom: 6 }}>
-                    <span>{latest.followers_pct}% followers</span>
-                    <span style={{ color: PALETTE.mutedLight }}>{Math.round((100 - latest.followers_pct) * 10) / 10}% non-followers</span>
+                    <span>{latest.followers_pct != null ? latest.followers_pct + '% followers' : '—'}</span>
+                    <span style={{ color: PALETTE.mutedLight }}>{latest.nonfollowers_pct != null ? latest.nonfollowers_pct + '% non-followers' : '—'}</span>
                   </div>
                   <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: PALETTE.creamDark }}>
-                    <div style={{ width: latest.followers_pct + '%', background: PALETTE.caramel }} />
-                    <div style={{ width: (100 - latest.followers_pct) + '%', background: PALETTE.creamDark }} />
+                    <div style={{ width: (latest.followers_pct || 0) + '%', background: PALETTE.caramel }} />
+                    <div style={{ width: (latest.nonfollowers_pct || 0) + '%', background: '#B8A898' }} />
                   </div>
                 </div>
               )}
@@ -2137,7 +2138,7 @@ function MarketingReportsView({ client }) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                    {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves], ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story], ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null]].filter(([, v]) => v != null).map(([lbl, v]) => (
+                    {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves], ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story], ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null], ['Non-followers reached', r.nonfollowers_pct != null ? r.nonfollowers_pct + '%' : null]].filter(([, v]) => v != null).map(([lbl, v]) => (
                       <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{v.toLocaleString()}</div>
                     ))}
                   </div>
