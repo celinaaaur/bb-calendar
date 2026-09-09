@@ -1559,6 +1559,10 @@ export default function ClientPortal() {
     <div style={{ minHeight: '100vh', background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 340, textAlign: 'center' }}>
         <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 24, color: PALETTE.caramel, marginBottom: 8 }}>Brown Butter</div>
+        <div style={{ fontFamily: F.display, fontSize: 20, color: PALETTE.espresso, marginBottom: 6 }}>Hi, {client?.name || 'there'}!</div>
+        <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300, marginBottom: 18, lineHeight: 1.6 }}>
+          This is your space to review posts, leave feedback, and track everything we're working on for you.
+        </div>
         <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300, marginBottom: 28, lineHeight: 1.6 }}>
           This portal is password protected. Enter the password{client?.name ? ' for ' + client.name : ''} to continue.
         </div>
@@ -1575,7 +1579,7 @@ export default function ClientPortal() {
         <button onClick={tryUnlock} disabled={unlocking || !passwordInput.trim()} style={{ width: '100%', padding: '13px 0', borderRadius: 8, border: 'none', background: passwordInput.trim() ? PALETTE.espresso : PALETTE.creamDark, color: passwordInput.trim() ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: passwordInput.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>
           {unlocking ? 'Checking…' : 'Enter'}
         </button>
-        <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginTop: 20 }}>Don't have the password? Contact Brown Butter.</div>
+        <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginTop: 20 }}>Don't have the password? Contact us at hello@brown-butter.com.</div>
       </div>
     </div>
   )
