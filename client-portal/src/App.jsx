@@ -904,7 +904,20 @@ function PortalReportBarChart({ data, color, format }) {
 // Client-facing read-only view of the same analytics_reports data the agency
 // logs on their side — no add/edit/delete controls here, just the numbers.
 function ReportsSection({ reports, isMobile, clientName }) {
-  const sorted = [...reports].sort((a, b) => new Date(a.period_start) - new Date(b.period_start))
+  const allSorted = [...reports].sort((a, b) => new Date(a.period_start) - new Date(b.period_start))
+
+  const [filterFrom, setFilterFrom] = useState('')
+  const [filterTo, setFilterTo] = useState('')
+  // A report "matches" the filter if its period overlaps the selected range
+  // at all, rather than requiring the whole period to fall inside it — so
+  // filtering to a single month still surfaces a report spanning that month.
+  const sorted = allSorted.filter(r => {
+    if (filterFrom && r.period_end < filterFrom) return false
+    if (filterTo && r.period_start > filterTo) return false
+    return true
+  })
+  const isFiltered = !!(filterFrom || filterTo)
+
   const latest = sorted[sorted.length - 1]
   const prior = sorted[sorted.length - 2]
 
@@ -943,15 +956,34 @@ function ReportsSection({ reports, isMobile, clientName }) {
     )
   }
 
+  const filterInputStyle = { padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontSize: 12, color: PALETTE.espresso, fontFamily: F.body }
+
   return (
     <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px', maxWidth: 900 }}>
       <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, marginBottom: 4 }}>Marketing Reports</div>
-      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 24, fontWeight: 300 }}>
-        {sorted.length} report{sorted.length !== 1 ? 's' : ''} from Brown Butter
+      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 16, fontWeight: 300 }}>
+        {allSorted.length} report{allSorted.length !== 1 ? 's' : ''} from Brown Butter
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap', marginBottom: 24, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '12px 14px' }}>
+        <div>
+          <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.08em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6 }}>From</div>
+          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={filterInputStyle} />
+        </div>
+        <div>
+          <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.08em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6 }}>To</div>
+          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={filterInputStyle} />
+        </div>
+        {isFiltered && (
+          <button onClick={() => { setFilterFrom(''); setFilterTo('') }} style={{ padding: '8px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>Clear filter</button>
+        )}
+        {isFiltered && (
+          <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginLeft: 'auto' }}>Showing {sorted.length} of {allSorted.length} report{allSorted.length !== 1 ? 's' : ''}</div>
+        )}
       </div>
 
       {sorted.length === 0 ? (
-        <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No reports yet</div>
+        <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>{isFiltered ? 'No reports in this date range' : 'No reports yet'}</div>
       ) : (
         <>
           {latest && (
