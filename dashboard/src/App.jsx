@@ -315,6 +315,11 @@ const REQUEST_STATUS = {
   declined:    { label: 'DECLINED',    color: '#7A2018', bg: '#FEECEA', dot: '#C0392B' },
 }
 const REQUEST_STATUS_ORDER = ['new', 'in_progress', 'done', 'declined']
+// Industry target for Instagram engagement rate (engagements ÷ reach), food &
+// beverage brands — Dash Social's 2026 Food and Beverage Industry Benchmarks
+// report. Update this if a more current report becomes available; it's a
+// single source of truth referenced by the Marketing Reports view.
+const FNB_ENGAGEMENT_BENCHMARK = { low: 2.0, high: 2.5, source: 'Dash Social, 2026 F&B Industry Benchmarks' }
 const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 // Case/whitespace-insensitive name comparison — used to match a logged-in
 // user's auth display name against the "Assigned to" field on posts, since
@@ -1838,6 +1843,240 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
   )
 }
 
+// Lightweight bar chart — plain divs sized by percentage of the max value in
+// the series, no charting library dependency. Good enough for "here are the
+// numbers over time" without pulling in recharts just for this one view.
+function ReportBarChart({ data, color, format }) {
+  const max = Math.max(1, ...data.map(d => d.value || 0))
+  const fmtVal = format || (n => (n ?? 0).toLocaleString())
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 150, paddingTop: 10 }}>
+      {data.map((d, i) => (
+        <div key={i} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
+          <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.espresso, fontWeight: 500, whiteSpace: 'nowrap' }}>{d.value == null ? '—' : fmtVal(d.value)}</div>
+          <div style={{ width: '100%', maxWidth: 36, height: Math.max(4, (d.value || 0) / max * 100) + '%', background: color, borderRadius: '5px 5px 2px 2px', transition: 'height 0.3s ease' }} />
+          <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 50, textAlign: 'center' }}>{d.label}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MarketingReportsView({ client }) {
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState(null) // null | 'new' | report id
+
+  const blankForm = { period_start: '', period_end: '', followers: '', reach: '', impressions: '', profile_visits: '', website_clicks: '', likes: '', comments: '', shares: '', saves: '', notes: '' }
+  const [form, setForm] = useState(blankForm)
+
+  const fetchReports = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('analytics_reports').select('*').eq('client_id', client.id).order('period_start', { ascending: true })
+    if (data) setReports(data)
+    setLoading(false)
+  }
+  useEffect(() => { fetchReports() }, [client.id])
+
+  const startNew = () => { setEditingId('new'); setForm(blankForm) }
+  const startEdit = (r) => {
+    setEditingId(r.id)
+    setForm({
+      period_start: r.period_start, period_end: r.period_end,
+      followers: r.followers ?? '', reach: r.reach ?? '', impressions: r.impressions ?? '',
+      profile_visits: r.profile_visits ?? '', website_clicks: r.website_clicks ?? '',
+      likes: r.likes ?? '', comments: r.comments ?? '', shares: r.shares ?? '', saves: r.saves ?? '',
+      notes: r.notes || ''
+    })
+  }
+
+  const numOrNull = (v) => v === '' || v == null ? null : parseInt(v, 10)
+
+  const saveReport = async () => {
+    if (!form.period_start || !form.period_end) return
+    setSaving(true)
+    const payload = {
+      client_id: client.id, period_start: form.period_start, period_end: form.period_end,
+      followers: numOrNull(form.followers), reach: numOrNull(form.reach), impressions: numOrNull(form.impressions),
+      profile_visits: numOrNull(form.profile_visits), website_clicks: numOrNull(form.website_clicks),
+      likes: numOrNull(form.likes), comments: numOrNull(form.comments), shares: numOrNull(form.shares), saves: numOrNull(form.saves),
+      notes: form.notes.trim() || null
+    }
+    if (editingId === 'new') {
+      await supabase.from('analytics_reports').insert(payload)
+    } else {
+      await supabase.from('analytics_reports').update(payload).eq('id', editingId)
+    }
+    setSaving(false); setEditingId(null)
+    fetchReports()
+  }
+
+  const deleteReport = async (id) => {
+    if (!window.confirm('Delete this report?')) return
+    await supabase.from('analytics_reports').delete().eq('id', id)
+    fetchReports()
+  }
+
+  const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
+  const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
+
+  const sorted = [...reports].sort((a, b) => new Date(a.period_start) - new Date(b.period_start))
+  const latest = sorted[sorted.length - 1]
+  const prior = sorted[sorted.length - 2]
+
+  const delta = (a, b) => {
+    if (a == null || b == null) return null
+    const diff = a - b
+    const pct = b === 0 ? null : Math.round((diff / b) * 100)
+    return { diff, pct }
+  }
+  const engagementOf = (r) => (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.saves || 0)
+  // Engagement rate = total engagements ÷ reach × 100 — the standard way to
+  // express engagement so it's comparable across periods regardless of how
+  // many people a post happened to reach. Null (shows as "—") if reach isn't
+  // logged for that period, rather than silently dividing by zero.
+  const engagementRateOf = (r) => {
+    if (!r.reach) return null
+    return Math.round((engagementOf(r) / r.reach) * 1000) / 10 // 1 decimal place
+  }
+
+  const chartSeries = sorted.slice(-8) // last 8 periods so bars stay readable
+  const followersData = chartSeries.map(r => ({ label: fmtShort(r.period_start), value: r.followers }))
+  const reachData = chartSeries.map(r => ({ label: fmtShort(r.period_start), value: r.reach }))
+  const engagementData = chartSeries.map(r => ({ label: fmtShort(r.period_start), value: engagementRateOf(r) }))
+
+  const kpiCard = (label, value, deltaInfo, description, formatValue, extra) => {
+    const fmtVal = formatValue || (v => v.toLocaleString())
+    return (
+    <div style={{ flex: 1, minWidth: 150, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 16px' }}>
+      <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: F.display, fontSize: 24, color: PALETTE.espresso, marginBottom: deltaInfo ? 4 : 6 }}>{value == null ? '—' : fmtVal(value)}</div>
+      {deltaInfo && deltaInfo.diff != null && (
+        <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: deltaInfo.diff >= 0 ? '#2A7D4F' : '#C0392B', marginBottom: 6 }}>
+          {deltaInfo.diff >= 0 ? '↑' : '↓'} {deltaInfo.diffLabel != null ? deltaInfo.diffLabel : Math.abs(deltaInfo.diff).toLocaleString()}{deltaInfo.pct != null ? ' (' + Math.abs(deltaInfo.pct) + '%)' : ''} vs last period
+        </div>
+      )}
+      {extra}
+      {description && <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, lineHeight: 1.5, borderTop: '0.5px solid ' + PALETTE.borderLight, paddingTop: 6, marginTop: 2 }}>{description}</div>}
+    </div>
+  )}
+
+  return (
+    <div style={{ padding: '20px 26px 60px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontFamily: F.display, fontSize: 26, color: PALETTE.espresso, lineHeight: 1 }}>Marketing Reports</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>{client.name} · {reports.length} report{reports.length !== 1 ? 's' : ''} logged</div>
+        </div>
+        <button onClick={startNew} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500, flexShrink: 0 }}>+ Log new report</button>
+      </div>
+
+      {loading ? (
+        <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, textAlign: 'center', padding: 40 }}>Loading…</div>
+      ) : (
+        <>
+          {editingId && (
+            <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 10, padding: 18, marginBottom: 24 }}>
+              <div style={{ fontFamily: F.display, fontSize: 15, color: PALETTE.espresso, marginBottom: 14 }}>{editingId === 'new' ? 'Log a new report' : 'Edit report'}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div><label style={labelStyle}>Period start</label><input type="date" value={form.period_start} onChange={e => setForm({ ...form, period_start: e.target.value })} style={inputStyle} /></div>
+                <div><label style={labelStyle}>Period end</label><input type="date" value={form.period_end} onChange={e => setForm({ ...form, period_end: e.target.value })} style={inputStyle} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                {[['followers', 'Followers'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['profile_visits', 'Profile Visits'], ['website_clicks', 'Website Clicks'], ['likes', 'Likes'], ['comments', 'Comments'], ['shares', 'Shares'], ['saves', 'Saves']].map(([key, lbl]) => (
+                  <div key={key}><label style={labelStyle}>{lbl}</label><input type="number" min="0" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                ))}
+              </div>
+              <div style={{ marginBottom: 14 }}><label style={labelStyle}>Notes (optional)</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Any context worth remembering about this period" /></div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
+                <button onClick={saveReport} disabled={saving || !form.period_start || !form.period_end} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 12, color: PALETTE.cream, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save report'}</button>
+              </div>
+            </div>
+          )}
+
+          {reports.length === 0 && !editingId ? (
+            <div style={{ padding: '60px 0', textAlign: 'center' }}>
+              <div style={{ fontFamily: F.display, color: PALETTE.mutedLight, fontSize: 18, marginBottom: 8 }}>No reports logged yet</div>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight }}>Send me a screenshot of {client.name}'s Instagram analytics and I'll tell you exactly what to type in — or just log the numbers directly with "+ Log new report."</div>
+            </div>
+          ) : (
+            <>
+              {latest && (
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
+                  {kpiCard('Followers', latest.followers, prior ? delta(latest.followers, prior.followers) : null, 'Total accounts following the profile as of this period.')}
+                  {kpiCard('Reach', latest.reach, prior ? delta(latest.reach, prior.reach) : null, 'Unique accounts that saw at least one post.')}
+                  {kpiCard('Impressions', latest.impressions, prior ? delta(latest.impressions, prior.impressions) : null, 'Total times posts were displayed, including repeat views.')}
+                  {(() => {
+                    const latestRate = engagementRateOf(latest)
+                    const priorRate = prior ? engagementRateOf(prior) : null
+                    const rateDelta = (latestRate != null && priorRate != null)
+                      ? { diff: latestRate - priorRate, diffLabel: Math.abs(Math.round((latestRate - priorRate) * 10) / 10) + ' pts', pct: null }
+                      : null
+                    const { low, high } = FNB_ENGAGEMENT_BENCHMARK
+                    const benchmarkBadge = latestRate != null && (() => {
+                      const status = latestRate < low ? 'below' : latestRate > high ? 'above' : 'within'
+                      const color = status === 'below' ? '#C0392B' : '#2A7D4F'
+                      const label = status === 'below' ? 'Below' : status === 'above' ? 'Above' : 'Within'
+                      return (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 10, background: status === 'below' ? '#FEECEA' : '#E8F8EE', fontFamily: F.body, fontSize: 10, fontWeight: 500, color, marginBottom: 6 }}>
+                          {label} F&amp;B benchmark ({low}–{high}%)
+                        </div>
+                      )
+                    })()
+                    return kpiCard('Engagement rate', latestRate, rateDelta, 'Engagements (likes + comments + shares + saves) as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
+                  })()}
+                </div>
+              )}
+
+              {chartSeries.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
+                  <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px' }}>
+                    <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Followers over time</div>
+                    <ReportBarChart data={followersData} color={PALETTE.caramel} />
+                  </div>
+                  <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px' }}>
+                    <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Reach over time</div>
+                    <ReportBarChart data={reachData} color="#3B72B8" />
+                  </div>
+                  <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px' }}>
+                    <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Engagement rate over time</div>
+                    <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>(Likes + comments + shares + saves) ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
+                    <ReportBarChart data={engagementData} color="#2A7D4F" format={v => v.toFixed(1) + '%'} />
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 12 }}>All reports</div>
+              {[...sorted].reverse().map(r => (
+                <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10, background: '#fff' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{fmtDateLong(r.period_start)} – {fmtDateLong(r.period_end)}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => startEdit(r)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
+                      <button onClick={() => deleteReport(r.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                    {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Website clicks', r.website_clicks], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Saves', r.saves]].filter(([, v]) => v != null).map(([lbl, v]) => (
+                      <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{v.toLocaleString()}</div>
+                    ))}
+                  </div>
+                  {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{r.notes}</div>}
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      )}
+      <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, textAlign: 'center', marginTop: 30 }}>
+        Food &amp; beverage engagement benchmark ({FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%) sourced from {FNB_ENGAGEMENT_BENCHMARK.source}.
+      </div>
+    </div>
+  )
+}
+
 function RequestsView({ requests, clients, selectedClient, onRefresh }) {
   const setRequestStatus = async (id, status) => {
     const { error } = await supabase.from('requests').update({ status }).eq('id', id)
@@ -2436,7 +2675,7 @@ export default function Dashboard() {
           <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
           <div style={{ padding: '8px 14px' }}>
             <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
-            {[['overview', '📊 Overview'], ['queue', '🗂️ Queue'], ['grid', '🔲 Grid Preview'], ['calendar', '📅 Calendar'], ['requests', '📥 Requests']].map(([k, l]) => (
+            {[['overview', '📊 Overview'], ['queue', '🗂️ Queue'], ['grid', '🔲 Grid Preview'], ['calendar', '📅 Calendar'], ['requests', '📥 Requests'], ['reports', '📈 Marketing Reports']].map(([k, l]) => (
               <button key={k} onClick={() => { setView(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
@@ -2504,7 +2743,7 @@ export default function Dashboard() {
               <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', marginBottom: 4 }}>Nothing assigned to you needs attention right now.</div>
             )}
           </div>
-          {view !== 'overview' && view !== 'hub' && (
+          {view !== 'overview' && view !== 'hub' && view !== 'reports' && (
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             {view === 'requests' ? (
               <>
@@ -2550,6 +2789,13 @@ export default function Dashboard() {
                 )
               : view === 'requests'
               ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} onRefresh={fetchAll} />
+              : view === 'reports'
+              ? (selectedClient === 'all'
+                  ? <div style={{ padding: 60, textAlign: 'center' }}>
+                      <div style={{ fontFamily: F.display, fontSize: 18, color: PALETTE.mutedLight }}>Pick a client from the sidebar to see their marketing reports</div>
+                    </div>
+                  : <MarketingReportsView client={clients.find(c => c.id === selectedClient)} />
+                )
               : view === 'hub'
               ? (clients.find(c => c.id === hubClientId)
                   ? <ClientHubView
