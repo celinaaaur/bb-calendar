@@ -1021,14 +1021,13 @@ function ReportsSection({ reports, isMobile, clientName }) {
             </div>
           )}
 
-          {latest && (latest.views_post != null || latest.views_carousel != null || latest.views_reel != null || latest.views_story != null) && (
+          {latest && (latest.views_post != null || latest.views_reel != null || latest.views_story != null) && (
             <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
               <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Views by content type</div>
               <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
               <PortalReportBarChart
                 data={[
                   { label: 'Post', value: latest.views_post },
-                  { label: 'Carousel', value: latest.views_carousel },
                   { label: 'Reel', value: latest.views_reel },
                   { label: 'Story', value: latest.views_story },
                 ]}
@@ -1037,26 +1036,18 @@ function ReportsSection({ reports, isMobile, clientName }) {
             </div>
           )}
 
-          {latest && (latest.followers_pct_post != null || latest.followers_pct_carousel != null || latest.followers_pct_reel != null || latest.followers_pct_story != null) && (
+          {latest && latest.followers_pct != null && (
             <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
-              <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Followers vs. non-followers reached, by content type</div>
+              <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Followers vs. non-followers reached</div>
               <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 14 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
-              {[['followers_pct_post', 'Post'], ['followers_pct_carousel', 'Carousel'], ['followers_pct_reel', 'Reel'], ['followers_pct_story', 'Story']].map(([pctKey, lbl]) => {
-                const pct = latest[pctKey]
-                if (pct == null) return null
-                return (
-                  <div key={pctKey} style={{ marginBottom: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 500 }}>{lbl}</span>
-                      <span style={{ color: PALETTE.mutedLight }}>{pct}% followers · {Math.round((100 - pct) * 10) / 10}% non-followers</span>
-                    </div>
-                    <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: PALETTE.creamDark }}>
-                      <div style={{ width: pct + '%', background: PALETTE.caramel }} />
-                      <div style={{ width: (100 - pct) + '%', background: PALETTE.creamDark }} />
-                    </div>
-                  </div>
-                )
-              })}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, marginBottom: 6 }}>
+                <span>{latest.followers_pct}% followers</span>
+                <span style={{ color: PALETTE.mutedLight }}>{Math.round((100 - latest.followers_pct) * 10) / 10}% non-followers</span>
+              </div>
+              <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: PALETTE.creamDark }}>
+                <div style={{ width: latest.followers_pct + '%', background: PALETTE.caramel }} />
+                <div style={{ width: (100 - latest.followers_pct) + '%', background: PALETTE.creamDark }} />
+              </div>
             </div>
           )}
 
@@ -1069,9 +1060,10 @@ function ReportsSection({ reports, isMobile, clientName }) {
                   ['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions],
                   ['Engagement rate', engagementRateOf(r) != null ? engagementRateOf(r) + '%' : null],
                   ['CTR', ctrOf(r) != null ? ctrOf(r) + '%' : null],
-                  ['Profile visits', r.profile_visits], ['Website clicks', r.website_clicks], ['Bio link taps', r.bio_link_taps],
+                  ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps],
                   ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves],
-                  ['Post views', r.views_post], ['Carousel views', r.views_carousel], ['Reel views', r.views_reel], ['Story views', r.views_story]
+                  ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story],
+                  ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null]
                 ].filter(([, v]) => v != null).map(([lbl, v]) => (
                   <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{typeof v === 'number' ? v.toLocaleString() : v}</div>
                 ))}
