@@ -880,6 +880,10 @@ function LinksSection({ links, isMobile }) {
 // beverage brands — Dash Social's 2026 Food and Beverage Industry Benchmarks
 // report. Mirrors the same constant used on the agency dashboard.
 const FNB_ENGAGEMENT_BENCHMARK = { low: 2.0, high: 2.5, source: 'Dash Social, 2026 F&B Industry Benchmarks' }
+// See Dashboard.jsx for the caveat on this figure — it's paid-ad CTR data,
+// used here as the closest available reference since organic-specific F&B
+// bio-link CTR benchmarks aren't commonly published.
+const FNB_CTR_BENCHMARK = { value: 1.8, source: 'Cool Nerds Marketing, 2026 CPG/F&B benchmark data (paid link CTR — closest available reference; organic-specific F&B CTR benchmarks aren\'t commonly published)' }
 
 function PortalReportBarChart({ data, color, format }) {
   const max = Math.max(1, ...data.map(d => d.value || 0))
@@ -904,11 +908,12 @@ function ReportsSection({ reports, isMobile, clientName }) {
   const latest = sorted[sorted.length - 1]
   const prior = sorted[sorted.length - 2]
 
-  const engagementOf = (r) => (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.saves || 0)
+  const engagementOf = (r) => (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.reposts || 0) + (r.saves || 0)
   const engagementRateOf = (r) => {
     if (!r.reach) return null
     return Math.round((engagementOf(r) / r.reach) * 1000) / 10
   }
+  const ctrOf = (r) => (r.profile_visits ? Math.round((r.bio_link_taps || 0) / r.profile_visits * 1000) / 10 : null)
   const delta = (a, b) => {
     if (a == null || b == null) return null
     const diff = a - b
@@ -950,6 +955,11 @@ function ReportsSection({ reports, isMobile, clientName }) {
       ) : (
         <>
           {latest && (
+            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 14 }}>
+              Showing <span style={{ fontWeight: 500, color: PALETTE.espresso }}>{fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</span>
+            </div>
+          )}
+          {latest && (
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
               {kpiCard('Followers', latest.followers, prior ? delta(latest.followers, prior.followers) : null, 'Total accounts following the profile as of this period.')}
               {kpiCard('Reach', latest.reach, prior ? delta(latest.reach, prior.reach) : null, 'Unique accounts that saw at least one post.')}
@@ -971,7 +981,24 @@ function ReportsSection({ reports, isMobile, clientName }) {
                     </div>
                   )
                 })()
-                return kpiCard('Engagement rate', latestRate, rateDelta, 'Engagements (likes + comments + shares + saves) as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
+                return kpiCard('Engagement rate', latestRate, rateDelta, 'Engagements (likes + comments + shares + reposts + saves) as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
+              })()}
+              {(() => {
+                const latestCtr = ctrOf(latest)
+                const priorCtr = prior ? ctrOf(prior) : null
+                const ctrDelta = (latestCtr != null && priorCtr != null)
+                  ? { diff: latestCtr - priorCtr, diffLabel: Math.abs(Math.round((latestCtr - priorCtr) * 10) / 10) + ' pts', pct: null }
+                  : null
+                const ctrBadge = latestCtr != null && (() => {
+                  const isBelow = latestCtr < FNB_CTR_BENCHMARK.value
+                  const color = isBelow ? '#C0392B' : '#2A7D4F'
+                  return (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 10, background: isBelow ? '#FEECEA' : '#E8F8EE', fontFamily: F.body, fontSize: 10, fontWeight: 500, color, marginBottom: 6 }}>
+                      {isBelow ? 'Below' : 'At/above'} F&amp;B reference ({FNB_CTR_BENCHMARK.value}%)
+                    </div>
+                  )
+                })()
+                return kpiCard('Profile → Link CTR', latestCtr, ctrDelta, 'Bio link taps as a share of profile visits.', v => v.toFixed(1) + '%', ctrBadge)
               })()}
             </div>
           )}
@@ -988,14 +1015,74 @@ function ReportsSection({ reports, isMobile, clientName }) {
               </div>
               <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px' }}>
                 <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Engagement rate over time</div>
-                <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>(Likes + comments + shares + saves) ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
+                <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>(Likes + comments + shares + reposts + saves) ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
                 <PortalReportBarChart data={engagementData} color="#2A7D4F" format={v => v.toFixed(1) + '%'} />
               </div>
             </div>
           )}
 
-          <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, textAlign: 'center', marginTop: 10 }}>
+          {latest && (latest.views_post != null || latest.views_carousel != null || latest.views_reel != null || latest.views_story != null) && (
+            <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
+              <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Views by content type</div>
+              <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
+              <PortalReportBarChart
+                data={[
+                  { label: 'Post', value: latest.views_post },
+                  { label: 'Carousel', value: latest.views_carousel },
+                  { label: 'Reel', value: latest.views_reel },
+                  { label: 'Story', value: latest.views_story },
+                ]}
+                color={PALETTE.caramel}
+              />
+            </div>
+          )}
+
+          {latest && (latest.followers_pct_post != null || latest.followers_pct_carousel != null || latest.followers_pct_reel != null || latest.followers_pct_story != null) && (
+            <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
+              <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Followers vs. non-followers reached, by content type</div>
+              <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 14 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
+              {[['followers_pct_post', 'Post'], ['followers_pct_carousel', 'Carousel'], ['followers_pct_reel', 'Reel'], ['followers_pct_story', 'Story']].map(([pctKey, lbl]) => {
+                const pct = latest[pctKey]
+                if (pct == null) return null
+                return (
+                  <div key={pctKey} style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 500 }}>{lbl}</span>
+                      <span style={{ color: PALETTE.mutedLight }}>{pct}% followers · {Math.round((100 - pct) * 10) / 10}% non-followers</span>
+                    </div>
+                    <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: PALETTE.creamDark }}>
+                      <div style={{ width: pct + '%', background: PALETTE.caramel }} />
+                      <div style={{ width: (100 - pct) + '%', background: PALETTE.creamDark }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 12, marginTop: 4 }}>Report history</div>
+          {[...sorted].reverse().map(r => (
+            <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10, background: '#fff' }}>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500, marginBottom: 8 }}>{fmtDateLong(r.period_start)} – {fmtDateLong(r.period_end)}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                {[
+                  ['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions],
+                  ['Engagement rate', engagementRateOf(r) != null ? engagementRateOf(r) + '%' : null],
+                  ['CTR', ctrOf(r) != null ? ctrOf(r) + '%' : null],
+                  ['Profile visits', r.profile_visits], ['Website clicks', r.website_clicks], ['Bio link taps', r.bio_link_taps],
+                  ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves],
+                  ['Post views', r.views_post], ['Carousel views', r.views_carousel], ['Reel views', r.views_reel], ['Story views', r.views_story]
+                ].filter(([, v]) => v != null).map(([lbl, v]) => (
+                  <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{typeof v === 'number' ? v.toLocaleString() : v}</div>
+                ))}
+              </div>
+              {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{r.notes}</div>}
+            </div>
+          ))}
+
+          <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, textAlign: 'center', marginTop: 20, lineHeight: 1.6, maxWidth: 640, marginLeft: 'auto', marginRight: 'auto' }}>
             Food &amp; beverage engagement benchmark ({FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%) sourced from {FNB_ENGAGEMENT_BENCHMARK.source}.
+            <br />CTR reference ({FNB_CTR_BENCHMARK.value}%) sourced from {FNB_CTR_BENCHMARK.source}.
           </div>
         </>
       )}
