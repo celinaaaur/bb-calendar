@@ -320,6 +320,11 @@ const REQUEST_STATUS_ORDER = ['new', 'in_progress', 'done', 'declined']
 // report. Update this if a more current report becomes available; it's a
 // single source of truth referenced by the Marketing Reports view.
 const FNB_ENGAGEMENT_BENCHMARK = { low: 2.0, high: 2.5, source: 'Dash Social, 2026 F&B Industry Benchmarks' }
+// Note: this is the closest published F&B-specific link CTR figure available,
+// but it comes from paid Meta ad campaigns, not organic bio-link taps ÷
+// profile visits — no organic-specific F&B benchmark is commonly published.
+// Treat this as a rough reference point, not a precise apples-to-apples bar.
+const FNB_CTR_BENCHMARK = { value: 1.8, source: 'Cool Nerds Marketing, 2026 CPG/F&B benchmark data (paid link CTR — closest available reference; organic-specific F&B CTR benchmarks aren\'t commonly published)' }
 const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 // Case/whitespace-insensitive name comparison — used to match a logged-in
 // user's auth display name against the "Assigned to" field on posts, since
@@ -1868,7 +1873,14 @@ function MarketingReportsView({ client }) {
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null) // null | 'new' | report id
 
-  const blankForm = { period_start: '', period_end: '', followers: '', reach: '', impressions: '', profile_visits: '', website_clicks: '', likes: '', comments: '', shares: '', saves: '', notes: '' }
+  const blankForm = {
+    period_start: '', period_end: '', followers: '', reach: '', impressions: '',
+    profile_visits: '', website_clicks: '', bio_link_taps: '',
+    likes: '', comments: '', shares: '', reposts: '', saves: '',
+    views_post: '', views_carousel: '', views_reel: '', views_story: '',
+    followers_pct_post: '', followers_pct_carousel: '', followers_pct_reel: '', followers_pct_story: '',
+    notes: ''
+  }
   const [form, setForm] = useState(blankForm)
 
   const fetchReports = async () => {
@@ -1885,13 +1897,18 @@ function MarketingReportsView({ client }) {
     setForm({
       period_start: r.period_start, period_end: r.period_end,
       followers: r.followers ?? '', reach: r.reach ?? '', impressions: r.impressions ?? '',
-      profile_visits: r.profile_visits ?? '', website_clicks: r.website_clicks ?? '',
-      likes: r.likes ?? '', comments: r.comments ?? '', shares: r.shares ?? '', saves: r.saves ?? '',
+      profile_visits: r.profile_visits ?? '', website_clicks: r.website_clicks ?? '', bio_link_taps: r.bio_link_taps ?? '',
+      likes: r.likes ?? '', comments: r.comments ?? '', shares: r.shares ?? '', reposts: r.reposts ?? '', saves: r.saves ?? '',
+      views_post: r.views_post ?? '', views_carousel: r.views_carousel ?? '', views_reel: r.views_reel ?? '', views_story: r.views_story ?? '',
+      followers_pct_post: r.followers_pct_post ?? '', followers_pct_carousel: r.followers_pct_carousel ?? '', followers_pct_reel: r.followers_pct_reel ?? '', followers_pct_story: r.followers_pct_story ?? '',
       notes: r.notes || ''
     })
   }
 
   const numOrNull = (v) => v === '' || v == null ? null : parseInt(v, 10)
+  // Follower-share fields are percentages (0–100), so keep decimals rather
+  // than truncating to a whole number like the count fields.
+  const pctOrNull = (v) => v === '' || v == null ? null : Math.max(0, Math.min(100, parseFloat(v)))
 
   const saveReport = async () => {
     if (!form.period_start || !form.period_end) return
@@ -1899,8 +1916,10 @@ function MarketingReportsView({ client }) {
     const payload = {
       client_id: client.id, period_start: form.period_start, period_end: form.period_end,
       followers: numOrNull(form.followers), reach: numOrNull(form.reach), impressions: numOrNull(form.impressions),
-      profile_visits: numOrNull(form.profile_visits), website_clicks: numOrNull(form.website_clicks),
-      likes: numOrNull(form.likes), comments: numOrNull(form.comments), shares: numOrNull(form.shares), saves: numOrNull(form.saves),
+      profile_visits: numOrNull(form.profile_visits), website_clicks: numOrNull(form.website_clicks), bio_link_taps: numOrNull(form.bio_link_taps),
+      likes: numOrNull(form.likes), comments: numOrNull(form.comments), shares: numOrNull(form.shares), reposts: numOrNull(form.reposts), saves: numOrNull(form.saves),
+      views_post: numOrNull(form.views_post), views_carousel: numOrNull(form.views_carousel), views_reel: numOrNull(form.views_reel), views_story: numOrNull(form.views_story),
+      followers_pct_post: pctOrNull(form.followers_pct_post), followers_pct_carousel: pctOrNull(form.followers_pct_carousel), followers_pct_reel: pctOrNull(form.followers_pct_reel), followers_pct_story: pctOrNull(form.followers_pct_story),
       notes: form.notes.trim() || null
     }
     if (editingId === 'new') {
@@ -1931,7 +1950,7 @@ function MarketingReportsView({ client }) {
     const pct = b === 0 ? null : Math.round((diff / b) * 100)
     return { diff, pct }
   }
-  const engagementOf = (r) => (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.saves || 0)
+  const engagementOf = (r) => (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.reposts || 0) + (r.saves || 0)
   // Engagement rate = total engagements ÷ reach × 100 — the standard way to
   // express engagement so it's comparable across periods regardless of how
   // many people a post happened to reach. Null (shows as "—") if reach isn't
@@ -1984,10 +2003,25 @@ function MarketingReportsView({ client }) {
                 <div><label style={labelStyle}>Period end</label><input type="date" value={form.period_end} onChange={e => setForm({ ...form, period_end: e.target.value })} style={inputStyle} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-                {[['followers', 'Followers'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['profile_visits', 'Profile Visits'], ['website_clicks', 'Website Clicks'], ['likes', 'Likes'], ['comments', 'Comments'], ['shares', 'Shares'], ['saves', 'Saves']].map(([key, lbl]) => (
+                {[['followers', 'Followers'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['profile_visits', 'Profile Visits'], ['website_clicks', 'Website Clicks'], ['bio_link_taps', 'Bio Link Taps'], ['likes', 'Likes'], ['comments', 'Comments'], ['shares', 'Shares'], ['reposts', 'Reposts'], ['saves', 'Saves']].map(([key, lbl]) => (
                   <div key={key}><label style={labelStyle}>{lbl}</label><input type="number" min="0" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="0" style={inputStyle} /></div>
                 ))}
               </div>
+
+              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6 }}>Views by content type (optional)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+                {[['views_post', 'Post'], ['views_carousel', 'Carousel'], ['views_reel', 'Reel'], ['views_story', 'Story']].map(([key, lbl]) => (
+                  <div key={key}><label style={labelStyle}>{lbl}</label><input type="number" min="0" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                ))}
+              </div>
+
+              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6 }}>% of viewers who follow you, by content type (optional)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+                {[['followers_pct_post', 'Post'], ['followers_pct_carousel', 'Carousel'], ['followers_pct_reel', 'Reel'], ['followers_pct_story', 'Story']].map(([key, lbl]) => (
+                  <div key={key}><label style={labelStyle}>{lbl} %</label><input type="number" min="0" max="100" step="0.1" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                ))}
+              </div>
+
               <div style={{ marginBottom: 14 }}><label style={labelStyle}>Notes (optional)</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Any context worth remembering about this period" /></div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
@@ -1998,8 +2032,7 @@ function MarketingReportsView({ client }) {
 
           {reports.length === 0 && !editingId ? (
             <div style={{ padding: '60px 0', textAlign: 'center' }}>
-              <div style={{ fontFamily: F.display, color: PALETTE.mutedLight, fontSize: 18, marginBottom: 8 }}>No reports logged yet</div>
-              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight }}>Send me a screenshot of {client.name}'s Instagram analytics and I'll tell you exactly what to type in — or just log the numbers directly with "+ Log new report."</div>
+              <div style={{ fontFamily: F.display, color: PALETTE.mutedLight, fontSize: 18 }}>No reports logged yet</div>
             </div>
           ) : (
             <>
@@ -2025,7 +2058,25 @@ function MarketingReportsView({ client }) {
                         </div>
                       )
                     })()
-                    return kpiCard('Engagement rate', latestRate, rateDelta, 'Engagements (likes + comments + shares + saves) as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
+                    return kpiCard('Engagement rate', latestRate, rateDelta, 'Engagements (likes + comments + shares + reposts + saves) as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
+                  })()}
+                  {(() => {
+                    const ctrOf = (r) => (r.profile_visits ? Math.round((r.bio_link_taps || 0) / r.profile_visits * 1000) / 10 : null)
+                    const latestCtr = ctrOf(latest)
+                    const priorCtr = prior ? ctrOf(prior) : null
+                    const ctrDelta = (latestCtr != null && priorCtr != null)
+                      ? { diff: latestCtr - priorCtr, diffLabel: Math.abs(Math.round((latestCtr - priorCtr) * 10) / 10) + ' pts', pct: null }
+                      : null
+                    const ctrBadge = latestCtr != null && (() => {
+                      const isBelow = latestCtr < FNB_CTR_BENCHMARK.value
+                      const color = isBelow ? '#C0392B' : '#2A7D4F'
+                      return (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 10, background: isBelow ? '#FEECEA' : '#E8F8EE', fontFamily: F.body, fontSize: 10, fontWeight: 500, color, marginBottom: 6 }}>
+                          {isBelow ? 'Below' : 'At/above'} F&amp;B reference ({FNB_CTR_BENCHMARK.value}%)
+                        </div>
+                      )
+                    })()
+                    return kpiCard('Profile → Link CTR', latestCtr, ctrDelta, 'Bio link taps as a share of profile visits.', v => v.toFixed(1) + '%', ctrBadge)
                   })()}
                 </div>
               )}
@@ -2042,9 +2093,48 @@ function MarketingReportsView({ client }) {
                   </div>
                   <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px' }}>
                     <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Engagement rate over time</div>
-                    <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>(Likes + comments + shares + saves) ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
+                    <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>(Likes + comments + shares + reposts + saves) ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
                     <ReportBarChart data={engagementData} color="#2A7D4F" format={v => v.toFixed(1) + '%'} />
                   </div>
+                </div>
+              )}
+
+              {latest && (latest.views_post != null || latest.views_carousel != null || latest.views_reel != null || latest.views_story != null) && (
+                <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Views by content type</div>
+                  <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
+                  <ReportBarChart
+                    data={[
+                      { label: 'Post', value: latest.views_post },
+                      { label: 'Carousel', value: latest.views_carousel },
+                      { label: 'Reel', value: latest.views_reel },
+                      { label: 'Story', value: latest.views_story },
+                    ]}
+                    color={PALETTE.caramel}
+                  />
+                </div>
+              )}
+
+              {latest && (latest.followers_pct_post != null || latest.followers_pct_carousel != null || latest.followers_pct_reel != null || latest.followers_pct_story != null) && (
+                <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px', marginBottom: 28 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Followers vs. non-followers reached, by content type</div>
+                  <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 14 }}>Most recent period: {fmtDateLong(latest.period_start)} – {fmtDateLong(latest.period_end)}</div>
+                  {[['views_post', 'followers_pct_post', 'Post'], ['views_carousel', 'followers_pct_carousel', 'Carousel'], ['views_reel', 'followers_pct_reel', 'Reel'], ['views_story', 'followers_pct_story', 'Story']].map(([, pctKey, lbl]) => {
+                    const pct = latest[pctKey]
+                    if (pct == null) return null
+                    return (
+                      <div key={pctKey} style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 500 }}>{lbl}</span>
+                          <span style={{ color: PALETTE.mutedLight }}>{pct}% followers · {Math.round((100 - pct) * 10) / 10}% non-followers</span>
+                        </div>
+                        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: PALETTE.creamDark }}>
+                          <div style={{ width: pct + '%', background: PALETTE.caramel }} />
+                          <div style={{ width: (100 - pct) + '%', background: PALETTE.creamDark }} />
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 
@@ -2059,7 +2149,7 @@ function MarketingReportsView({ client }) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                    {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Website clicks', r.website_clicks], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Saves', r.saves]].filter(([, v]) => v != null).map(([lbl, v]) => (
+                    {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Website clicks', r.website_clicks], ['Bio link taps', r.bio_link_taps], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves], ['Post views', r.views_post], ['Carousel views', r.views_carousel], ['Reel views', r.views_reel], ['Story views', r.views_story]].filter(([, v]) => v != null).map(([lbl, v]) => (
                       <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{v.toLocaleString()}</div>
                     ))}
                   </div>
@@ -2070,8 +2160,9 @@ function MarketingReportsView({ client }) {
           )}
         </>
       )}
-      <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, textAlign: 'center', marginTop: 30 }}>
+      <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, textAlign: 'center', marginTop: 30, lineHeight: 1.6, maxWidth: 640, marginLeft: 'auto', marginRight: 'auto' }}>
         Food &amp; beverage engagement benchmark ({FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%) sourced from {FNB_ENGAGEMENT_BENCHMARK.source}.
+        <br />CTR reference ({FNB_CTR_BENCHMARK.value}%) sourced from {FNB_CTR_BENCHMARK.source}.
       </div>
     </div>
   )
