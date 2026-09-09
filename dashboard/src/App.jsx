@@ -2697,7 +2697,7 @@ export default function Dashboard() {
           )}
           <span style={{ fontFamily: F.display, color: PALETTE.cream, fontSize: 17 }}>Brown Butter</span>
           {!isMobile && <span style={{ color: PALETTE.espressoLight, fontSize: 12 }}>|</span>}
-          {!isMobile && <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Content Calendar</span>}
+          {!isMobile && <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Team Dashboard</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.cream : '#7a5a3a', fontSize: 18, lineHeight: 1, padding: '10px', margin: '-6px', borderRadius: 8, cursor: 'pointer' }}
