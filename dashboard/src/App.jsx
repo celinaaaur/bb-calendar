@@ -1539,8 +1539,6 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
   const [cycles, setCycles] = useState([])
   const [reimbursements, setReimbursements] = useState([])
   const [links, setLinks] = useState([])
-  const [uploadingLogo, setUploadingLogo] = useState(false)
-  const logoFileRef = useRef()
   const [uploadingInvoice, setUploadingInvoice] = useState(false)
   const invoiceFileRef = useRef()
   const [uploadingReceipt, setUploadingReceipt] = useState(false)
@@ -1631,19 +1629,6 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
     if (!window.confirm('Delete this link?')) return
     await supabase.from('important_links').delete().eq('id', id)
     fetchHub()
-  }
-
-  const handleLogoUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploadingLogo(true)
-    const { url, error } = await uploadAsset(file)
-    if (url) {
-      await supabase.from('clients').update({ logo_url: url }).eq('id', client.id)
-      onClientUpdated && onClientUpdated()
-    }
-    if (error) alert('Could not upload logo: ' + error)
-    setUploadingLogo(false)
   }
 
   const handleInvoiceUpload = async (e) => {
@@ -1749,19 +1734,6 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
         {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
         ))}
-      </div>
-
-      <div style={{ padding: '14px 26px', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, background: '#fff' }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, overflow: 'hidden', border: '2px solid ' + PALETTE.caramel }}>
-          {client.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client.name || 'BB').slice(0, 2).toUpperCase()}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 4 }}>Client Logo</div>
-          <button onClick={() => logoFileRef.current.click()} disabled={uploadingLogo} style={{ padding: '6px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso }}>
-            {uploadingLogo ? 'Uploading...' : client.logo_url ? 'Change logo' : 'Upload logo'}
-          </button>
-        </div>
-        <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
       </div>
 
       <div style={{ flex: 1, padding: '28px 40px', maxWidth: 760, WebkitOverflowScrolling: 'touch' }}>
@@ -2373,7 +2345,25 @@ function RequestsView({ requests, clients, selectedClient, onRefresh }) {
   )
 }
 
-function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToFilter, isMobile }) {
+function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToFilter, onClientUpdated, isMobile }) {
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoFileRef = useRef()
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingLogo(true)
+    const { url, error } = await uploadAsset(file)
+    if (url) {
+      await supabase.from('clients').update({ logo_url: url }).eq('id', client.id)
+      onClientUpdated && onClientUpdated()
+    }
+    if (error) alert('Could not upload logo: ' + error)
+    setUploadingLogo(false)
+    e.target.value = ''
+  }
+
+
   const clientPosts = posts.filter(p => p.client_id === client.id)
   const clientRequests = requests.filter(r => r.client_id === client.id)
   const clientPostIds = new Set(clientPosts.map(p => p.id))
@@ -2439,12 +2429,16 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   return (
     <div style={{ padding: isMobile ? '18px 16px 40px' : '24px 26px 48px' }}>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ width: 40, height: 40, borderRadius: '50%', background: client.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, border: '2px solid ' + PALETTE.caramel, overflow: 'hidden' }}>{client.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (client.name || 'BB').slice(0, 2).toUpperCase()}</div>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: F.display, fontSize: 24, color: PALETTE.espresso, lineHeight: 1.1 }}>{client.name}</div>
           {client.ig_handle && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, marginTop: 2 }}>@{client.ig_handle}</div>}
         </div>
+        <button onClick={() => logoFileRef.current.click()} disabled={uploadingLogo} style={{ padding: '6px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, flexShrink: 0 }}>
+          {uploadingLogo ? 'Uploading...' : client.logo_url ? 'Change logo' : 'Upload logo'}
+        </button>
+        <input ref={logoFileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -3013,6 +3007,7 @@ export default function Dashboard() {
                       onOpenHub={(tab) => { setHubInitialTab(tab || 'notes'); setHubClientId(selectedClient); setView('hub') }}
                       onGoToRequests={() => setView('requests')}
                       onGoToFilter={(k) => { setFilter(k); setView('queue') }}
+                      onClientUpdated={fetchAll}
                       isMobile={isMobile}
                     />
                 )
