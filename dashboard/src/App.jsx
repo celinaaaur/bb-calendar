@@ -1537,11 +1537,14 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
   const [tab, setTab] = useState(initialTab || 'notes') // 'notes' | 'billing' | 'links'
   const [notes, setNotes] = useState([])
   const [cycles, setCycles] = useState([])
+  const [reimbursements, setReimbursements] = useState([])
   const [links, setLinks] = useState([])
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const logoFileRef = useRef()
   const [uploadingInvoice, setUploadingInvoice] = useState(false)
   const invoiceFileRef = useRef()
+  const [uploadingReceipt, setUploadingReceipt] = useState(false)
+  const receiptFileRef = useRef()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -1558,19 +1561,29 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
   const [cycleInvoiceUrl, setCycleInvoiceUrl] = useState('')
   const [cycleNotes, setCycleNotes] = useState('')
 
+  const [editingReimbursementId, setEditingReimbursementId] = useState(null)
+  const [reimbDate, setReimbDate] = useState('')
+  const [reimbDescription, setReimbDescription] = useState('')
+  const [reimbAmount, setReimbAmount] = useState('')
+  const [reimbStatus, setReimbStatus] = useState('pending')
+  const [reimbReceiptUrl, setReimbReceiptUrl] = useState('')
+  const [reimbNotes, setReimbNotes] = useState('')
+
   const [editingLinkId, setEditingLinkId] = useState(null)
   const [linkTitle, setLinkTitle] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
 
   const fetchHub = async () => {
     setLoading(true)
-    const [n, c, l] = await Promise.all([
+    const [n, c, r, l] = await Promise.all([
       supabase.from('meeting_notes').select('*').eq('client_id', client.id).order('meeting_date', { ascending: false }),
       supabase.from('billing_cycles').select('*').eq('client_id', client.id).order('cycle_start', { ascending: false }),
+      supabase.from('reimbursements').select('*').eq('client_id', client.id).order('date', { ascending: false }),
       supabase.from('important_links').select('*').eq('client_id', client.id).order('created_at', { ascending: false })
     ])
     if (n.data) setNotes(n.data)
     if (c.data) setCycles(c.data)
+    if (r.data) setReimbursements(r.data)
     if (l.data) setLinks(l.data)
     setLoading(false)
   }
@@ -1675,10 +1688,51 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
     fetchHub()
   }
 
+  // Reimbursements — money Brown Butter owes back to the client (ad spend
+  // they fronted, event/prop costs, etc.), distinct from billing_cycles
+  // which is money the client owes Brown Butter.
+  const startNewReimbursement = () => { setEditingReimbursementId('new'); setReimbDate(new Date().toISOString().slice(0, 10)); setReimbDescription(''); setReimbAmount(''); setReimbStatus('pending'); setReimbReceiptUrl(''); setReimbNotes('') }
+  const startEditReimbursement = (r) => { setEditingReimbursementId(r.id); setReimbDate(r.date); setReimbDescription(r.description || ''); setReimbAmount(r.amount ?? ''); setReimbStatus(r.status || 'pending'); setReimbReceiptUrl(r.receipt_url || ''); setReimbNotes(r.notes || '') }
+
+  const handleReceiptUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingReceipt(true)
+    const { url, error } = await uploadAsset(file)
+    if (url) setReimbReceiptUrl(url)
+    if (error) alert('Could not upload receipt: ' + error)
+    setUploadingReceipt(false)
+    e.target.value = ''
+  }
+
+  const saveReimbursement = async () => {
+    if (!reimbDate || !reimbDescription.trim()) return
+    setSaving(true)
+    const payload = {
+      client_id: client.id, date: reimbDate, description: reimbDescription.trim(),
+      amount: reimbAmount ? parseFloat(reimbAmount) : null, status: reimbStatus,
+      receipt_url: reimbReceiptUrl.trim() || null, notes: reimbNotes.trim() || null
+    }
+    if (editingReimbursementId === 'new') {
+      await supabase.from('reimbursements').insert(payload)
+    } else {
+      await supabase.from('reimbursements').update(payload).eq('id', editingReimbursementId)
+    }
+    setSaving(false); setEditingReimbursementId(null)
+    fetchHub()
+  }
+
+  const deleteReimbursement = async (id) => {
+    if (!window.confirm('Delete this reimbursement?')) return
+    await supabase.from('reimbursements').delete().eq('id', id)
+    fetchHub()
+  }
+
   const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
   const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
   const sortedNotes = [...notes].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
   const sortedCycles = [...cycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
+  const sortedReimbursements = [...reimbursements].sort((a, b) => new Date(b.date) - new Date(a.date))
 
   return (
     <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1799,6 +1853,64 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
                     <button onClick={() => startEditCycle(c)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
                     <button onClick={() => deleteCycle(c.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
                     {c.invoice_url && <a href={c.invoice_url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginLeft: 'auto' }}>Invoice ↗</a>}
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ height: '0.5px', background: PALETTE.borderLight, margin: '24px 0 18px' }} />
+              <div style={{ fontFamily: F.display, fontSize: 15, color: PALETTE.espresso, marginBottom: 4 }}>Reimbursements</div>
+              <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginBottom: 14 }}>Money Brown Butter owes {client.name} back — ad spend, event costs, etc.</div>
+
+              {editingReimbursementId ? (
+                <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div><label style={labelStyle}>Date</label><input type="date" value={reimbDate} onChange={e => setReimbDate(e.target.value)} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Amount (₱)</label><input type="number" step="0.01" value={reimbAmount} onChange={e => setReimbAmount(e.target.value)} placeholder="e.g. 3500" style={inputStyle} /></div>
+                  </div>
+                  <div><label style={labelStyle}>Description</label><input value={reimbDescription} onChange={e => setReimbDescription(e.target.value)} placeholder="e.g. Ad spend fronted for boosted posts" style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Status</label><select value={reimbStatus} onChange={e => setReimbStatus(e.target.value)} style={inputStyle}><option value="pending">Pending</option><option value="paid">Paid</option></select></div>
+                  <div>
+                    <label style={labelStyle}>Receipt (optional)</label>
+                    {reimbReceiptUrl ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
+                        <span style={{ flex: 1, minWidth: 0, fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{invoiceFileName(reimbReceiptUrl)}</span>
+                        <a href={reimbReceiptUrl} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, flexShrink: 0 }}>View</a>
+                        <button onClick={() => receiptFileRef.current.click()} disabled={uploadingReceipt} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.muted, flexShrink: 0 }}>{uploadingReceipt ? 'Uploading…' : 'Replace'}</button>
+                        <button onClick={() => setReimbReceiptUrl('')} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B', flexShrink: 0 }}>Remove</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => receiptFileRef.current.click()} disabled={uploadingReceipt} style={{ width: '100%', padding: '9px 0', borderRadius: 6, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>
+                        {uploadingReceipt ? 'Uploading…' : '+ Upload receipt (PDF or image)'}
+                      </button>
+                    )}
+                    <input ref={receiptFileRef} type="file" accept="application/pdf,image/*" onChange={handleReceiptUpload} style={{ display: 'none' }} />
+                  </div>
+                  <div><label style={labelStyle}>Notes (optional)</label><textarea value={reimbNotes} onChange={e => setReimbNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} /></div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setEditingReimbursementId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
+                    <button onClick={saveReimbursement} disabled={saving || !reimbDate || !reimbDescription.trim()} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 12, color: PALETTE.cream, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save reimbursement'}</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={startNewReimbursement} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 16 }}>+ New reimbursement</button>
+              )}
+
+              {sortedReimbursements.length === 0 && !editingReimbursementId && (
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>No reimbursements logged yet.</div>
+              )}
+              {sortedReimbursements.map(r => (
+                <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, padding: '12px 14px', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{fmtDateLong(r.date)}</div>
+                    <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: BILLING_STATUS[r.status]?.bg || '#F2F2F2', color: BILLING_STATUS[r.status]?.color || '#555', textTransform: 'uppercase' }}>{BILLING_STATUS[r.status]?.label || r.status}</span>
+                  </div>
+                  <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.espresso, marginBottom: 4 }}>{fmtMoney(r.amount)}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espressoLight, marginBottom: 6 }}>{r.description}</div>
+                  {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginBottom: 6, lineHeight: 1.5 }}>{r.notes}</div>}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <button onClick={() => startEditReimbursement(r)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
+                    <button onClick={() => deleteReimbursement(r.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
+                    {r.receipt_url && <a href={r.receipt_url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginLeft: 'auto' }}>Receipt ↗</a>}
                   </div>
                 </div>
               ))}
@@ -2277,11 +2389,6 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   }
   const openRequests = clientRequests.filter(r => r.status === 'new' || r.status === 'in_progress').length
 
-  const upcoming = [...clientPosts]
-    .filter(p => p.status !== 'archived' && new Date(p.scheduled_at) >= new Date())
-    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
-    .slice(0, 5)
-
   // Merge comments + status changes + new requests into one recent-activity feed
   const activity = []
   clientComments.forEach(c => {
@@ -2348,36 +2455,29 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
         {statCard('Published', counts.published, 'published', '#888')}
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' }}>
-        <button onClick={() => onOpenHub('notes')} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>Meeting notes & billing</button>
-        <button onClick={() => onOpenHub('links')} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>Important Links</button>
-        <button onClick={onGoToRequests} style={{ padding: '9px 16px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>
-          Requests{openRequests > 0 ? ' (' + openRequests + ')' : ''}
-        </button>
-      </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
 
         <div>
-          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Up next</div>
-          {upcoming.length === 0
-            ? <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic' }}>Nothing scheduled.</div>
-            : (
-              <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
-                {upcoming.map((p, i) => (
-                  <div key={p.id} onClick={() => onSelectPost(p)} style={{ padding: '10px 14px', borderTop: i > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer' }}
-                    onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>{p.caption || 'Untitled'}</div>
-                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>{fmtShort(p.scheduled_at)}</div>
-                  </div>
-                ))}
+          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Client hub</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 22 }}>
+            {[
+              ['📥', 'Requests', openRequests > 0 ? openRequests + ' open' : 'Nothing open', onGoToRequests],
+              ['📝', 'Meeting Notes', 'View & add notes', () => onOpenHub('notes')],
+              ['🔗', 'Important Links', 'Shared with client', () => onOpenHub('links')],
+              ['💳', 'Billing', 'Cycles & invoices', () => onOpenHub('billing')],
+            ].map(([icon, label, sub, onClick]) => (
+              <div key={label} onClick={onClick} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+              >
+                <div style={{ fontSize: 18, marginBottom: 6 }}>{icon}</div>
+                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500, marginBottom: 2 }}>{label}</div>
+                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{sub}</div>
               </div>
-            )
-          }
+            ))}
+          </div>
 
-          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, margin: '22px 0 10px' }}>Feed preview</div>
+          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Feed preview</div>
           <div style={{ borderRadius: 8, overflow: 'hidden', border: '0.5px solid ' + PALETTE.borderLight }}>
             <IGGrid posts={clientPosts} onSelectPost={onSelectPost} />
           </div>
