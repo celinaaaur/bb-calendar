@@ -2345,7 +2345,7 @@ function RequestsView({ requests, clients, selectedClient, onRefresh }) {
   )
 }
 
-function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToFilter, onClientUpdated, isMobile }) {
+function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToReports, onGoToFilter, onClientUpdated, isMobile }) {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const logoFileRef = useRef()
 
@@ -2362,6 +2362,26 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
     setUploadingLogo(false)
     e.target.value = ''
   }
+
+  // Lightweight fetch — just enough for a one-line summary on the Marketing
+  // Reports box, without loading full report detail on the overview screen.
+  const [latestReport, setLatestReport] = useState(null)
+  const [reportsCount, setReportsCount] = useState(0)
+  useEffect(() => {
+    supabase.from('analytics_reports').select('period_end, likes, comments, shares, reposts, saves, reach')
+      .eq('client_id', client.id).order('period_end', { ascending: false })
+      .then(({ data }) => {
+        if (data) {
+          setReportsCount(data.length)
+          setLatestReport(data[0] || null)
+        }
+      })
+  }, [client.id])
+  const latestEngagementRate = (() => {
+    if (!latestReport || !latestReport.reach) return null
+    const eng = (latestReport.likes || 0) + (latestReport.comments || 0) + (latestReport.shares || 0) + (latestReport.reposts || 0) + (latestReport.saves || 0)
+    return Math.round((eng / latestReport.reach) * 1000) / 10
+  })()
 
 
   const clientPosts = posts.filter(p => p.client_id === client.id)
@@ -2453,12 +2473,13 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
 
         <div>
           <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Client hub</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 22 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 22 }}>
             {[
               ['📥', 'Requests', openRequests > 0 ? openRequests + ' open' : 'Nothing open', onGoToRequests],
               ['📝', 'Meeting Notes', 'View & add notes', () => onOpenHub('notes')],
               ['🔗', 'Important Links', 'Shared with client', () => onOpenHub('links')],
               ['💳', 'Billing', 'Cycles & invoices', () => onOpenHub('billing')],
+              ['📈', 'Marketing Reports', reportsCount === 0 ? 'No reports yet' : (latestEngagementRate != null ? 'Latest: ' + latestEngagementRate + '% engagement' : reportsCount + ' report' + (reportsCount !== 1 ? 's' : '') + ' logged'), onGoToReports],
             ].map(([icon, label, sub, onClick]) => (
               <div key={label} onClick={onClick} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
@@ -3006,6 +3027,7 @@ export default function Dashboard() {
                       onSelectPost={setSelectedPost}
                       onOpenHub={(tab) => { setHubInitialTab(tab || 'notes'); setHubClientId(selectedClient); setView('hub') }}
                       onGoToRequests={() => setView('requests')}
+                      onGoToReports={() => setView('reports')}
                       onGoToFilter={(k) => { setFilter(k); setView('queue') }}
                       onClientUpdated={fetchAll}
                       isMobile={isMobile}
