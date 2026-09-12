@@ -1168,8 +1168,9 @@ function NotesSection({ notes, isMobile }) {
 }
 
 // ── Billing section ───────────────────────────────────────────────────────────
-function BillingSection({ cycles, isMobile }) {
+function BillingSection({ cycles, reimbursements, isMobile }) {
   const sorted = [...cycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
+  const sortedReimbursements = [...reimbursements].sort((a, b) => new Date(b.date) - new Date(a.date))
   const today = new Date()
   const current = sorted.find(c => new Date(c.cycle_start) <= today && today <= new Date(c.cycle_end)) || sorted[0]
   const history = sorted.filter(c => c.id !== current?.id)
@@ -1216,6 +1217,26 @@ function BillingSection({ cycles, isMobile }) {
               </div>
             </>
           )}
+        </>
+      )}
+
+      {sortedReimbursements.length > 0 && (
+        <>
+          <div style={{ height: '0.5px', background: PALETTE.borderLight, margin: '28px 0 18px' }} />
+          <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 12, textTransform: 'uppercase' }}>Reimbursements</div>
+          <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
+            {sortedReimbursements.map((r, i) => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: i < sortedReimbursements.length - 1 ? '0.5px solid ' + PALETTE.borderLight : 'none', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso }}>{fmtDateLong(r.date)}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginTop: 2 }}>{r.description}</div>
+                </div>
+                <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, fontWeight: 500 }}>{fmtMoney(r.amount)}</div>
+                <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.09em', padding: '3px 8px', borderRadius: 3, background: BILLING_STATUS[r.status]?.bg || '#F2F2F2', color: BILLING_STATUS[r.status]?.color || '#555', textTransform: 'uppercase' }}>{BILLING_STATUS[r.status]?.label || r.status}</span>
+                {r.receipt_url && <a href={r.receipt_url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Receipt</a>}
+              </div>
+            ))}
+          </div>
         </>
       )}
     </div>
@@ -1425,6 +1446,7 @@ export default function ClientPortal() {
   const [notes, setNotes] = useState([])
   const [links, setLinks] = useState([])
   const [billingCycles, setBillingCycles] = useState([])
+  const [reimbursements, setReimbursements] = useState([])
   const [requests, setRequests] = useState([])
   const [analyticsReports, setAnalyticsReports] = useState([])
 
@@ -1469,12 +1491,13 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
-    const [p, cm, v, mn, bc, rq, sc, dop, il, ar] = await Promise.all([
+    const [p, cm, v, mn, bc, rb, rq, sc, dop, il, ar] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
       supabase.from('meeting_notes').select('*').eq('client_id', clientData.id).order('meeting_date', { ascending: false }),
       supabase.from('billing_cycles').select('*').eq('client_id', clientData.id).order('cycle_start', { ascending: false }),
+      supabase.from('reimbursements').select('*').eq('client_id', clientData.id).order('date', { ascending: false }),
       supabase.from('requests').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false }),
       supabase.from('status_changes').select('*').order('created_at'),
       supabase.from('design_options').select('*').order('created_at'),
@@ -1486,6 +1509,7 @@ export default function ClientPortal() {
     if (v.data) setVersions(v.data)
     if (mn.data) setNotes(mn.data)
     if (bc.data) setBillingCycles(bc.data)
+    if (rb.data) setReimbursements(rb.data)
     if (rq.data) setRequests(rq.data)
     if (sc.data) setStatusChanges(sc.data)
     if (dop.data) setDesignOptions(dop.data)
@@ -1520,7 +1544,8 @@ export default function ClientPortal() {
     const s7 = supabase.channel('cp-design-options').on('postgres_changes', { event: '*', schema: 'public', table: 'design_options' }, fetchAll).subscribe()
     const s8 = supabase.channel('cp-links').on('postgres_changes', { event: '*', schema: 'public', table: 'important_links' }, fetchAll).subscribe()
     const s9 = supabase.channel('cp-analytics').on('postgres_changes', { event: '*', schema: 'public', table: 'analytics_reports' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe() }
+    const s10 = supabase.channel('cp-reimbursements').on('postgres_changes', { event: '*', schema: 'public', table: 'reimbursements' }, fetchAll).subscribe()
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe() }
   }, [])
 
   // Swap the browser tab's favicon + title to match whichever client's portal
@@ -1812,7 +1837,7 @@ export default function ClientPortal() {
           {section === 'notes' && <NotesSection notes={notes} isMobile={isMobile} />}
 
           {/* Billing section */}
-          {section === 'billing' && <BillingSection cycles={billingCycles} isMobile={isMobile} />}
+          {section === 'billing' && <BillingSection cycles={billingCycles} reimbursements={reimbursements} isMobile={isMobile} />}
 
           {/* Links section */}
           {section === 'links' && <LinksSection links={links} isMobile={isMobile} />}
