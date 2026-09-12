@@ -113,7 +113,7 @@ const PALETTE = {
   muted: '#8A7560', mutedLight: '#B8A898',
 }
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024
+const MAX_FILE_SIZE = 80 * 1024 * 1024
 
 const isVideo = (url) => {
   if (!url) return false
@@ -168,7 +168,7 @@ const compressImage = (file, { maxDimension = 1920, quality = 0.82 } = {}) => {
 }
 
 const uploadAsset = async (file) => {
-  if (file.size > MAX_FILE_SIZE) return { error: 'File is too large. Maximum size is 50MB.' }
+  if (file.size > MAX_FILE_SIZE) return { error: 'File is too large. Maximum size is 80MB.' }
   const toUpload = await compressImage(file)
   const ext = toUpload.name.split('.').pop()
   const filename = Date.now() + '.' + ext
@@ -829,7 +829,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
           <MultiAssetPreview urls={editImages} onRemove={removeEditImage} />
           <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 6, padding: '16px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
             <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>+ {editFormat === 'carousel' ? 'Add photos (select multiple)' : 'Replace asset'}</div>
-            <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginTop: 4 }}>Image, GIF, or video (max 50MB each)</div>
+            <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginTop: 4 }}>Image, GIF, or video (max 80MB each)</div>
           </div>
           <button type="button" onClick={handleDriveImport} disabled={importingDrive} style={{ width: '100%', marginTop: 6, padding: '8px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', color: PALETTE.espresso, fontFamily: F.body, fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M8.6 15l3.43-5.94L19.4 15H8.6z" fill="#EA4335"/><path d="M1.15 15L7.71 3.5 11.14 9 4.58 20.94 1.15 15z" fill="#4285F4"/><path d="M1.15 15h11.4l3.43 5.94H4.58L1.15 15z" fill="#34A853"/><path d="M7.71 3.5h5.15L19.4 15H8.6L7.71 3.5z" fill="#FBBC04"/></svg>
@@ -1400,7 +1400,7 @@ function ComposeModal({ clients, teamMembers, onClose, onSaved, currentUserName 
             <div onClick={() => fileRef.current.click()} style={{ border: '1.5px dashed ' + PALETTE.border, borderRadius: 8, padding: '22px 0', textAlign: 'center', cursor: 'pointer', background: PALETTE.creamMid }}>
               <div style={{ fontFamily: F.body, fontSize: 22, color: PALETTE.caramel, marginBottom: 4 }}>+</div>
               <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>{format === 'carousel' ? 'Click to upload photos (select multiple)' : 'Click to upload'}</div>
-              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>Image, GIF, or video · max 50MB each</div>
+              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 3 }}>Image, GIF, or video · max 80MB each</div>
             </div>
             <button type="button" onClick={handleDriveImport} disabled={importingDrive} style={{ width: '100%', marginTop: 8, padding: '9px 0', borderRadius: 7, border: '0.5px solid ' + PALETTE.border, background: '#fff', color: PALETTE.espresso, fontFamily: F.body, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M8.6 15l3.43-5.94L19.4 15H8.6z" fill="#EA4335"/><path d="M1.15 15L7.71 3.5 11.14 9 4.58 20.94 1.15 15z" fill="#4285F4"/><path d="M1.15 15h11.4l3.43 5.94H4.58L1.15 15z" fill="#34A853"/><path d="M7.71 3.5h5.15L19.4 15H8.6L7.71 3.5z" fill="#FBBC04"/></svg>
