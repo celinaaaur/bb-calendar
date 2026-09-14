@@ -617,11 +617,12 @@ function DashboardCarousel({ images, published }) {
   )
 }
 
-function RightPanel({ post, comments, versions, statusChanges, designOptions, clients, teamMembers, onRefresh, onClose, isMobile, currentUserName }) {
+function RightPanel({ post, comments, versions, statusChanges, designOptions, clients, teamMembers, onRefresh, onClose, isMobile, currentUserName, onUpdatePostLocal }) {
   const [newComment, setNewComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
   const [editing, setEditing] = useState(false)
+  const [inlineField, setInlineField] = useState(null) // which Details row is being edited inline right now, if any
   const [editCaption, setEditCaption] = useState(post.caption)
   const [editScheduled, setEditScheduled] = useState(toLocalInputValue(post.scheduled_at))
   const [editFormat, setEditFormat] = useState(post.format || 'post')
@@ -657,6 +658,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
     setEditImages(Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.image_url ? [post.image_url] : []))
     setEditCoverUrl(post.cover_url || '')
     setEditing(false)
+    setInlineField(null)
     setUploadError(null)
   }, [post.id])
 
@@ -767,13 +769,40 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
   }
 
   const updateStatus = async (status) => {
+    // Optimistic: reflect the new status in the shared posts list immediately,
+    // so the badge/button state updates instantly instead of waiting on the
+    // round trip. Reverts if the save actually fails.
+    const previousStatus = post.status
+    onUpdatePostLocal && onUpdatePostLocal(post.id, { status })
     const { error } = await supabase.from('posts').update({ status }).eq('id', post.id)
     if (error) {
       console.error('Status update error:', error)
+      onUpdatePostLocal && onUpdatePostLocal(post.id, { status: previousStatus })
       alert('Could not update status: ' + error.message)
       return
     }
     await supabase.from('status_changes').insert({ post_id: post.id, status, changed_by: currentUserName })
+    onRefresh()
+  }
+
+  // Inline field editing — click a Details row, edit it in place, saves
+  // immediately (optimistic, with rollback on failure) without opening the
+  // full edit form. Used for the short property-style fields; Assets and
+  // Caption still go through the full form since they need more room.
+  const saveInlineField = async (dbField, value, changeNote) => {
+    const previous = post[dbField]
+    onUpdatePostLocal && onUpdatePostLocal(post.id, { [dbField]: value })
+    setInlineField(null)
+    const { error } = await supabase.from('posts').update({ [dbField]: value }).eq('id', post.id)
+    if (error) {
+      console.error('Inline field update error:', error)
+      onUpdatePostLocal && onUpdatePostLocal(post.id, { [dbField]: previous })
+      alert('Could not save: ' + error.message)
+      return
+    }
+    if (changeNote) {
+      await supabase.from('versions').insert({ post_id: post.id, version_number: versions.length + 1, note: changeNote, author: currentUserName })
+    }
     onRefresh()
   }
 
@@ -1034,12 +1063,93 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
               </div>
             ) : (
               <div style={{ marginBottom: 20 }}>
-                {[['Client', client?.name], ['Platform', formatPlatforms(post.platforms)], ['Format', formatLabel], ['Assigned to', post.designer], post.campaign ? ['Content Pillar', post.campaign] : null, ['Scheduled', fmt(post.scheduled_at)]].filter(Boolean).map(([label, value]) => (
-                  <div key={label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 10, alignItems: 'start' }}>
-                    <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', paddingTop: 1 }}>{label}</span>
-                    <span style={{ fontFamily: F.body, fontSize: 12, color: value ? PALETTE.espresso : PALETTE.mutedLight, fontStyle: value ? 'normal' : 'italic' }}>{value || 'Not set'}</span>
-                  </div>
-                ))}
+                {/* Client — not editable */}
+                <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 4, alignItems: 'start' }}>
+                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', paddingTop: 1 }}>Client</span>
+                  <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso }}>{client?.name}</span>
+                </div>
+
+                {/* Platform — click to reveal the picker inline, saves on every toggle */}
+                <div onClick={() => inlineField !== 'platforms' && setInlineField('platforms')} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 4, alignItems: 'start', padding: '3px 6px', margin: '0 -6px 4px', borderRadius: 5, cursor: inlineField === 'platforms' ? 'default' : 'pointer' }}
+                  onMouseEnter={e => { if (inlineField !== 'platforms') e.currentTarget.style.background = PALETTE.creamMid }}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase', paddingTop: 1 }}>Platform</span>
+                  {inlineField === 'platforms' ? (
+                    <div onClick={e => e.stopPropagation()}>
+                      <PlatformPicker selected={editPlatforms} onChange={next => { setEditPlatforms(next); saveInlineField('platforms', next, 'changed the platform to ' + formatPlatforms(next)) }} />
+                    </div>
+                  ) : (
+                    <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso }}>{formatPlatforms(post.platforms)}</span>
+                  )}
+                </div>
+
+                {/* Format */}
+                <div onClick={() => inlineField !== 'format' && setInlineField('format')} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 4, alignItems: 'center', padding: '3px 6px', margin: '0 -6px 4px', borderRadius: 5, cursor: inlineField === 'format' ? 'default' : 'pointer' }}
+                  onMouseEnter={e => { if (inlineField !== 'format') e.currentTarget.style.background = PALETTE.creamMid }}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Format</span>
+                  {inlineField === 'format' ? (
+                    <select autoFocus value={editFormat} onChange={e => { setEditFormat(e.target.value); saveInlineField('format', e.target.value, 'changed the format to ' + e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1)) }} onBlur={() => setInlineField(null)} onClick={e => e.stopPropagation()} style={{ ...inputStyle, padding: '4px 8px' }}>
+                      {FORMATS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
+                    </select>
+                  ) : (
+                    <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso }}>{formatLabel}</span>
+                  )}
+                </div>
+
+                {/* Assigned to */}
+                <div onClick={() => inlineField !== 'designer' && setInlineField('designer')} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 4, alignItems: 'center', padding: '3px 6px', margin: '0 -6px 4px', borderRadius: 5, cursor: inlineField === 'designer' ? 'default' : 'pointer' }}
+                  onMouseEnter={e => { if (inlineField !== 'designer') e.currentTarget.style.background = PALETTE.creamMid }}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Assigned to</span>
+                  {inlineField === 'designer' ? (
+                    <select autoFocus value={editDesigner} onChange={e => { setEditDesigner(e.target.value); saveInlineField('designer', e.target.value, 'changed who\'s assigned to ' + e.target.value) }} onBlur={() => setInlineField(null)} onClick={e => e.stopPropagation()} style={{ ...inputStyle, padding: '4px 8px' }}>
+                      <option value="">Select a team member</option>
+                      {teamMembers.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+                    </select>
+                  ) : (
+                    <span style={{ fontFamily: F.body, fontSize: 12, color: post.designer ? PALETTE.espresso : PALETTE.mutedLight, fontStyle: post.designer ? 'normal' : 'italic' }}>{post.designer || 'Not set'}</span>
+                  )}
+                </div>
+
+                {/* Content Pillar */}
+                <div onClick={() => inlineField !== 'campaign' && setInlineField('campaign')} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 4, alignItems: 'center', padding: '3px 6px', margin: '0 -6px 4px', borderRadius: 5, cursor: inlineField === 'campaign' ? 'default' : 'pointer' }}
+                  onMouseEnter={e => { if (inlineField !== 'campaign') e.currentTarget.style.background = PALETTE.creamMid }}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Content Pillar</span>
+                  {inlineField === 'campaign' ? (
+                    <input
+                      autoFocus value={editCampaign} onChange={e => setEditCampaign(e.target.value)} onClick={e => e.stopPropagation()}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.target.blur() } if (e.key === 'Escape') { setEditCampaign(post.campaign || ''); setInlineField(null) } }}
+                      onBlur={() => saveInlineField('campaign', editCampaign.trim() || null, 'updated the content pillar')}
+                      placeholder="e.g. Behind the Scenes" style={{ ...inputStyle, padding: '4px 8px' }}
+                    />
+                  ) : (
+                    <span style={{ fontFamily: F.body, fontSize: 12, color: post.campaign ? PALETTE.espresso : PALETTE.mutedLight, fontStyle: post.campaign ? 'normal' : 'italic' }}>{post.campaign || 'Not set'}</span>
+                  )}
+                </div>
+
+                {/* Scheduled */}
+                <div onClick={() => inlineField !== 'scheduled' && setInlineField('scheduled')} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 4, alignItems: 'center', padding: '3px 6px', margin: '0 -6px 4px', borderRadius: 5, cursor: inlineField === 'scheduled' ? 'default' : 'pointer' }}
+                  onMouseEnter={e => { if (inlineField !== 'scheduled') e.currentTarget.style.background = PALETTE.creamMid }}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Scheduled</span>
+                  {inlineField === 'scheduled' ? (
+                    <input
+                      autoFocus type="datetime-local" value={editScheduled} onChange={e => setEditScheduled(e.target.value)} onClick={e => e.stopPropagation()}
+                      onKeyDown={e => { if (e.key === 'Escape') { setEditScheduled(toLocalInputValue(post.scheduled_at)); setInlineField(null) } }}
+                      onBlur={() => { if (editScheduled) saveInlineField('scheduled_at', new Date(editScheduled).toISOString(), 'changed the scheduled time to ' + fmt(new Date(editScheduled).toISOString())); else setInlineField(null) }}
+                      style={{ ...inputStyle, padding: '4px 8px' }}
+                    />
+                  ) : (
+                    <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso }}>{fmt(post.scheduled_at)}</span>
+                  )}
+                </div>
               </div>
             )}
 
@@ -3248,6 +3358,7 @@ export default function Dashboard() {
             onClose={() => setSelectedPost(null)}
             isMobile={isMobile}
             currentUserName={currentUserName}
+            onUpdatePostLocal={(id, patch) => setPosts(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p))}
           />
         )}
       </div>
