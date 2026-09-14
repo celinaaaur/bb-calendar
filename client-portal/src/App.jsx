@@ -1583,7 +1583,14 @@ export default function ClientPortal() {
   if (!unlocked) return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 340, textAlign: 'center' }}>
-        <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 24, color: PALETTE.caramel, marginBottom: 8 }}>Brown Butter</div>
+        <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 24, color: PALETTE.caramel, marginBottom: 16 }}>Brown Butter</div>
+        {client?.logo_url ? (
+          <img src={client.logo_url} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid ' + PALETTE.caramel, marginBottom: 14 }} />
+        ) : (
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#fff', fontFamily: F.body, margin: '0 auto 14px', border: '2px solid ' + PALETTE.caramel }}>
+            {(client?.name || 'BB').slice(0, 2).toUpperCase()}
+          </div>
+        )}
         <div style={{ fontFamily: F.display, fontSize: 20, color: PALETTE.espresso, marginBottom: 6 }}>Hi, {client?.name || 'there'}!</div>
         <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300, marginBottom: 18, lineHeight: 1.6 }}>
           This is your space to review posts, leave feedback, and track everything we're working on for you.
