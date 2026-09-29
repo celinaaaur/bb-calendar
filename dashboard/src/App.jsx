@@ -331,6 +331,11 @@ const fmtMoney = (n) => n == null || n === '' ? '—' : '₱' + Number(n).toLoca
 // those are two separately-typed strings that can drift slightly out of sync.
 const normalizeName = (s) => (s || '').trim().toLowerCase()
 const namesMatch = (a, b) => normalizeName(a) === normalizeName(b) && normalizeName(a) !== ''
+// Only these people can see/open the Billing tab (client hub) and the
+// Billing box on the Client Overview page. Add or remove emails here —
+// matching is case-insensitive.
+const BILLING_ALLOWED_EMAILS = ['celina@brown-butter.com', 'briana@brown-butter.com']
+const canAccessBilling = (email) => BILLING_ALLOWED_EMAILS.includes((email || '').trim().toLowerCase())
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 // Notes saved before rich text existed are plain text with real newline
 // characters, which HTML ignores — convert those to <br> so old notes don't
@@ -1643,8 +1648,9 @@ function RichTextEditor({ value, onChange, placeholder }) {
   )
 }
 
-function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
-  const [tab, setTab] = useState(initialTab || 'notes') // 'notes' | 'billing' | 'links'
+function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUserEmail }) {
+  const canBilling = canAccessBilling(currentUserEmail)
+  const [tab, setTab] = useState((initialTab === 'billing' && !canBilling) ? 'notes' : (initialTab || 'notes')) // 'notes' | 'billing' | 'links'
   const [notes, setNotes] = useState([])
   const [cycles, setCycles] = useState([])
   const [reimbursements, setReimbursements] = useState([])
@@ -1841,7 +1847,7 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
       </div>
 
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0, background: '#fff' }}>
-        {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].map(([k, l]) => (
+        {[['notes', 'Meeting Notes'], ...(canBilling ? [['billing', 'Billing']] : []), ['links', 'Links']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
         ))}
       </div>
@@ -1882,6 +1888,8 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated }) {
                 </div>
               ))}
             </div>
+          ) : tab === 'billing' && !canBilling ? (
+            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', textAlign: 'center', padding: '30px 0' }}>You don't have access to Billing.</div>
           ) : tab === 'billing' ? (
             <div>
               {editingCycleId ? (
@@ -2455,7 +2463,8 @@ function RequestsView({ requests, clients, selectedClient, onRefresh }) {
   )
 }
 
-function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToReports, onGoToFilter, onClientUpdated, isMobile }) {
+function ClientOverview({ client, posts, comments, requests, statusChanges, onSelectPost, onOpenHub, onGoToRequests, onGoToReports, onGoToFilter, onClientUpdated, isMobile, currentUserEmail }) {
+  const canBilling = canAccessBilling(currentUserEmail)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const logoFileRef = useRef()
 
@@ -2588,7 +2597,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
               ['📥', 'Requests', openRequests > 0 ? openRequests + ' open' : 'Nothing open', onGoToRequests],
               ['📝', 'Meeting Notes', 'View & add notes', () => onOpenHub('notes')],
               ['🔗', 'Important Links', 'Shared with client', () => onOpenHub('links')],
-              ['💳', 'Billing', 'Cycles & invoices', () => onOpenHub('billing')],
+              ...(canBilling ? [['💳', 'Billing', 'Cycles & invoices', () => onOpenHub('billing')]] : []),
               ['📈', 'Marketing Reports', reportsCount === 0 ? 'No reports yet' : (latestEngagementRate != null ? 'Latest: ' + latestEngagementRate + '% engagement' : reportsCount + ' report' + (reportsCount !== 1 ? 's' : '') + ' logged'), onGoToReports],
             ].map(([icon, label, sub, onClick]) => (
               <div key={label} onClick={onClick} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s' }}
@@ -2653,6 +2662,7 @@ export default function Dashboard() {
     return () => subscription.unsubscribe()
   }, [])
   const currentUserName = session?.user?.user_metadata?.full_name || session?.user?.email || 'Brown Butter'
+  const currentUserEmail = session?.user?.email || ''
   const currentUserFirstName = (session?.user?.user_metadata?.full_name || session?.user?.email || 'there').split(/[\s@]/)[0]
   const currentUserAvatarUrl = session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture || null
   const currentUserInitials = currentUserName.slice(0, 2).toUpperCase()
@@ -3141,6 +3151,7 @@ export default function Dashboard() {
                       onGoToFilter={(k) => { setFilter(k); setView('queue') }}
                       onClientUpdated={fetchAll}
                       isMobile={isMobile}
+                      currentUserEmail={currentUserEmail}
                     />
                 )
               : view === 'requests'
@@ -3171,6 +3182,7 @@ export default function Dashboard() {
                       initialTab={hubInitialTab}
                       onClientUpdated={fetchAll}
                       onClose={() => { setHubClientId(null); setView('overview') }}
+                      currentUserEmail={currentUserEmail}
                     />
                   : <div style={{ padding: 60, textAlign: 'center' }}>
                       <div style={{ fontFamily: F.display, fontSize: 18, color: PALETTE.mutedLight }}>No client selected</div>
