@@ -927,7 +927,7 @@ function ReportsSection({ reports, isMobile, clientName }) {
   const latest = sorted[sorted.length - 1]
   const prior = sorted[sorted.length - 2]
 
-  const engagementOf = (r) => (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.reposts || 0) + (r.saves || 0)
+  const engagementOf = (r) => r.total_interactions || 0
   const engagementRateOf = (r) => {
     if (!r.reach) return null
     return Math.round((engagementOf(r) / r.reach) * 1000) / 10
@@ -1019,7 +1019,7 @@ function ReportsSection({ reports, isMobile, clientName }) {
                     </div>
                   )
                 })()
-                return kpiCard('Engagement rate', latestRate, rateDelta, 'Engagements (likes + comments + shares + reposts + saves) as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
+                return kpiCard('Engagement rate', latestRate, rateDelta, 'Total interactions as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
               })()}
               {(() => {
                 const latestCtr = ctrOf(latest)
@@ -1053,7 +1053,7 @@ function ReportsSection({ reports, isMobile, clientName }) {
               </div>
               <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px' }}>
                 <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Engagement rate over time</div>
-                <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>(Likes + comments + shares + reposts + saves) ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
+                <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>Total interactions ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
                 <PortalReportBarChart data={engagementData} color="#2A7D4F" format={v => v.toFixed(1) + '%'} />
               </div>
             </div>
@@ -1106,7 +1106,7 @@ function ReportsSection({ reports, isMobile, clientName }) {
                       ['Engagement rate', engagementRateOf(r) != null ? engagementRateOf(r) + '%' : null],
                       ['CTR', ctrOf(r) != null ? ctrOf(r) + '%' : null],
                       ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps],
-                      ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves],
+                      ['Total interactions', r.total_interactions],
                       ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story],
                       ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null],
                       ['Non-followers reached', r.nonfollowers_pct != null ? r.nonfollowers_pct + '%' : null]
