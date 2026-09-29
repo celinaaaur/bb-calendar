@@ -2084,7 +2084,7 @@ function MarketingReportsView({ client }) {
   const blankForm = {
     period_start: '', period_end: '', followers: '', reach: '', impressions: '',
     profile_visits: '', bio_link_taps: '',
-    likes: '', comments: '', shares: '', reposts: '', saves: '',
+    total_interactions: '',
     views_post: '', views_reel: '', views_story: '',
     followers_pct: '', nonfollowers_pct: '',
     notes: ''
@@ -2106,7 +2106,7 @@ function MarketingReportsView({ client }) {
       period_start: r.period_start, period_end: r.period_end,
       followers: r.followers ?? '', reach: r.reach ?? '', impressions: r.impressions ?? '',
       profile_visits: r.profile_visits ?? '', bio_link_taps: r.bio_link_taps ?? '',
-      likes: r.likes ?? '', comments: r.comments ?? '', shares: r.shares ?? '', reposts: r.reposts ?? '', saves: r.saves ?? '',
+      total_interactions: r.total_interactions ?? '',
       views_post: r.views_post ?? '', views_reel: r.views_reel ?? '', views_story: r.views_story ?? '',
       followers_pct: r.followers_pct ?? '', nonfollowers_pct: r.nonfollowers_pct ?? '',
       notes: r.notes || ''
@@ -2125,7 +2125,7 @@ function MarketingReportsView({ client }) {
       client_id: client.id, period_start: form.period_start, period_end: form.period_end,
       followers: numOrNull(form.followers), reach: numOrNull(form.reach), impressions: numOrNull(form.impressions),
       profile_visits: numOrNull(form.profile_visits), bio_link_taps: numOrNull(form.bio_link_taps),
-      likes: numOrNull(form.likes), comments: numOrNull(form.comments), shares: numOrNull(form.shares), reposts: numOrNull(form.reposts), saves: numOrNull(form.saves),
+      total_interactions: numOrNull(form.total_interactions),
       views_post: numOrNull(form.views_post), views_reel: numOrNull(form.views_reel), views_story: numOrNull(form.views_story),
       followers_pct: pctOrNull(form.followers_pct), nonfollowers_pct: pctOrNull(form.nonfollowers_pct),
       notes: form.notes.trim() || null
@@ -2158,7 +2158,7 @@ function MarketingReportsView({ client }) {
     const pct = b === 0 ? null : Math.round((diff / b) * 100)
     return { diff, pct }
   }
-  const engagementOf = (r) => (r.likes || 0) + (r.comments || 0) + (r.shares || 0) + (r.reposts || 0) + (r.saves || 0)
+  const engagementOf = (r) => r.total_interactions || 0
   // Engagement rate = total engagements ÷ reach × 100 — the standard way to
   // express engagement so it's comparable across periods regardless of how
   // many people a post happened to reach. Null (shows as "—") if reach isn't
@@ -2211,7 +2211,7 @@ function MarketingReportsView({ client }) {
                 <div><label style={labelStyle}>Period end</label><input type="date" value={form.period_end} onChange={e => setForm({ ...form, period_end: e.target.value })} style={inputStyle} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-                {[['followers', 'Followers'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['profile_visits', 'Profile Visits'], ['bio_link_taps', 'Bio Link Taps'], ['likes', 'Likes'], ['comments', 'Comments'], ['shares', 'Shares'], ['reposts', 'Reposts'], ['saves', 'Saves']].map(([key, lbl]) => (
+                {[['followers', 'Followers'], ['reach', 'Reach'], ['impressions', 'Impressions'], ['profile_visits', 'Profile Visits'], ['bio_link_taps', 'Bio Link Taps'], ['total_interactions', 'Total Interactions']].map(([key, lbl]) => (
                   <div key={key}><label style={labelStyle}>{lbl}</label><input type="number" min="0" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder="0" style={inputStyle} /></div>
                 ))}
               </div>
@@ -2264,7 +2264,7 @@ function MarketingReportsView({ client }) {
                         </div>
                       )
                     })()
-                    return kpiCard('Engagement rate', latestRate, rateDelta, 'Engagements (likes + comments + shares + reposts + saves) as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
+                    return kpiCard('Engagement rate', latestRate, rateDelta, 'Total interactions as a share of reach.', v => v.toFixed(1) + '%', benchmarkBadge)
                   })()}
                   {(() => {
                     const ctrOf = (r) => (r.profile_visits ? Math.round((r.bio_link_taps || 0) / r.profile_visits * 1000) / 10 : null)
@@ -2299,7 +2299,7 @@ function MarketingReportsView({ client }) {
                   </div>
                   <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 18px' }}>
                     <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, marginBottom: 4 }}>Engagement rate over time</div>
-                    <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>(Likes + comments + shares + reposts + saves) ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
+                    <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.mutedLight, marginBottom: 6 }}>Total interactions ÷ reach · F&amp;B benchmark: {FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%</div>
                     <ReportBarChart data={engagementData} color="#2A7D4F" format={v => v.toFixed(1) + '%'} />
                   </div>
                 </div>
@@ -2353,7 +2353,7 @@ function MarketingReportsView({ client }) {
                   {isOpen && (
                     <div style={{ padding: '0 14px 14px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                        {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps], ['Likes', r.likes], ['Comments', r.comments], ['Shares', r.shares], ['Reposts', r.reposts], ['Saves', r.saves], ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story], ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null], ['Non-followers reached', r.nonfollowers_pct != null ? r.nonfollowers_pct + '%' : null]].filter(([, v]) => v != null).map(([lbl, v]) => (
+                        {[['Followers', r.followers], ['Reach', r.reach], ['Impressions', r.impressions], ['Profile visits', r.profile_visits], ['Bio link taps', r.bio_link_taps], ['Total interactions', r.total_interactions], ['Post views', r.views_post], ['Reel views', r.views_reel], ['Story views', r.views_story], ['Followers reached', r.followers_pct != null ? r.followers_pct + '%' : null], ['Non-followers reached', r.nonfollowers_pct != null ? r.nonfollowers_pct + '%' : null]].filter(([, v]) => v != null).map(([lbl, v]) => (
                           <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{v.toLocaleString()}</div>
                         ))}
                       </div>
@@ -2487,7 +2487,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   const [latestReport, setLatestReport] = useState(null)
   const [reportsCount, setReportsCount] = useState(0)
   useEffect(() => {
-    supabase.from('analytics_reports').select('period_end, likes, comments, shares, reposts, saves, reach')
+    supabase.from('analytics_reports').select('period_end, total_interactions, reach')
       .eq('client_id', client.id).order('period_end', { ascending: false })
       .then(({ data }) => {
         if (data) {
@@ -2498,7 +2498,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   }, [client.id])
   const latestEngagementRate = (() => {
     if (!latestReport || !latestReport.reach) return null
-    const eng = (latestReport.likes || 0) + (latestReport.comments || 0) + (latestReport.shares || 0) + (latestReport.reposts || 0) + (latestReport.saves || 0)
+    const eng = latestReport.total_interactions || 0
     return Math.round((eng / latestReport.reach) * 1000) / 10
   })()
 
