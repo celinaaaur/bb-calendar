@@ -2145,6 +2145,72 @@ function MarketingReportsView({ client }) {
     fetchReports()
   }
 
+  // Ads Reports — paid spend/results, logged separately from organic
+  // performance above since not every client runs ads every period.
+  const [adReports, setAdReports] = useState([])
+  const [adLoading, setAdLoading] = useState(true)
+  const [adSaving, setAdSaving] = useState(false)
+  const [editingAdId, setEditingAdId] = useState(null) // null | 'new' | report id
+  const [expandedAdIds, setExpandedAdIds] = useState(() => new Set())
+  const toggleAdExpanded = (id) => setExpandedAdIds(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+  const blankAdForm = { platform: 'Meta', period_start: '', period_end: '', amount_spent: '', impressions: '', reach: '', clicks: '', results: '', notes: '' }
+  const [adForm, setAdForm] = useState(blankAdForm)
+
+  const fetchAdReports = async () => {
+    setAdLoading(true)
+    const { data } = await supabase.from('ad_reports').select('*').eq('client_id', client.id).order('period_start', { ascending: true })
+    if (data) setAdReports(data)
+    setAdLoading(false)
+  }
+  useEffect(() => { fetchAdReports() }, [client.id])
+
+  const startNewAd = () => { setEditingAdId('new'); setAdForm(blankAdForm) }
+  const startEditAd = (r) => {
+    setEditingAdId(r.id)
+    setAdForm({
+      platform: r.platform || 'Meta', period_start: r.period_start, period_end: r.period_end,
+      amount_spent: r.amount_spent ?? '', impressions: r.impressions ?? '', reach: r.reach ?? '',
+      clicks: r.clicks ?? '', results: r.results ?? '', notes: r.notes || ''
+    })
+  }
+
+  const numOrNullAd = (v) => v === '' || v == null ? null : parseInt(v, 10)
+  const moneyOrNull = (v) => v === '' || v == null ? null : parseFloat(v)
+
+  const saveAdReport = async () => {
+    if (!adForm.period_start || !adForm.period_end) return
+    setAdSaving(true)
+    const payload = {
+      client_id: client.id, platform: adForm.platform, period_start: adForm.period_start, period_end: adForm.period_end,
+      amount_spent: moneyOrNull(adForm.amount_spent), impressions: numOrNullAd(adForm.impressions), reach: numOrNullAd(adForm.reach),
+      clicks: numOrNullAd(adForm.clicks), results: numOrNullAd(adForm.results), notes: adForm.notes.trim() || null
+    }
+    if (editingAdId === 'new') {
+      await supabase.from('ad_reports').insert(payload)
+    } else {
+      await supabase.from('ad_reports').update(payload).eq('id', editingAdId)
+    }
+    setAdSaving(false); setEditingAdId(null)
+    fetchAdReports()
+  }
+
+  const deleteAdReport = async (id) => {
+    if (!window.confirm('Delete this ad report?')) return
+    await supabase.from('ad_reports').delete().eq('id', id)
+    fetchAdReports()
+  }
+
+  const sortedAds = [...adReports].sort((a, b) => new Date(a.period_start) - new Date(b.period_start))
+  const latestAd = sortedAds[sortedAds.length - 1]
+  const priorAd = sortedAds[sortedAds.length - 2]
+  const ctrOfAd = (r) => (r.impressions ? Math.round((r.clicks || 0) / r.impressions * 10000) / 100 : null)
+  const cpcOfAd = (r) => (r.clicks ? Math.round((r.amount_spent || 0) / r.clicks * 100) / 100 : null)
+  const totalAdSpend = sortedAds.reduce((sum, r) => sum + (r.amount_spent || 0), 0)
+
   const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid, fontSize: 12, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }
   const labelStyle = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
 
@@ -2367,6 +2433,99 @@ function MarketingReportsView({ client }) {
           )}
         </>
       )}
+
+      <div style={{ borderTop: '0.5px solid ' + PALETTE.borderLight, marginTop: 32, paddingTop: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontFamily: F.display, fontSize: 22, color: PALETTE.espresso, lineHeight: 1 }}>📢 Ads Reports</div>
+            <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>Paid spend & results, if any — {adReports.length} report{adReports.length !== 1 ? 's' : ''} logged</div>
+          </div>
+          <button onClick={startNewAd} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500, flexShrink: 0 }}>+ Log ad report</button>
+        </div>
+
+        {adLoading ? (
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, textAlign: 'center', padding: 40 }}>Loading…</div>
+        ) : (
+          <>
+            {editingAdId && (
+              <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 10, padding: 18, marginBottom: 24 }}>
+                <div style={{ fontFamily: F.display, fontSize: 15, color: PALETTE.espresso, marginBottom: 14 }}>{editingAdId === 'new' ? 'Log a new ad report' : 'Edit ad report'}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Platform</label>
+                    <select value={adForm.platform} onChange={e => setAdForm({ ...adForm, platform: e.target.value })} style={inputStyle}>
+                      {['Meta', 'Google', 'TikTok', 'Other'].map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div><label style={labelStyle}>Period start</label><input type="date" value={adForm.period_start} onChange={e => setAdForm({ ...adForm, period_start: e.target.value })} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Period end</label><input type="date" value={adForm.period_end} onChange={e => setAdForm({ ...adForm, period_end: e.target.value })} style={inputStyle} /></div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                  <div><label style={labelStyle}>Amount spent (₱)</label><input type="number" min="0" step="0.01" value={adForm.amount_spent} onChange={e => setAdForm({ ...adForm, amount_spent: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Impressions</label><input type="number" min="0" value={adForm.impressions} onChange={e => setAdForm({ ...adForm, impressions: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Reach</label><input type="number" min="0" value={adForm.reach} onChange={e => setAdForm({ ...adForm, reach: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Clicks</label><input type="number" min="0" value={adForm.clicks} onChange={e => setAdForm({ ...adForm, clicks: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Results</label><input type="number" min="0" value={adForm.results} onChange={e => setAdForm({ ...adForm, results: e.target.value })} placeholder="0" style={inputStyle} /></div>
+                </div>
+                <div style={{ marginBottom: 14 }}><label style={labelStyle}>Notes (optional)</label><textarea value={adForm.notes} onChange={e => setAdForm({ ...adForm, notes: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="e.g. campaign name, objective, anything worth remembering" /></div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setEditingAdId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
+                  <button onClick={saveAdReport} disabled={adSaving || !adForm.period_start || !adForm.period_end} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 12, color: PALETTE.cream, opacity: adSaving ? 0.6 : 1 }}>{adSaving ? 'Saving…' : 'Save ad report'}</button>
+                </div>
+              </div>
+            )}
+
+            {adReports.length === 0 && !editingAdId ? (
+              <div style={{ padding: '30px 0 10px', textAlign: 'center' }}>
+                <div style={{ fontFamily: F.display, color: PALETTE.mutedLight, fontSize: 16 }}>No ad reports logged yet</div>
+              </div>
+            ) : (
+              <>
+                {latestAd && (
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 22 }}>
+                    {kpiCard('Amount spent', latestAd.amount_spent, priorAd ? delta(latestAd.amount_spent, priorAd.amount_spent) : null, latestAd.platform + ' spend this period.', v => fmtMoney(v))}
+                    {kpiCard('Impressions', latestAd.impressions, priorAd ? delta(latestAd.impressions, priorAd.impressions) : null, 'Total times ads were displayed.')}
+                    {kpiCard('Clicks', latestAd.clicks, priorAd ? delta(latestAd.clicks, priorAd.clicks) : null, 'CTR: ' + (ctrOfAd(latestAd) != null ? ctrOfAd(latestAd) + '%' : '—') + ' · CPC: ' + (cpcOfAd(latestAd) != null ? fmtMoney(cpcOfAd(latestAd)) : '—'))}
+                    {kpiCard('Results', latestAd.results, priorAd ? delta(latestAd.results, priorAd.results) : null, 'Conversions/leads/whatever the campaign was optimized for.')}
+                    {kpiCard('Total spend logged', totalAdSpend || null, null, 'Sum across all ' + sortedAds.length + ' logged period' + (sortedAds.length !== 1 ? 's' : '') + '.', v => fmtMoney(v))}
+                  </div>
+                )}
+
+                <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 12 }}>All ad reports</div>
+                {[...sortedAds].reverse().map(r => {
+                  const isOpen = expandedAdIds.has(r.id)
+                  return (
+                  <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, marginBottom: 10, background: '#fff', overflow: 'hidden' }}>
+                    <div onClick={() => toggleAdExpanded(r.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', gap: 8, flexWrap: 'wrap', cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                        <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.05em', color: PALETTE.caramel, textTransform: 'uppercase', background: PALETTE.creamMid, padding: '2px 6px', borderRadius: 4 }}>{r.platform}</span>
+                        <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{fmtDateLong(r.period_start)} – {fmtDateLong(r.period_end)}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+                        <button onClick={() => startEditAd(r)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.caramel }}>Edit</button>
+                        <button onClick={() => deleteAdReport(r.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
+                      </div>
+                    </div>
+                    {isOpen && (
+                      <div style={{ padding: '0 14px 14px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                          {[['Amount spent', r.amount_spent != null ? fmtMoney(r.amount_spent) : null], ['Impressions', r.impressions], ['Reach', r.reach], ['Clicks', r.clicks], ['CTR', ctrOfAd(r) != null ? ctrOfAd(r) + '%' : null], ['CPC', cpcOfAd(r) != null ? fmtMoney(cpcOfAd(r)) : null], ['Results', r.results]].filter(([, v]) => v != null).map(([lbl, v]) => (
+                            <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{typeof v === 'number' ? v.toLocaleString() : v}</div>
+                          ))}
+                        </div>
+                        {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{r.notes}</div>}
+                      </div>
+                    )}
+                  </div>
+                  )
+                })}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
       <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, textAlign: 'center', marginTop: 30, lineHeight: 1.6, maxWidth: 640, marginLeft: 'auto', marginRight: 'auto' }}>
         Food &amp; beverage engagement benchmark ({FNB_ENGAGEMENT_BENCHMARK.low}–{FNB_ENGAGEMENT_BENCHMARK.high}%) sourced from {FNB_ENGAGEMENT_BENCHMARK.source}.
         <br />CTR reference ({FNB_CTR_BENCHMARK.value}%) sourced from {FNB_CTR_BENCHMARK.source}.
