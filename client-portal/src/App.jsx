@@ -903,7 +903,7 @@ function PortalReportBarChart({ data, color, format }) {
 
 // Client-facing read-only view of the same analytics_reports data the agency
 // logs on their side — no add/edit/delete controls here, just the numbers.
-function ReportsSection({ reports, isMobile, clientName }) {
+function ReportsSection({ reports, adReports, isMobile, clientName }) {
   const allSorted = [...reports].sort((a, b) => new Date(a.period_start) - new Date(b.period_start))
 
   const [filterFrom, setFilterFrom] = useState('')
@@ -933,6 +933,21 @@ function ReportsSection({ reports, isMobile, clientName }) {
     return Math.round((engagementOf(r) / r.reach) * 1000) / 10
   }
   const ctrOf = (r) => (r.profile_visits ? Math.round((r.bio_link_taps || 0) / r.profile_visits * 1000) / 10 : null)
+
+  // Ads Reports — read-only mirror of the agency's paid spend/results log.
+  const sortedAds = [...(adReports || [])].sort((a, b) => new Date(a.period_start) - new Date(b.period_start))
+  const latestAd = sortedAds[sortedAds.length - 1]
+  const priorAd = sortedAds[sortedAds.length - 2]
+  const ctrOfAd = (r) => (r.impressions ? Math.round((r.clicks || 0) / r.impressions * 10000) / 100 : null)
+  const cpcOfAd = (r) => (r.clicks ? Math.round((r.amount_spent || 0) / r.clicks * 100) / 100 : null)
+  const totalAdSpend = sortedAds.reduce((sum, r) => sum + (r.amount_spent || 0), 0)
+  const [expandedAdIds, setExpandedAdIds] = useState(() => new Set())
+  const toggleAdExpanded = (id) => setExpandedAdIds(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+
   const delta = (a, b) => {
     if (a == null || b == null) return null
     const diff = a - b
@@ -1126,6 +1141,50 @@ function ReportsSection({ reports, isMobile, clientName }) {
             <br />CTR reference ({FNB_CTR_BENCHMARK.value}%) sourced from {FNB_CTR_BENCHMARK.source}.
           </div>
         </>
+      )}
+
+      {sortedAds.length > 0 && (
+        <div style={{ borderTop: '0.5px solid ' + PALETTE.borderLight, marginTop: 32, paddingTop: 28 }}>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 18 : 20, color: PALETTE.espresso, marginBottom: 4 }}>📢 Ads Reports</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 16, fontWeight: 300 }}>
+            {sortedAds.length} report{sortedAds.length !== 1 ? 's' : ''} from Brown Butter
+          </div>
+
+          {latestAd && (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 22 }}>
+              {kpiCard('Amount spent', latestAd.amount_spent, priorAd ? delta(latestAd.amount_spent, priorAd.amount_spent) : null, latestAd.platform + ' spend this period.', v => fmtMoney(v))}
+              {kpiCard('Impressions', latestAd.impressions, priorAd ? delta(latestAd.impressions, priorAd.impressions) : null, 'Total times ads were displayed.')}
+              {kpiCard('Clicks', latestAd.clicks, priorAd ? delta(latestAd.clicks, priorAd.clicks) : null, 'CTR: ' + (ctrOfAd(latestAd) != null ? ctrOfAd(latestAd) + '%' : '—') + ' · CPC: ' + (cpcOfAd(latestAd) != null ? fmtMoney(cpcOfAd(latestAd)) : '—'))}
+              {kpiCard('Results', latestAd.results, priorAd ? delta(latestAd.results, priorAd.results) : null, 'Conversions/leads for the campaign period.')}
+              {kpiCard('Total spend logged', totalAdSpend || null, null, 'Sum across all ' + sortedAds.length + ' logged period' + (sortedAds.length !== 1 ? 's' : '') + '.', v => fmtMoney(v))}
+            </div>
+          )}
+
+          {[...sortedAds].reverse().map(r => {
+            const isOpen = expandedAdIds.has(r.id)
+            return (
+            <div key={r.id} style={{ border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 8, marginBottom: 10, background: '#fff', overflow: 'hidden' }}>
+              <div onClick={() => toggleAdExpanded(r.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', gap: 8, flexWrap: 'wrap', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                  <span style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.05em', color: PALETTE.caramel, textTransform: 'uppercase', background: PALETTE.creamMid, padding: '2px 6px', borderRadius: 4 }}>{r.platform}</span>
+                  <span style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{fmtDateLong(r.period_start)} – {fmtDateLong(r.period_end)}</span>
+                </div>
+              </div>
+              {isOpen && (
+                <div style={{ padding: '0 14px 14px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                    {[['Amount spent', r.amount_spent != null ? fmtMoney(r.amount_spent) : null], ['Impressions', r.impressions], ['Reach', r.reach], ['Clicks', r.clicks], ['CTR', ctrOfAd(r) != null ? ctrOfAd(r) + '%' : null], ['CPC', cpcOfAd(r) != null ? fmtMoney(cpcOfAd(r)) : null], ['Results', r.results]].filter(([, v]) => v != null).map(([lbl, v]) => (
+                      <div key={lbl} style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espressoLight }}><span style={{ color: PALETTE.mutedLight }}>{lbl} </span>{typeof v === 'number' ? v.toLocaleString() : v}</div>
+                    ))}
+                  </div>
+                  {r.notes && <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{r.notes}</div>}
+                </div>
+              )}
+            </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )
@@ -1449,6 +1508,7 @@ export default function ClientPortal() {
   const [reimbursements, setReimbursements] = useState([])
   const [requests, setRequests] = useState([])
   const [analyticsReports, setAnalyticsReports] = useState([])
+  const [adReports, setAdReports] = useState([])
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -1491,7 +1551,7 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
-    const [p, cm, v, mn, bc, rb, rq, sc, dop, il, ar] = await Promise.all([
+    const [p, cm, v, mn, bc, rb, rq, sc, dop, il, ar, adr] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
@@ -1502,7 +1562,8 @@ export default function ClientPortal() {
       supabase.from('status_changes').select('*').order('created_at'),
       supabase.from('design_options').select('*').order('created_at'),
       supabase.from('important_links').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false }),
-      supabase.from('analytics_reports').select('*').eq('client_id', clientData.id).order('period_start', { ascending: true })
+      supabase.from('analytics_reports').select('*').eq('client_id', clientData.id).order('period_start', { ascending: true }),
+      supabase.from('ad_reports').select('*').eq('client_id', clientData.id).order('period_start', { ascending: true })
     ])
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
@@ -1515,6 +1576,7 @@ export default function ClientPortal() {
     if (dop.data) setDesignOptions(dop.data)
     if (il.data) setLinks(il.data)
     if (ar.data) setAnalyticsReports(ar.data)
+    if (adr.data) setAdReports(adr.data)
     setLoading(false)
   }
 
@@ -1545,7 +1607,8 @@ export default function ClientPortal() {
     const s8 = supabase.channel('cp-links').on('postgres_changes', { event: '*', schema: 'public', table: 'important_links' }, fetchAll).subscribe()
     const s9 = supabase.channel('cp-analytics').on('postgres_changes', { event: '*', schema: 'public', table: 'analytics_reports' }, fetchAll).subscribe()
     const s10 = supabase.channel('cp-reimbursements').on('postgres_changes', { event: '*', schema: 'public', table: 'reimbursements' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe() }
+    const s11 = supabase.channel('cp-ad-reports').on('postgres_changes', { event: '*', schema: 'public', table: 'ad_reports' }, fetchAll).subscribe()
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe(); s11.unsubscribe() }
   }, [])
 
   // Swap the browser tab's favicon + title to match whichever client's portal
@@ -1848,7 +1911,7 @@ export default function ClientPortal() {
 
           {/* Links section */}
           {section === 'links' && <LinksSection links={links} isMobile={isMobile} />}
-          {section === 'reports' && <ReportsSection reports={analyticsReports} isMobile={isMobile} clientName={client.name} />}
+          {section === 'reports' && <ReportsSection reports={analyticsReports} adReports={adReports} isMobile={isMobile} clientName={client.name} />}
 
           {/* Requests section */}
           {section === 'requests' && <RequestsSection requests={requests} clientId={client.id} isMobile={isMobile} onRefresh={fetchAll} />}
