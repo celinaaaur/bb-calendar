@@ -120,14 +120,7 @@ const fmtAgo = (str) => {
   if (days < 7) return days + ' days ago'
   return fmtShort(str)
 }
-const weekRange = () => {
-  const now = new Date()
-  const day = now.getDay()
-  const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
-  const f = (d) => d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }).toUpperCase()
-  return f(mon) + ' — ' + f(sun)
-}
+const todayLabel = () => new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })
 const greeting = () => {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -1484,6 +1477,164 @@ function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
   )
 }
 
+// ── Home section ──────────────────────────────────────────────────────────────
+// Landing page: what needs the client's attention, what is in progress on the
+// agency side, and what is coming up. Content lives behind its own tab.
+function HomeSection({ posts, billingCycles, hasNewReport, requests, isMobile, onGo }) {
+  const now = new Date()
+  const byDate = (a, b) => new Date(a.scheduled_at || 0) - new Date(b.scheduled_at || 0)
+  const pending = posts.filter(p => p.status === 'pending').sort(byDate)
+  const revision = posts.filter(p => p.status === 'revision')
+  const upcoming = posts
+    .filter(p => ['approved', 'scheduled'].includes(p.status) && p.scheduled_at && new Date(p.scheduled_at) >= now)
+    .sort(byDate)
+    .slice(0, 4)
+  const openRequests = requests.filter(r => r.status === 'new' || r.status === 'in_progress')
+
+  const sortedCycles = [...billingCycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
+  const currentCycle = sortedCycles.find(c => new Date(c.cycle_start) <= now && now <= new Date(c.cycle_end)) || sortedCycles[0]
+  const billingDue = currentCycle && currentCycle.status !== 'paid' ? currentCycle : null
+
+  const dayLabel = (str) => new Date(str).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })
+
+  const todo = []
+  if (pending.length > 0) {
+    const first = pending.find(p => p.scheduled_at)
+    todo.push({
+      key: 'approve',
+      title: pending.length + ' post' + (pending.length !== 1 ? 's' : '') + ' need your approval',
+      detail: first ? 'The earliest is scheduled for ' + dayLabel(first.scheduled_at) + '.' : 'Nothing goes live until you approve.',
+      cta: 'Review posts',
+      accent: PALETTE.caramel,
+      onClick: () => onGo('content', 'pending'),
+      posts: pending.slice(0, 3),
+    })
+  }
+  if (billingDue) {
+    const overdue = billingDue.status === 'overdue'
+    todo.push({
+      key: 'billing',
+      title: overdue ? 'An invoice is overdue' : 'An invoice is pending',
+      detail: fmtMoney(billingDue.amount) + ' for ' + fmtDateLong(billingDue.cycle_start) + ' to ' + fmtDateLong(billingDue.cycle_end) + '.',
+      cta: 'View billing',
+      accent: overdue ? '#C0392B' : PALETTE.caramel,
+      onClick: () => onGo('billing'),
+    })
+  }
+  if (hasNewReport) {
+    todo.push({
+      key: 'report',
+      title: 'A new marketing report is ready',
+      detail: 'See how your content and ads performed.',
+      cta: 'Open report',
+      accent: PALETTE.caramel,
+      onClick: () => onGo('reports'),
+    })
+  }
+
+  const waiting = []
+  if (revision.length > 0) waiting.push({ key: 'rev', text: revision.length + ' post' + (revision.length !== 1 ? 's are' : ' is') + ' being revised from your feedback', onClick: () => onGo('content', 'revision') })
+  if (openRequests.length > 0) waiting.push({ key: 'req', text: openRequests.length + ' request' + (openRequests.length !== 1 ? 's are' : ' is') + ' open with our team', onClick: () => onGo('requests') })
+
+  const eyebrow = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 12 }
+
+  const Thumb = ({ post, size }) => {
+    const vid = isVideo(post.image_url)
+    const src = vid ? (post.cover_url ? imgSrc(post.cover_url) : null) : (post.image_url ? imgSrc(post.image_url) : null)
+    return (
+      <div style={{ width: size, height: size, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {src
+          ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <span style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 12 }}>BB</span>}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px 48px', maxWidth: 820 }}>
+      <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, marginBottom: 4 }}>Home</div>
+      <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 24, fontWeight: 300 }}>What needs your attention, and what we are working on</div>
+
+      <div style={eyebrow}>Needs you</div>
+      {todo.length === 0 ? (
+        <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '28px 24px', marginBottom: 28 }}>
+          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 18, color: PALETTE.espresso, marginBottom: 6 }}>You are all caught up.</div>
+          <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.6 }}>Nothing needs your attention right now. We will let you know when there is something new to review.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
+          {todo.map(item => (
+            <div key={item.key} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderLeft: '3px solid ' + item.accent, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: isMobile ? '16px 16px' : '18px 22px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 15, fontWeight: 500, color: PALETTE.espresso, marginBottom: 3 }}>{item.title}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.5 }}>{item.detail}</div>
+                </div>
+                <button onClick={item.onClick} style={{ padding: '9px 18px', borderRadius: 6, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500, flexShrink: 0 }}>{item.cta}</button>
+              </div>
+              {item.posts && item.posts.map(p => (
+                <div key={p.id} onClick={() => onGo('content', 'pending', p)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '10px 16px' : '10px 22px', borderTop: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <Thumb post={p} size={40} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.caption || 'Untitled post'}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{p.scheduled_at ? fmt(p.scheduled_at) : 'Not scheduled yet'}</div>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={PALETTE.mutedLight} strokeWidth="1.5" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
+                </div>
+              ))}
+              {item.posts && pending.length > item.posts.length && (
+                <div style={{ padding: '8px 22px 12px', fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, borderTop: '0.5px solid ' + PALETTE.borderLight }}>+ {pending.length - item.posts.length} more</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {waiting.length > 0 && (
+        <>
+          <div style={eyebrow}>In progress with us</div>
+          <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden', marginBottom: 28 }}>
+            {waiting.map((w, i) => (
+              <div key={w.key} onClick={w.onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', borderBottom: i < waiting.length - 1 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: PALETTE.mutedLight, flexShrink: 0 }} />
+                <span style={{ flex: 1, fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, fontWeight: 300 }}>{w.text}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={PALETTE.mutedLight} strokeWidth="1.5" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {upcoming.length > 0 && (
+        <>
+          <div style={eyebrow}>Coming up</div>
+          <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
+            {upcoming.map((p, i) => (
+              <div key={p.id} onClick={() => onGo('content', 'all', p)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < upcoming.length - 1 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <Thumb post={p} size={40} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.caption || 'Untitled post'}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{fmt(p.scheduled_at)}</div>
+                </div>
+                <Badge status={p.status} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function ClientPortal() {
   const [client, setClient] = useState(null)
   const [posts, setPosts] = useState([])
@@ -1501,7 +1652,7 @@ export default function ClientPortal() {
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
-  const [section, setSection] = useState('content') // 'content' | 'notes' | 'billing' | 'requests'
+  const [section, setSection] = useState('home') // 'home' | 'content' | 'notes' | 'billing' | 'reports' | 'links' | 'requests'
   const [notes, setNotes] = useState([])
   const [links, setLinks] = useState([])
   const [billingCycles, setBillingCycles] = useState([])
@@ -1721,6 +1872,13 @@ export default function ClientPortal() {
 
   const firstName = (client?.contact_name || client?.name || '').split(' ')[0]
 
+  const goTo = (sec, filt, post) => {
+    setSection(sec)
+    if (filt) setFilter(filt)
+    setSelectedPost(post || null)
+    if (sec === 'content') setView('list')
+  }
+
   const filterOptions = [
     ['all', 'All Posts', counts.all],
     ['pending', 'Awaiting Approval', counts.pending],
@@ -1733,12 +1891,27 @@ export default function ClientPortal() {
   return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }}>
 
-      {/* Hero */}
+      {/* Compact header on every page except Home */}
+      {section !== 'home' && (
+        <div style={{ background: PALETTE.cream, borderBottom: '0.5px solid ' + PALETTE.border, padding: isMobile ? '14px 20px' : '16px 40px', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 16 : 20, color: PALETTE.espresso }}>{client.name}</span>
+            {!isMobile && <span style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300, fontStyle: 'italic' }}>— client portal</span>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: PALETTE.caramel, display: 'inline-block' }} />
+            <span style={{ fontFamily: F.body, fontSize: 8, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Prepared by Brown Butter</span>
+          </div>
+        </div>
+      )}
+
+      {/* Hero (Home only) */}
+      {section === 'home' && (
       <div style={{ background: PALETTE.cream, borderBottom: '0.5px solid ' + PALETTE.border, padding: isMobile ? '20px 20px 18px' : '28px 40px 24px', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isMobile ? 20 : 32 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 18 : 22, color: PALETTE.espresso }}>{client.name}</span>
-            <span style={{ fontFamily: F.body, fontSize: isMobile ? 12 : 14, color: PALETTE.muted, fontWeight: 300, fontStyle: 'italic' }}>— this week on social</span>
+            <span style={{ fontFamily: F.body, fontSize: isMobile ? 12 : 14, color: PALETTE.muted, fontWeight: 300, fontStyle: 'italic' }}>— client portal</span>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
             <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 13 : 16, color: PALETTE.espresso }}>{greeting()}, {firstName}.</div>
@@ -1750,18 +1923,21 @@ export default function ClientPortal() {
         </div>
 
         <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, fontWeight: 500 }}>
-          This week · {weekRange()}
+          {todayLabel()}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div style={{ maxWidth: isMobile ? '100%' : 540, flex: 1 }}>
             <div style={{ fontFamily: F.display, fontSize: isMobile ? 36 : 52, lineHeight: 1.05, color: PALETTE.espresso, marginBottom: isMobile ? 10 : 16 }}>
-              <span style={{ color: PALETTE.caramel }}>{counts.pending}</span> post{counts.pending !== 1 ? 's' : ''} waiting<br />
-              on your approval.
+              {counts.pending > 0
+                ? <><span style={{ color: PALETTE.caramel }}>{counts.pending}</span> post{counts.pending !== 1 ? 's' : ''} waiting<br />on your approval.</>
+                : <>You are all<br />caught up.</>}
             </div>
             {!isMobile && (
               <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.65, marginBottom: 28, maxWidth: 400 }}>
-                Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.
+                {counts.pending > 0
+                  ? <>Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.</>
+                  : <>Nothing needs your approval right now. We will let you know when new posts are ready.</>}
               </div>
             )}
             <div style={{ display: 'flex', gap: isMobile ? 24 : 40, marginTop: isMobile ? 12 : 0 }}>
@@ -1795,6 +1971,7 @@ export default function ClientPortal() {
           )}
         </div>
       </div>
+      )}
 
       {/* Approval nudge banner — only after the agency sends a nudge, and only while posts are still waiting */}
       {client.approval_nudged_at && counts.pending > 0 && nudgeDismissedFor !== client.approval_nudged_at && (
@@ -1816,7 +1993,7 @@ export default function ClientPortal() {
             <div style={{ padding: '22px 16px 0' }}>
               <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>This is your space to review, approve, and stay in the loop.</div>
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Portal</div>
-              {[['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports'], ['links', '🔗 Links'], ['requests', '📥 Requests']].map(([k, l]) => (
+              {[['home', '🏠 Home'], ['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports'], ['links', '🔗 Links'], ['requests', '📥 Requests']].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: section === k ? PALETTE.espresso : 'transparent', color: section === k ? PALETTE.cream : PALETTE.muted, fontWeight: section === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                   onMouseEnter={e => { if (section !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                   onMouseLeave={e => { if (section !== k) e.currentTarget.style.background = 'transparent' }}
@@ -1897,7 +2074,7 @@ export default function ClientPortal() {
           )}
           {isMobile && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream, paddingBottom: 8 }}>
-              {[['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports' + (hasNewReport ? ' (New)' : '')], ['links', '🔗 Links'], ['requests', '📥 Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
+              {[['home', '🏠 Home'], ['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports' + (hasNewReport ? ' (New)' : '')], ['links', '🔗 Links'], ['requests', '📥 Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (section === k ? brandColor : PALETTE.border), background: section === k ? PALETTE.espresso : '#fff', color: section === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: section === k ? 500 : 400, whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
@@ -1927,6 +2104,8 @@ export default function ClientPortal() {
               ))}
             </div>
           )}
+
+          {section === 'home' && <HomeSection posts={activePosts} billingCycles={billingCycles} hasNewReport={hasNewReport} requests={requests} isMobile={isMobile} onGo={goTo} />}
 
           {/* Meeting Notes section */}
           {section === 'notes' && <NotesSection notes={notes} isMobile={isMobile} />}
