@@ -1798,12 +1798,12 @@ export default function ClientPortal() {
 
       {/* Approval nudge banner — only after the agency sends a nudge, and only while posts are still waiting */}
       {client.approval_nudged_at && counts.pending > 0 && nudgeDismissedFor !== client.approval_nudged_at && (
-        <div style={{ background: '#FFF6E6', borderBottom: '0.5px solid #E8C87A', padding: isMobile ? '12px 20px' : '12px 40px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
-          <div style={{ flex: 1, minWidth: 200, fontFamily: F.body, fontSize: 13, color: '#8A5A00', lineHeight: 1.5 }}>
-            <span style={{ fontWeight: 500 }}>{counts.pending} post{counts.pending !== 1 ? 's are' : ' is'} still waiting for your approval.</span> Reviewing soon helps us keep your schedule on track.
+        <div style={{ background: '#C0392B', borderBottom: '0.5px solid #A93226', padding: isMobile ? '12px 20px' : '12px 40px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 200, fontFamily: F.body, fontSize: 13, color: '#fff', lineHeight: 1.5 }}>
+            <span style={{ fontWeight: 600 }}>{counts.pending} post{counts.pending !== 1 ? 's are' : ' is'} still waiting for your approval.</span> Reviewing soon helps us keep your schedule on track.
           </div>
-          <button onClick={() => { setSection('content'); setSelectedPost(null); setFilter('pending') }} style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500, flexShrink: 0 }}>Review now</button>
-          <button onClick={() => dismissNudge(client.approval_nudged_at)} style={{ padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent', color: '#8A5A00', fontFamily: F.body, fontSize: 12, flexShrink: 0 }}>Dismiss</button>
+          <button onClick={() => { setSection('content'); setSelectedPost(null); setFilter('pending') }} style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: '#fff', color: '#C0392B', fontFamily: F.body, fontSize: 12, fontWeight: 600, flexShrink: 0 }}>Review now</button>
+          <button onClick={() => dismissNudge(client.approval_nudged_at)} style={{ padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent', color: '#fff', fontFamily: F.body, fontSize: 12, flexShrink: 0 }}>Dismiss</button>
         </div>
       )}
 
