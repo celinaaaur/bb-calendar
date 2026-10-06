@@ -335,6 +335,36 @@ const namesMatch = (a, b) => normalizeName(a) === normalizeName(b) && normalizeN
 // Only these people can see/open the Billing tab (client hub) and the
 // Billing box on the Client Overview page. Add or remove emails here —
 // matching is case-insensitive.
+// Find a team member from a name: exact match first, then a unique first-name match
+const findMember = (members, name) => {
+  if (!name) return null
+  const exact = (members || []).find(m => namesMatch(m.name, name))
+  if (exact) return exact
+  const first = normalizeName(name).split(/\s+/)[0]
+  const hits = (members || []).filter(m => normalizeName(m.name).split(/\s+/)[0] === first)
+  return hits.length === 1 ? hits[0] : null
+}
+
+// Who did something: a team member (avatar) or a client (brand logo)?
+// side is 'team' or 'client' when we know for sure, otherwise it is worked out from the name.
+function resolveActor({ who, side, members, client, currentUserName, currentUserAvatarUrl }) {
+  const member = findMember(members, who)
+  const isMe = !!who && !!currentUserName && (namesMatch(who, currentUserName) || normalizeName(who).split(/\s+/)[0] === normalizeName(currentUserName).split(/\s+/)[0])
+  if (side === 'team' || (side !== 'client' && (member || isMe))) {
+    return { kind: 'team', name: who || 'Brown Butter', src: member?.avatar_url || (isMe ? currentUserAvatarUrl : null) || null, color: PALETTE.espresso }
+  }
+  return { kind: 'client', name: client?.name || who || 'Client', src: client?.logo_url || null, color: client?.brand_color || PALETTE.caramel }
+}
+
+function Avatar({ actor, size = 26, ring }) {
+  const initials = (actor.name || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  return (
+    <div title={actor.name} style={{ width: size, height: size, borderRadius: '50%', background: actor.src ? '#fff' : actor.color, border: ring || '0.5px solid ' + PALETTE.borderLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(8, Math.round(size * 0.34)), fontWeight: 600, color: '#fff', fontFamily: F.body, flexShrink: 0, overflow: 'hidden' }}>
+      {actor.src ? <img src={actor.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+    </div>
+  )
+}
+
 const BILLING_ALLOWED_EMAILS = ['celina@brown-butter.com', 'briana@brown-butter.com']
 // Where the client portal is hosted (no trailing slash). Each client's link
 // in the copy-paste approval reminder is this plus their slug, e.g.
@@ -1326,7 +1356,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
           if (statusEvents[post.status] && post.status !== 'pending' && !statusChanges.some(sc => sc.status === post.status)) {
             const ev = statusEvents[post.status]
             const when = post.updated_at || post.created_at
-            timeline.push({ ts: new Date(when).getTime(), date: when, icon: ev.icon, iconColor: ev.iconColor, iconBg: ev.iconBg, who: 'Brown Butter', action: ev.action, detail: null, tag: null })
+            timeline.push({ ts: new Date(when).getTime(), date: when, icon: ev.icon, iconColor: ev.iconColor, iconBg: ev.iconBg, who: 'Brown Butter', side: 'team', action: ev.action, detail: null, tag: null })
           }
 
           // Every comment, from both the agency and the client
@@ -1338,6 +1368,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
               iconColor: PALETTE.espresso,
               iconBg: PALETTE.creamMid,
               who: c.author_type === 'agency' ? (c.author || 'Brown Butter') : (c.author || client?.name || 'Client'),
+              side: c.author_type === 'agency' ? 'team' : 'client',
               action: 'commented',
               detail: c.text ? (c.text.length > 140 ? c.text.slice(0, 140) + '…' : c.text) : null,
               tag: null,
@@ -1352,6 +1383,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
             iconColor: PALETTE.caramel,
             iconBg: PALETTE.caramelLight,
             who: post.created_by || 'Brown Butter',
+            side: 'team',
             action: 'created this post',
             detail: null,
             tag: null,
@@ -1366,11 +1398,14 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
           return (
             <div style={{ position: 'relative' }}>
               {/* Vertical line */}
-              <div style={{ position: 'absolute', left: 10, top: 6, bottom: 6, width: 1, background: PALETTE.borderLight }} />
+              <div style={{ position: 'absolute', left: 13, top: 6, bottom: 6, width: 1, background: PALETTE.borderLight }} />
               {timeline.map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 20, position: 'relative' }}>
-                  {/* Icon dot */}
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: item.iconBg, border: '1.5px solid ' + PALETTE.borderLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: item.iconColor, fontWeight: 700, flexShrink: 0, zIndex: 1 }}>{item.icon}</div>
+                  {/* Avatar (team) or brand logo (client), with the event icon as a small badge */}
+                  <div style={{ position: 'relative', width: 26, height: 26, flexShrink: 0, zIndex: 1 }}>
+                    <Avatar size={26} actor={resolveActor({ who: item.who, side: item.side, members: teamMembers, client, currentUserName, currentUserAvatarUrl: null })} />
+                    <div style={{ position: 'absolute', right: -4, bottom: -4, width: 14, height: 14, borderRadius: '50%', background: item.iconBg, border: '1px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, color: item.iconColor, fontWeight: 700 }}>{item.icon}</div>
+                  </div>
                   <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
                     <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, lineHeight: 1.5 }}>
                       <span style={{ fontWeight: 500 }}>{item.who}</span>
@@ -3160,7 +3195,7 @@ const agoShort = (ts) => {
 // Landing page for the team: reminders, the logged-in user's workload, this
 // week's schedule, who is waiting on whom, and a quick coverage read on every
 // client. Scoped to the client picked in the top-bar switcher (or all clients).
-function TodayHome({ firstName, posts, clients, requests, comments, statusChanges, requestReplies, reminders, reminderDone, selectedClient, currentUserName, currentUserEmail, isMobile, onGo, onSelectPost, onPickClient, onToggleReminder, onOpenReminderLink, onRefresh }) {
+function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, clients, requests, comments, statusChanges, requestReplies, reminders, reminderDone, selectedClient, currentUserName, currentUserEmail, isMobile, onGo, onSelectPost, onPickClient, onToggleReminder, onOpenReminderLink, onRefresh }) {
   const now = new Date()
   const today = startOfDay(now)
   const inScope = (cid) => selectedClient === 'all' || cid === selectedClient
@@ -3270,18 +3305,18 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
   comments.forEach(c => {
     const p = postById(c.post_id)
     if (!p || !inScope(p.client_id)) return
-    feed.push({ ts: new Date(c.created_at).getTime(), who: c.author_type === 'agency' ? (c.author || 'Brown Butter') : (c.author || clientOf(p.client_id)?.name || 'Client'), action: 'commented on', detail: p.caption || 'a post', client: clientOf(p.client_id)?.name, post: p, client_side: c.author_type !== 'agency' })
+    feed.push({ ts: new Date(c.created_at).getTime(), who: c.author_type === 'agency' ? (c.author || 'Brown Butter') : (c.author || clientOf(p.client_id)?.name || 'Client'), side: c.author_type === 'agency' ? 'team' : 'client', action: 'commented on', detail: p.caption || 'a post', client: clientOf(p.client_id)?.name, clientId: p.client_id, post: p, client_side: c.author_type !== 'agency' })
   })
   statusChanges.forEach(s => {
     if (!['approved', 'revision', 'published'].includes(s.status)) return
     const p = postById(s.post_id)
     if (!p || !inScope(p.client_id)) return
     const verb = s.status === 'approved' ? 'approved' : s.status === 'revision' ? 'asked for revisions on' : 'published'
-    feed.push({ ts: new Date(s.created_at).getTime(), who: s.changed_by || clientOf(p.client_id)?.name || 'Someone', action: verb, detail: p.caption || 'a post', client: clientOf(p.client_id)?.name, post: p, client_side: s.status !== 'published' })
+    feed.push({ ts: new Date(s.created_at).getTime(), who: s.changed_by || clientOf(p.client_id)?.name || 'Someone', side: s.status === 'published' ? 'team' : undefined, action: verb, detail: p.caption || 'a post', client: clientOf(p.client_id)?.name, clientId: p.client_id, post: p, client_side: s.status !== 'published' })
   })
   requests.forEach(r => {
     if (!inScope(r.client_id)) return
-    feed.push({ ts: new Date(r.created_at).getTime(), who: clientOf(r.client_id)?.name || 'A client', action: 'sent a request:', detail: r.title, client: clientOf(r.client_id)?.name, post: null, client_side: true })
+    feed.push({ ts: new Date(r.created_at).getTime(), who: clientOf(r.client_id)?.name || 'A client', side: 'client', action: 'sent a request:', detail: r.title, client: clientOf(r.client_id)?.name, clientId: r.client_id, post: null, client_side: true })
   })
   feed.sort((a, b) => b.ts - a.ts)
   const feedShown = feed.slice(0, 8)
@@ -3421,7 +3456,7 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
               <Empty>Comments, approvals, and requests from clients show up here.</Empty>
             ) : feedShown.map((a, i) => (
               <div key={i} onClick={() => a.post ? onSelectPost(a.post) : onGo('requests')} style={{ ...rowBase, cursor: 'pointer', alignItems: 'flex-start' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: a.client_side ? PALETTE.caramel : PALETTE.mutedLight, flexShrink: 0, marginTop: 5 }} />
+                <Avatar size={28} actor={resolveActor({ who: a.who, side: a.side, members: teamMembers, client: clientOf(a.clientId), currentUserName, currentUserAvatarUrl })} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso }}><span style={{ fontWeight: 500 }}>{a.who}</span> {a.action}</div>
                   <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 300 }}>{a.detail}{a.client ? ' · ' + a.client : ''}</div>
@@ -3547,6 +3582,15 @@ export default function Dashboard() {
   const [showSearch, setShowSearch] = useState(false)
   const [requestReplies, setRequestReplies] = useState([])
   const [reminders, setReminders] = useState([])
+  // Keep the logged-in person's avatar on their team_members row so teammates see it in feeds
+  const avatarSynced = useRef('')
+  useEffect(() => {
+    if (!currentUserAvatarUrl || teamMembers.length === 0) return
+    const me = teamMembers.find(m => (m.email && currentUserEmail && m.email.toLowerCase() === currentUserEmail.toLowerCase()) || namesMatch(m.name, currentUserName)) || findMember(teamMembers, currentUserName)
+    if (!me || me.avatar_url === currentUserAvatarUrl || avatarSynced.current === me.id + currentUserAvatarUrl) return
+    avatarSynced.current = me.id + currentUserAvatarUrl
+    supabase.from('team_members').update({ avatar_url: currentUserAvatarUrl }).eq('id', me.id).then(() => {})
+  }, [teamMembers, currentUserAvatarUrl, currentUserEmail, currentUserName])
   const [reminderCompletions, setReminderCompletions] = useState([])
   const [mineOnly, setMineOnly] = useState(() => {
     try { return localStorage.getItem('bb_mine_only') === '1' } catch { return false }
@@ -4091,6 +4135,8 @@ export default function Dashboard() {
                     currentUserEmail={currentUserEmail}
                   />
                 : <TodayHome
+                  teamMembers={teamMembers}
+                  currentUserAvatarUrl={currentUserAvatarUrl}
                   firstName={currentUserFirstName}
                   posts={posts}
                   clients={clients}
