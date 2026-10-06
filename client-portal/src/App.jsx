@@ -1893,7 +1893,7 @@ export default function ClientPortal() {
     if (!isUnlocked) { setLoading(false); return }
 
     const [p, cm, v, mn, bc, rb, rq, sc, dop, il, ar, adr, rr] = await Promise.all([
-      supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
+      supabase.from('posts').select('*').eq('client_id', clientData.id).neq('status', 'draft').order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
       supabase.from('meeting_notes').select('*').eq('client_id', clientData.id).order('meeting_date', { ascending: false }),
