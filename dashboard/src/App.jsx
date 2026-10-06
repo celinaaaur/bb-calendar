@@ -2990,9 +2990,8 @@ function TodayHome({ firstName, posts, clients, requests, selectedClient, curren
     <div style={{ padding: isMobile ? '20px 16px 40px' : '26px 28px 48px', maxWidth: 1000 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
         <div>
-          <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 6 }}>Today</div>
-          <div style={{ fontFamily: F.display, fontSize: isMobile ? 22 : 28, color: PALETTE.espresso, lineHeight: 1.1 }}>{dateLong}</div>
-          <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, marginTop: 8, fontWeight: 300 }}>{greet}, {firstName}. Showing {scopeName}.</div>
+          <div style={{ fontFamily: F.display, fontSize: isMobile ? 24 : 32, color: PALETTE.espresso, lineHeight: 1.1 }}>{greet}, {firstName}!</div>
+          <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, marginTop: 10, fontWeight: 300 }}>Today is {dateLong}</div>
         </div>
       </div>
 
