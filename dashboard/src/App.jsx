@@ -82,7 +82,7 @@ async function pickFilesFromDrive({ multiple = false } = {}) {
 
 const style = document.createElement('style')
 style.textContent = `
-  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;700;900&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;700;900&family=Figtree:wght@300;400;500;600&display=swap');
   * { box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   .bb-rich-text:empty:before { content: attr(data-placeholder); color: #B8A898; }
@@ -102,7 +102,7 @@ document.head.appendChild(style)
 
 const F = {
   display: "'Unbounded', 'Helvetica Neue', Arial, sans-serif",
-  body: "'DM Sans', system-ui, sans-serif"
+  body: "'Figtree', system-ui, sans-serif"
 }
 
 const PALETTE = {
