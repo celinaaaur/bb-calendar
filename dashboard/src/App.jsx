@@ -3231,7 +3231,8 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
     const gap = nextPost ? Math.round((startOfDay(new Date(nextPost.scheduled_at)) - today) / DAY_MS) : null
     const rev = posts.filter(p => p.client_id === c.id && p.status === 'revision').length
     let level = 'good', text = 'Next ' + (nextPost ? fmtShort(nextPost.scheduled_at) : '')
-    if (!nextPost) { level = 'bad'; text = 'Nothing scheduled' }
+    const hasDrafts = posts.some(p => p.client_id === c.id && p.status === 'draft')
+    if (!nextPost) { level = hasDrafts ? 'warn' : 'bad'; text = hasDrafts ? 'Only drafts' : 'Nothing scheduled' }
     else if (rev > 0) { level = 'bad'; text = rev + ' revision' + (rev !== 1 ? 's' : '') }
     else if (gap > 5) { level = 'warn'; text = 'Next ' + fmtShort(nextPost.scheduled_at) + ' (' + gap + 'd)' }
     return { c, level, text, nextPost }
@@ -3239,6 +3240,15 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
   const dotColor = { good: '#2A7D4F', warn: '#C4893A', bad: '#C0392B' }
   const textColor = { good: PALETTE.muted, warn: '#8A5A00', bad: '#C0392B' }
   const [showAllCoverage, setShowAllCoverage] = useState(false)
+  const wrapRef = useRef(null)
+  const [wrapW, setWrapW] = useState(1000)
+  useEffect(() => {
+    if (!wrapRef.current) return
+    const ro = new ResizeObserver(entries => { setWrapW(entries[0].contentRect.width) })
+    ro.observe(wrapRef.current)
+    return () => ro.disconnect()
+  }, [])
+  const cols = isMobile ? 1 : wrapW >= 1180 ? 3 : wrapW >= 760 ? 2 : 1
   const coverageShown = showAllCoverage ? coverage : coverage.slice(0, 7)
 
   // Recent activity across everything in scope
@@ -3272,7 +3282,7 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
   const hoverOn = e => { e.currentTarget.style.background = PALETTE.creamMid }
   const hoverOff = e => { e.currentTarget.style.background = 'transparent' }
   const Card = ({ title, right, accent, children }) => (
-    <div style={{ ...boxStyle, ...(accent ? { borderColor: PALETTE.caramel } : {}) }}>
+    <div style={{ ...boxStyle, marginBottom: 14, breakInside: 'avoid', ...(accent ? { borderColor: PALETTE.caramel } : {}) }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 8px' }}>
         <div style={eyebrow}>{title}</div>
         {right}
@@ -3301,7 +3311,7 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
   )
 
   return (
-    <div style={{ padding: isMobile ? '20px 16px 40px' : '26px 28px 48px', maxWidth: 1180 }}>
+    <div ref={wrapRef} style={{ padding: isMobile ? '20px 16px 40px' : '26px 28px 48px' }}>
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontFamily: F.display, fontSize: isMobile ? 22 : 26, color: PALETTE.espresso, lineHeight: 1.15 }}>{greet}, {firstName}</div>
         <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, marginTop: 8, fontWeight: 300 }}>{dateLong} · {summary}.</div>
@@ -3315,9 +3325,9 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
-        {/* ── Main column ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+      <div style={{ columnCount: cols, columnGap: 14 }}>
+        {/* Cards flow top to bottom, then into the next column, so the page fills the screen width */}
+        <>
 
           {reminderRows.length > 0 && (
             <Card title="Reminders" accent right={<span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>Repeats</span>}>
@@ -3407,10 +3417,7 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
               </div>
             ))}
           </Card>
-        </div>
 
-        {/* ── Side column ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
 
           <Card title="Waiting on clients">
             {waiting.length === 0 ? (
@@ -3471,7 +3478,7 @@ function TodayHome({ firstName, posts, clients, requests, comments, statusChange
               </div>
             ))}
           </Card>
-        </div>
+        </>
       </div>
     </div>
   )
