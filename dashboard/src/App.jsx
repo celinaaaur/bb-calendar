@@ -2758,6 +2758,8 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   // still awaiting approval. "Copy message" gives a ready-to-send note.
   const [nudging, setNudging] = useState(false)
   const [copiedNudge, setCopiedNudge] = useState(false)
+  const [nudgeDraft, setNudgeDraft] = useState(null) // null = use the generated message
+  useEffect(() => { setNudgeDraft(null) }, [client.id])
   const pendingPosts = clientPosts.filter(p => p.status === 'pending')
   const earliestPending = pendingPosts
     .filter(p => p.scheduled_at)
@@ -2773,6 +2775,7 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
       + (link ? 'You can review here: ' + link + '\n\n' : '')
       + 'Thank you! :)'
   })()
+  const messageText = nudgeDraft ?? nudgeMessage
   const nudgeClient = async () => {
     setNudging(true)
     const { error } = await supabase.from('clients').update({ approval_nudged_at: new Date().toISOString() }).eq('id', client.id)
@@ -2782,11 +2785,11 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   }
   const copyNudge = async () => {
     try {
-      await navigator.clipboard.writeText(nudgeMessage)
+      await navigator.clipboard.writeText(messageText)
       setCopiedNudge(true)
       setTimeout(() => setCopiedNudge(false), 2000)
     } catch {
-      window.prompt('Copy this message:', nudgeMessage)
+      window.prompt('Copy this message:', messageText)
     }
   }
 
@@ -2872,6 +2875,20 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
           </div>
           <button onClick={nudgeClient} disabled={nudging} style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500, opacity: nudging ? 0.6 : 1 }}>{nudging ? 'Sending…' : 'Nudge in portal'}</button>
           <button onClick={copyNudge} style={{ padding: '7px 14px', borderRadius: 6, border: '0.5px solid #E8C87A', background: '#fff', color: '#8A5A00', fontFamily: F.body, fontSize: 12, fontWeight: 500 }}>{copiedNudge ? 'Copied' : 'Copy message'}</button>
+          <div style={{ width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#8A5A00' }}>Message to copy · edit before copying</label>
+              {nudgeDraft !== null && nudgeDraft !== nudgeMessage && (
+                <button onClick={() => setNudgeDraft(null)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#8A5A00', textDecoration: 'underline', padding: 0 }}>Reset to default</button>
+              )}
+            </div>
+            <textarea
+              value={messageText}
+              onChange={e => setNudgeDraft(e.target.value)}
+              rows={7}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8, border: '0.5px solid #E8C87A', background: '#fff', fontFamily: F.body, fontSize: 12, lineHeight: 1.6, color: PALETTE.espresso, resize: 'vertical' }}
+            />
+          </div>
         </div>
       )}
 
