@@ -128,6 +128,9 @@ const greeting = () => {
   return 'Good evening'
 }
 
+// Brown Butter's Google Calendar booking page, used by the Book a meeting buttons.
+const MEETING_URL = 'https://calendar.app.google/K4W1tRu29EfwV2Cr7'
+
 const PLATFORMS = ['facebook', 'instagram', 'tiktok']
 const PLATFORM_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok' }
 const formatPlatforms = (platforms) => {
@@ -1352,7 +1355,100 @@ function BillingSection({ cycles, reimbursements, isMobile }) {
 }
 
 // ── Requests section ───────────────────────────────────────────────────────────
-function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
+// ── Request reply thread ──────────────────────────────────────────────────────
+// Two-way conversation under each request. Brown Butter replies appear here and
+// the client's replies show up on the agency dashboard.
+function RequestThread({ request, replies, authorName, onSent }) {
+  const thread = replies.filter(r => r.request_id === request.id).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+  const last = thread[thread.length - 1]
+  const needsReply = !!last && last.author_type === 'agency'
+  const [open, setOpen] = useState(needsReply)
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const send = async () => {
+    if (!text.trim() || sending) return
+    setSending(true)
+    const { error } = await supabase.from('request_replies').insert({ request_id: request.id, author_type: 'client', author: authorName, body: text.trim() })
+    setSending(false)
+    if (error) { alert('Could not send your reply: ' + error.message); return }
+    setText('')
+    onSent && onSent()
+  }
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <button onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>
+        <span>{open ? '▾' : '▸'} Replies{thread.length > 0 ? ' (' + thread.length + ')' : ''}</span>
+        {needsReply && <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', background: '#FFF6E6', color: '#8A5A00', border: '0.5px solid #E8C87A', padding: '2px 7px', borderRadius: 10 }}>Brown Butter replied</span>}
+      </button>
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {thread.length === 0 && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', marginBottom: 10 }}>No replies yet. Add a note or question below.</div>}
+          {thread.map(r => {
+            const fromClient = r.author_type === 'client'
+            return (
+              <div key={r.id} style={{ display: 'flex', justifyContent: fromClient ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+                <div style={{ maxWidth: '88%', background: fromClient ? PALETTE.caramelLight : PALETTE.creamMid, border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '8px 12px' }}>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted, marginBottom: 3 }}>{fromClient ? 'You' : (r.author || 'Brown Butter')} · {fmtAgo(r.created_at)}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{r.body}</div>
+                </div>
+              </div>
+            )
+          })}
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            rows={2}
+            placeholder="Write a reply"
+            style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.5, resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+            <button onClick={send} disabled={sending || !text.trim()} style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: text.trim() ? PALETTE.espresso : PALETTE.creamDark, color: text.trim() ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 12, fontWeight: 500, opacity: sending ? 0.6 : 1 }}>{sending ? 'Sending…' : 'Send reply'}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Mobile bottom tab bar ─────────────────────────────────────────────────────
+function MobileTabBar({ section, setSection, counts, openRequestCount, hasNewReport, moreOpen, setMoreOpen }) {
+  const icons = {
+    home: <path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V11z" />,
+    content: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></>,
+    requests: <><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></>,
+    reports: <path d="M18 20V10M12 20V4M6 20v-6" />,
+    more: <><circle cx="5" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="19" cy="12" r="1.2" /></>,
+  }
+  const tabs = [
+    { k: 'home', label: 'Home', badge: 0 },
+    { k: 'content', label: 'Content', badge: counts.pending },
+    { k: 'requests', label: 'Requests', badge: openRequestCount },
+    { k: 'reports', label: 'Reports', badge: 0, dot: hasNewReport },
+    { k: 'more', label: 'More', badge: 0 },
+  ]
+  const moreActive = ['notes', 'billing', 'links'].includes(section) || moreOpen
+  return (
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 90, background: PALETTE.cream, borderTop: '0.5px solid ' + PALETTE.border, display: 'flex', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {tabs.map(t => {
+        const active = t.k === 'more' ? moreActive : (section === t.k && !moreOpen)
+        return (
+          <button key={t.k} onClick={() => { if (t.k === 'more') setMoreOpen(o => !o); else { setMoreOpen(false); setSection(t.k) } }} style={{ flex: 1, background: 'none', border: 'none', padding: '9px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, color: active ? PALETTE.espresso : PALETTE.mutedLight, position: 'relative' }}>
+            <span style={{ position: 'relative', display: 'inline-flex' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.6} strokeLinecap="round" strokeLinejoin="round">{icons[t.k]}</svg>
+              {t.badge > 0 && <span style={{ position: 'absolute', top: -4, right: -9, background: t.k === 'content' ? '#C0392B' : PALETTE.caramel, color: '#fff', borderRadius: 8, minWidth: 15, height: 15, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{t.badge}</span>}
+              {t.dot && <span style={{ position: 'absolute', top: -2, right: -4, width: 8, height: 8, borderRadius: '50%', background: '#C0392B', border: '1.5px solid ' + PALETTE.cream }} />}
+            </span>
+            <span style={{ fontFamily: F.body, fontSize: 10, fontWeight: active ? 500 : 400 }}>{t.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function RequestsSection({ requests, clientId, isMobile, onRefresh, replies, clientName }) {
   const [formOpen, setFormOpen] = useState(false)
   const [requestType, setRequestType] = useState('collateral_design')
   const [title, setTitle] = useState('')
@@ -1525,6 +1621,7 @@ function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
               )}
               {r.description && <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.6, marginBottom: 8 }}>{r.description}</div>}
               <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight }}>Submitted {fmtAgo(r.created_at)}</div>
+              <RequestThread request={r} replies={replies || []} authorName={clientName} onSent={onRefresh} />
             </div>
           )
         })}
@@ -1536,7 +1633,7 @@ function RequestsSection({ requests, clientId, isMobile, onRefresh }) {
 // ── Home section ──────────────────────────────────────────────────────────────
 // Landing page: what needs the client's attention, what is in progress on the
 // agency side, and what is coming up. Content lives behind its own tab.
-function HomeSection({ posts, billingCycles, hasNewReport, requests, isMobile, onGo }) {
+function HomeSection({ posts, billingCycles, hasNewReport, requests, requestReplies, isMobile, onGo }) {
   const now = new Date()
   const byDate = (a, b) => new Date(a.scheduled_at || 0) - new Date(b.scheduled_at || 0)
   const pending = posts.filter(p => p.status === 'pending').sort(byDate)
@@ -1575,6 +1672,20 @@ function HomeSection({ posts, billingCycles, hasNewReport, requests, isMobile, o
       cta: 'View billing',
       accent: overdue ? '#C0392B' : PALETTE.caramel,
       onClick: () => onGo('billing'),
+    })
+  }
+  const repliedRequests = requests.filter(r => {
+    const t = (requestReplies || []).filter(x => x.request_id === r.id).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    return t.length > 0 && t[t.length - 1].author_type === 'agency'
+  })
+  if (repliedRequests.length > 0) {
+    todo.push({
+      key: 'replies',
+      title: repliedRequests.length + ' request' + (repliedRequests.length !== 1 ? 's have' : ' has') + ' a reply from Brown Butter',
+      detail: 'Open Requests to read and respond.',
+      cta: 'View replies',
+      accent: PALETTE.caramel,
+      onClick: () => onGo('requests'),
     })
   }
   if (hasNewReport) {
@@ -1687,6 +1798,14 @@ function HomeSection({ posts, billingCycles, hasNewReport, requests, isMobile, o
           </div>
         </>
       )}
+
+      <div style={{ marginTop: 28, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: isMobile ? '16px' : '18px 22px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontFamily: F.body, fontSize: 15, fontWeight: 500, color: PALETTE.espresso, marginBottom: 3 }}>Want to talk something through?</div>
+          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontWeight: 300 }}>Pick a time that works for you and we will meet.</div>
+        </div>
+        <a href={MEETING_URL} target="_blank" rel="noreferrer" style={{ padding: '9px 18px', borderRadius: 6, border: '0.5px solid ' + PALETTE.espresso, background: 'transparent', color: PALETTE.espresso, fontFamily: F.body, fontSize: 12, fontWeight: 500, textDecoration: 'none', flexShrink: 0 }}>Book a meeting</a>
+      </div>
     </div>
   )
 }
@@ -1716,6 +1835,8 @@ export default function ClientPortal() {
   const [requests, setRequests] = useState([])
   const [analyticsReports, setAnalyticsReports] = useState([])
   const [adReports, setAdReports] = useState([])
+  const [requestReplies, setRequestReplies] = useState([])
+  const [moreOpen, setMoreOpen] = useState(false)
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -1771,7 +1892,7 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
-    const [p, cm, v, mn, bc, rb, rq, sc, dop, il, ar, adr] = await Promise.all([
+    const [p, cm, v, mn, bc, rb, rq, sc, dop, il, ar, adr, rr] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
       supabase.from('versions').select('*').order('created_at'),
@@ -1783,7 +1904,8 @@ export default function ClientPortal() {
       supabase.from('design_options').select('*').order('created_at'),
       supabase.from('important_links').select('*').eq('client_id', clientData.id).order('created_at', { ascending: false }),
       supabase.from('analytics_reports').select('*').eq('client_id', clientData.id).order('period_start', { ascending: true }),
-      supabase.from('ad_reports').select('*').eq('client_id', clientData.id).order('period_start', { ascending: true })
+      supabase.from('ad_reports').select('*').eq('client_id', clientData.id).order('period_start', { ascending: true }),
+      supabase.from('request_replies').select('*').order('created_at')
     ])
     if (p.data) setPosts(p.data)
     if (cm.data) setComments(cm.data)
@@ -1797,6 +1919,7 @@ export default function ClientPortal() {
     if (il.data) setLinks(il.data)
     if (ar.data) setAnalyticsReports(ar.data)
     if (adr.data) setAdReports(adr.data)
+    if (rr.data) setRequestReplies(rr.data)
     setLoading(false)
   }
 
@@ -1829,7 +1952,8 @@ export default function ClientPortal() {
     const s10 = supabase.channel('cp-reimbursements').on('postgres_changes', { event: '*', schema: 'public', table: 'reimbursements' }, fetchAll).subscribe()
     const s11 = supabase.channel('cp-ad-reports').on('postgres_changes', { event: '*', schema: 'public', table: 'ad_reports' }, fetchAll).subscribe()
     const s12 = supabase.channel('cp-client-nudge').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clients' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe(); s11.unsubscribe(); s12.unsubscribe() }
+    const s13 = supabase.channel('cp-request-replies').on('postgres_changes', { event: '*', schema: 'public', table: 'request_replies' }, fetchAll).subscribe()
+    return () => { s13.unsubscribe(); s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe(); s11.unsubscribe(); s12.unsubscribe() }
   }, [])
 
   // Swap the browser tab's favicon + title to match whichever client's portal
@@ -2113,6 +2237,7 @@ export default function ClientPortal() {
               </div>
             )}
             <div style={{ padding: '20px 16px', marginTop: 'auto' }}>
+              <a href={MEETING_URL} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', padding: '8px 0', marginBottom: 16, borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', color: PALETTE.espresso, fontFamily: F.body, fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>Book a meeting</a>
               <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3, fontWeight: 300 }}>Managed by</div>
               <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.caramel, fontSize: 15 }}>Brown Butter</div>
             </div>
@@ -2128,14 +2253,6 @@ export default function ClientPortal() {
               <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontStyle: 'italic', marginBottom: 10 }}>This is your space to review, approve, and stay in the loop.</div>
             </div>
           )}
-          {isMobile && (
-            <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream, paddingBottom: 8 }}>
-              {[['home', '🏠 Home'], ['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports' + (hasNewReport ? ' (New)' : '')], ['links', '🔗 Links'], ['requests', '📥 Requests' + (openRequestCount > 0 ? ' (' + openRequestCount + ')' : '')]].map(([k, l]) => (
-                <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (section === k ? brandColor : PALETTE.border), background: section === k ? PALETTE.espresso : '#fff', color: section === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, fontWeight: section === k ? 500 : 400, whiteSpace: 'nowrap' }}>{l}</button>
-              ))}
-            </div>
-          )}
-
           {/* Mobile filter + view chips */}
           {isMobile && section === 'content' && (
             <div className="filter-scroll" style={{ borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.cream }}>
@@ -2161,7 +2278,7 @@ export default function ClientPortal() {
             </div>
           )}
 
-          {section === 'home' && <HomeSection posts={activePosts} billingCycles={billingCycles} hasNewReport={hasNewReport} requests={requests} isMobile={isMobile} onGo={goTo} />}
+          {section === 'home' && <HomeSection posts={activePosts} billingCycles={billingCycles} hasNewReport={hasNewReport} requests={requests} requestReplies={requestReplies} isMobile={isMobile} onGo={goTo} />}
 
           {/* Meeting Notes section */}
           {section === 'notes' && <NotesSection notes={notes} isMobile={isMobile} />}
@@ -2174,7 +2291,7 @@ export default function ClientPortal() {
           {section === 'reports' && <ReportsSection reports={analyticsReports} adReports={adReports} isMobile={isMobile} clientName={client.name} />}
 
           {/* Requests section */}
-          {section === 'requests' && <RequestsSection requests={requests} clientId={client.id} isMobile={isMobile} onRefresh={fetchAll} />}
+          {section === 'requests' && <RequestsSection requests={requests} clientId={client.id} isMobile={isMobile} onRefresh={fetchAll} replies={requestReplies} clientName={client.contact_name || client.name} />}
 
           {section === 'content' && (
           <>
@@ -2267,6 +2384,7 @@ export default function ClientPortal() {
           )}
           </>
           )}
+          {isMobile && <div style={{ height: 76, flexShrink: 0 }} />}
         </div>
 
         {/* Desktop side panel */}
@@ -2298,6 +2416,23 @@ export default function ClientPortal() {
           onRefresh={fetchAll}
           isMobile={true}
         />
+      )}
+
+      {isMobile && !selectedPost && (
+        <>
+          {moreOpen && (
+            <>
+              <div onClick={() => setMoreOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.35)', zIndex: 80 }} />
+              <div style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(64px + env(safe-area-inset-bottom))', zIndex: 85, background: '#fff', borderRadius: 14, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.2)', overflow: 'hidden' }}>
+                {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].map(([k, l]) => (
+                  <button key={k} onClick={() => { setSection(k); setSelectedPost(null); setMoreOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '15px 18px', background: section === k ? PALETTE.creamMid : '#fff', border: 'none', borderBottom: '0.5px solid ' + PALETTE.borderLight, fontFamily: F.body, fontSize: 14, color: PALETTE.espresso, fontWeight: section === k ? 500 : 400 }}>{l}</button>
+                ))}
+                <a href={MEETING_URL} target="_blank" rel="noreferrer" onClick={() => setMoreOpen(false)} style={{ display: 'block', padding: '15px 18px', fontFamily: F.body, fontSize: 14, color: PALETTE.caramel, fontWeight: 500, textDecoration: 'none' }}>Book a meeting ↗</a>
+              </div>
+            </>
+          )}
+          <MobileTabBar section={section} setSection={(k) => { setSection(k); setSelectedPost(null) }} counts={counts} openRequestCount={openRequestCount} hasNewReport={hasNewReport} moreOpen={moreOpen} setMoreOpen={setMoreOpen} />
+        </>
       )}
     </div>
   )
