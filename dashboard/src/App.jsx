@@ -4071,12 +4071,12 @@ export default function Dashboard() {
         <div style={isMobile ? {
                 position: 'fixed', top: 52, left: 0, bottom: 0, width: '78vw', maxWidth: 280,
                 background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border,
-                overflowY: 'auto', WebkitOverflowScrolling: 'touch', zIndex: 200,
+                display: 'flex', flexDirection: 'column', overflowY: 'auto', WebkitOverflowScrolling: 'touch', zIndex: 200,
                 transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.2s ease',
                 boxShadow: sidebarOpen ? '4px 0 20px rgba(0,0,0,0.25)' : 'none'
     } : {
                 width: 200, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border,
-                flexShrink: 0, overflowY: 'auto'
+                flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column'
     }}>
           {isMobile && (
             <div style={{ padding: '14px 12px 0' }}>
@@ -4112,6 +4112,48 @@ export default function Dashboard() {
               </>
             )}
           </div>
+
+          <div style={{ padding: '6px 12px 8px' }}>
+            <div style={{ height: '0.5px', background: PALETTE.border, margin: '4px 2px 12px' }} />
+            <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 10px 8px' }}>Clients</div>
+            {clients.map(c => {
+              const active = selectedClient === c.id
+              const pend = posts.filter(p => p.client_id === c.id && p.status === 'pending').length
+              const rev = posts.filter(p => p.client_id === c.id && p.status === 'revision').length
+              return (
+                <button key={c.id} onClick={() => { setSelectedClient(active ? 'all' : c.id); setView('today'); if (isMobile) setSidebarOpen(false) }} title={active ? 'Show all clients' : 'Open ' + c.name} style={{ width: '100%', textAlign: 'left', padding: '6px 10px', borderRadius: 6, border: 'none', background: active ? PALETTE.creamDark : 'transparent', color: active ? PALETTE.espresso : PALETTE.muted, fontWeight: active ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <Avatar size={20} actor={{ name: c.name, src: c.logo_url, color: c.brand_color || PALETTE.caramel }} />
+                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+                  {rev > 0 ? <span style={{ fontSize: 10, color: '#C0392B', fontWeight: 500 }}>{rev}</span>
+                    : pend > 0 ? <span style={{ fontSize: 10, color: '#8A5A00', fontWeight: 500 }}>{pend}</span> : null}
+                </button>
+              )
+            })}
+          </div>
+
+          {(() => {
+            const up = posts.filter(p => p.scheduled_at && ['approved', 'scheduled'].includes(p.status) && new Date(p.scheduled_at) >= new Date())
+              .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0]
+            if (!up) return null
+            const cl = clients.find(c => c.id === up.client_id)
+            return (
+              <div style={{ marginTop: 'auto', padding: '12px' }}>
+                <div onClick={() => { setSelectedPost(up); if (isMobile) setSidebarOpen(false) }} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>
+                  <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Posting next</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Avatar size={22} actor={{ name: cl?.name, src: cl?.logo_url, color: cl?.brand_color || PALETTE.caramel }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cl?.name}</div>
+                      <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>{fmt(up.scheduled_at)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
