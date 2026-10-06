@@ -3069,12 +3069,87 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   )
 }
 
+// Simple line icons for the sidebar (stroke follows the text color)
+const NAV_ICONS = {
+  today: 'M3 10.5L12 3l9 7.5M5 9.5V20h5v-6h4v6h5V9.5',
+  queue: 'M4 7h16M4 12h16M4 17h10',
+  calendar: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
+  grid: 'M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z',
+  requests: 'M4 5h16v11H4zM4 13h5l1 2h4l1-2h5',
+  reports: 'M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6',
+  notes: 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7',
+  links: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  billing: 'M3 6h18v12H3zM3 10h18M7 15h3',
+}
+const NavIcon = ({ name }) => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true"><path d={NAV_ICONS[name]} /></svg>
+)
+
+// ── Recurring reminders ───────────────────────────────────────────────────────
+// Reminders live in recurring_reminders (weekly or monthly, optional audience of
+// emails). Completions live in reminder_completions, one row per occurrence, so
+// ticking one off clears it for everyone it applies to until the next date.
+const dayKey = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+const DAY_MS = 86400000
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const ordinal = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]) }
+
+function reminderOccurrences(r, now) {
+  const today = startOfDay(now)
+  if (r.frequency === 'monthly') {
+    const md = r.month_day || 1
+    const at = (y, m) => new Date(y, m, Math.min(md, new Date(y, m + 1, 0).getDate()))
+    const thisMonth = at(today.getFullYear(), today.getMonth())
+    if (thisMonth <= today) return { today, last: thisMonth, next: at(today.getFullYear(), today.getMonth() + 1) }
+    return { today, last: at(today.getFullYear(), today.getMonth() - 1), next: thisMonth }
+  }
+  const wd = r.weekday ?? 1
+  const diff = (today.getDay() - wd + 7) % 7
+  return { today, last: new Date(today.getTime() - diff * DAY_MS), next: new Date(today.getTime() + (diff === 0 ? 7 : 7 - diff) * DAY_MS) }
+}
+
+function reminderState(r, now, doneSet) {
+  const { today, last, next } = reminderOccurrences(r, now)
+  const created = r.created_at ? startOfDay(new Date(r.created_at)) : null
+  const key = dayKey(last)
+  const done = doneSet.has(r.id + '|' + key)
+  const daysLate = Math.round((today - last) / DAY_MS)
+  const daysToNext = Math.round((next - today) / DAY_MS)
+  let status = null
+  if (last.getTime() === today.getTime()) status = done ? 'done' : 'today'
+  else if (!done && (!created || last >= created)) status = 'overdue'
+  else if (daysToNext <= 3) status = 'soon'
+  return { status, key, daysLate, daysToNext, next }
+}
+
+const reminderSchedule = (r) => r.frequency === 'monthly'
+  ? 'The ' + ordinal(r.month_day || 1) + ' of every month'
+  : 'Every ' + WEEKDAYS[r.weekday ?? 1]
+
+const reminderVisible = (r, email) => {
+  if (r.active === false) return false
+  const aud = Array.isArray(r.audience) ? r.audience.map(a => (a || '').trim().toLowerCase()) : []
+  return aud.length === 0 || aud.includes((email || '').trim().toLowerCase())
+}
+
+const agoShort = (ts) => {
+  const m = Math.round((Date.now() - ts) / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return m + 'm ago'
+  const h = Math.round(m / 60)
+  if (h < 24) return h + 'h ago'
+  const d = Math.round(h / 24)
+  return d + 'd ago'
+}
+
 // ── Today (home) view ─────────────────────────────────────────────────────────
-// Landing page for the team: today's date, the logged-in user's workload,
-// and a quick health read on every client. Scoped to the client picked in the
-// top-bar switcher (or all clients).
-function TodayHome({ firstName, posts, clients, requests, selectedClient, currentUserName, isMobile, onGo, onSelectPost, onPickClient }) {
+// Landing page for the team: reminders, the logged-in user's workload, this
+// week's schedule, who is waiting on whom, and a quick coverage read on every
+// client. Scoped to the client picked in the top-bar switcher (or all clients).
+function TodayHome({ firstName, posts, clients, requests, comments, statusChanges, requestReplies, reminders, reminderDone, selectedClient, currentUserName, currentUserEmail, isMobile, onGo, onSelectPost, onPickClient, onToggleReminder, onOpenReminderLink, onRefresh }) {
   const now = new Date()
+  const today = startOfDay(now)
   const inScope = (cid) => selectedClient === 'all' || cid === selectedClient
   const scoped = posts.filter(p => inScope(p.client_id))
   const live = (p) => p.status !== 'published' && p.status !== 'archived'
@@ -3083,98 +3158,319 @@ function TodayHome({ firstName, posts, clients, requests, selectedClient, curren
     const d = new Date(str)
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
   }
+  const clientOf = (id) => clients.find(c => c.id === id)
+
+  // Reminders that are due, overdue, done today, or coming up within 3 days
+  const reminderRows = reminders
+    .filter(r => reminderVisible(r, currentUserEmail))
+    .map(r => ({ r, ...reminderState(r, now, reminderDone) }))
+    .filter(x => x.status)
+    .sort((a, b) => ['overdue', 'today', 'soon', 'done'].indexOf(a.status) - ['overdue', 'today', 'soon', 'done'].indexOf(b.status))
+  const openReminders = reminderRows.filter(x => x.status === 'overdue' || x.status === 'today').length
+
+  // On your plate
   const mine = scoped.filter(p => namesMatch(p.designer, currentUserName) && live(p))
-  const needsYou = mine
-    .filter(p => p.status === 'revision' || sameDay(p.scheduled_at))
-    .sort((a, b) => (a.status === 'revision' ? 0 : 1) - (b.status === 'revision' ? 0 : 1) || new Date(a.scheduled_at || 0) - new Date(b.scheduled_at || 0))
-    .slice(0, 6)
+  const rank = (p) => p.status === 'revision' ? 0 : sameDay(p.scheduled_at) ? 1 : p.status === 'draft' ? 2 : 3
+  const plate = [...mine].sort((a, b) => rank(a) - rank(b) || new Date(a.scheduled_at || 8.64e15) - new Date(b.scheduled_at || 8.64e15))
+  const plateShown = plate.slice(0, 6)
+
   const awaiting = scoped.filter(p => p.status === 'pending').length
   const revisions = scoped.filter(p => p.status === 'revision').length
-  const openReqs = requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && inScope(r.client_id)).length
+  const openReqList = requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && inScope(r.client_id))
 
   const hour = now.getHours()
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const dateLong = now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-  const scopeName = selectedClient === 'all' ? 'All clients' : (clients.find(c => c.id === selectedClient)?.name || '')
 
-  const tiles = [
-    { n: mine.length, label: 'Assigned to you', color: PALETTE.espresso, onClick: () => onGo('queue', 'active', { mine: true }) },
-    { n: awaiting, label: 'Awaiting clients', color: PALETTE.espresso, onClick: () => onGo('queue', 'pending', { mine: false }) },
-    { n: revisions, label: 'Revisions needed', color: revisions > 0 ? '#C0392B' : PALETTE.espresso, onClick: () => onGo('queue', 'revision', { mine: false }) },
-    { n: openReqs, label: 'Open requests', color: PALETTE.espresso, onClick: () => onGo('requests') },
+  const summaryBits = []
+  if (openReminders) summaryBits.push(openReminders + ' reminder' + (openReminders !== 1 ? 's' : ''))
+  if (mine.length) summaryBits.push(mine.length + ' post' + (mine.length !== 1 ? 's' : '') + ' on your plate')
+  if (awaiting) summaryBits.push(awaiting + ' waiting on clients')
+  if (openReqList.length) summaryBits.push(openReqList.length + ' open request' + (openReqList.length !== 1 ? 's' : ''))
+  const summary = summaryBits.length ? summaryBits.join(', ') : 'You are all caught up'
+
+  const chips = [
+    { n: mine.length, label: 'Assigned to you', onClick: () => onGo('queue', 'active', { mine: true }) },
+    { n: awaiting, label: 'Awaiting clients', onClick: () => onGo('queue', 'pending', { mine: false }) },
+    { n: revisions, label: 'Revisions', hot: true, onClick: () => onGo('queue', 'revision', { mine: false }) },
+    { n: openReqList.length, label: 'Open requests', onClick: () => onGo('requests') },
   ]
 
-  const health = clients.map(c => {
-    const pend = posts.filter(p => p.client_id === c.id && p.status === 'pending').length
-    const rev = posts.filter(p => p.client_id === c.id && p.status === 'revision').length
-    const req = requests.filter(r => r.client_id === c.id && (r.status === 'new' || r.status === 'in_progress')).length
-    let text = 'On track', color = '#1E6E3E', dot = '#2A7D4F'
-    if (rev > 0) { text = rev + ' revision' + (rev !== 1 ? 's' : ''); color = '#7A2018'; dot = '#C0392B' }
-    else if (pend > 0) { text = pend + ' awaiting approval'; color = '#8A5A00'; dot = '#C4893A' }
-    return { c, text, color, dot, req }
-  })
+  // This week (Mon to Sun) + next up
+  const monday = new Date(today.getTime() - ((today.getDay() + 6) % 7) * DAY_MS)
+  const weekDays = Array.from({ length: 7 }, (_, i) => new Date(monday.getTime() + i * DAY_MS))
+  const schedulable = scoped.filter(p => p.scheduled_at && p.status !== 'draft' && p.status !== 'archived')
+  const countOn = (d) => schedulable.filter(p => dayKey(new Date(p.scheduled_at)) === dayKey(d))
+  const nextUp = schedulable.filter(p => p.status !== 'published' && new Date(p.scheduled_at) >= now)
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at)).slice(0, 5)
 
-  const eyebrow = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase', padding: '12px 16px 8px' }
-  const box = { background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }
+  // Waiting on clients, longest wait first
+  const waiting = clients.filter(c => inScope(c.id)).map(c => {
+    const pend = posts.filter(p => p.client_id === c.id && p.status === 'pending')
+    if (!pend.length) return null
+    const since = Math.min(...pend.map(p => {
+      const ch = statusChanges.filter(s => s.post_id === p.id && s.status === 'pending').map(s => new Date(s.created_at).getTime())
+      return ch.length ? Math.max(...ch) : new Date(p.updated_at || p.created_at || now).getTime()
+    }))
+    const days = Math.max(0, Math.floor((Date.now() - since) / DAY_MS))
+    const nudgedToday = c.approval_nudged_at && sameDay(c.approval_nudged_at)
+    return { c, n: pend.length, days, nudgedToday }
+  }).filter(Boolean).sort((a, b) => b.days - a.days)
+
+  const nudge = async (c) => {
+    const { error } = await supabase.from('clients').update({ approval_nudged_at: new Date().toISOString() }).eq('id', c.id)
+    if (error) { alert('Could not send nudge: ' + error.message); return }
+    onRefresh && onRefresh()
+  }
+
+  // Coverage: when is each client's next post going out?
+  const coverage = clients.filter(c => inScope(c.id)).map(c => {
+    const up = posts.filter(p => p.client_id === c.id && p.scheduled_at && ['pending', 'approved', 'scheduled', 'revision'].includes(p.status) && new Date(p.scheduled_at) >= today)
+      .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+    const nextPost = up[0]
+    const gap = nextPost ? Math.round((startOfDay(new Date(nextPost.scheduled_at)) - today) / DAY_MS) : null
+    const rev = posts.filter(p => p.client_id === c.id && p.status === 'revision').length
+    let level = 'good', text = 'Next ' + (nextPost ? fmtShort(nextPost.scheduled_at) : '')
+    if (!nextPost) { level = 'bad'; text = 'Nothing scheduled' }
+    else if (rev > 0) { level = 'bad'; text = rev + ' revision' + (rev !== 1 ? 's' : '') }
+    else if (gap > 5) { level = 'warn'; text = 'Next ' + fmtShort(nextPost.scheduled_at) + ' (' + gap + 'd)' }
+    return { c, level, text, nextPost }
+  }).sort((a, b) => ['bad', 'warn', 'good'].indexOf(a.level) - ['bad', 'warn', 'good'].indexOf(b.level) || a.c.name.localeCompare(b.c.name))
+  const dotColor = { good: '#2A7D4F', warn: '#C4893A', bad: '#C0392B' }
+  const textColor = { good: PALETTE.muted, warn: '#8A5A00', bad: '#C0392B' }
+  const [showAllCoverage, setShowAllCoverage] = useState(false)
+  const coverageShown = showAllCoverage ? coverage : coverage.slice(0, 7)
+
+  // Recent activity across everything in scope
+  const postById = (id) => posts.find(p => p.id === id)
+  const feed = []
+  comments.forEach(c => {
+    const p = postById(c.post_id)
+    if (!p || !inScope(p.client_id)) return
+    feed.push({ ts: new Date(c.created_at).getTime(), who: c.author_type === 'agency' ? (c.author || 'Brown Butter') : (c.author || clientOf(p.client_id)?.name || 'Client'), action: 'commented on', detail: p.caption || 'a post', client: clientOf(p.client_id)?.name, post: p, client_side: c.author_type !== 'agency' })
+  })
+  statusChanges.forEach(s => {
+    if (!['approved', 'revision', 'published'].includes(s.status)) return
+    const p = postById(s.post_id)
+    if (!p || !inScope(p.client_id)) return
+    const verb = s.status === 'approved' ? 'approved' : s.status === 'revision' ? 'asked for revisions on' : 'published'
+    feed.push({ ts: new Date(s.created_at).getTime(), who: s.changed_by || clientOf(p.client_id)?.name || 'Someone', action: verb, detail: p.caption || 'a post', client: clientOf(p.client_id)?.name, post: p, client_side: s.status !== 'published' })
+  })
+  requests.forEach(r => {
+    if (!inScope(r.client_id)) return
+    feed.push({ ts: new Date(r.created_at).getTime(), who: clientOf(r.client_id)?.name || 'A client', action: 'sent a request:', detail: r.title, client: clientOf(r.client_id)?.name, post: null, client_side: true })
+  })
+  feed.sort((a, b) => b.ts - a.ts)
+  const feedShown = feed.slice(0, 8)
+
+  // Recently published
+  const published = scoped.filter(p => p.status === 'published').sort((a, b) => new Date(b.scheduled_at || 0) - new Date(a.scheduled_at || 0)).slice(0, 4)
+
+  const eyebrow = { fontFamily: F.body, fontSize: 10, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase' }
+  const boxStyle = { background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }
+  const rowBase = { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderTop: '0.5px solid ' + PALETTE.borderLight }
+  const hoverOn = e => { e.currentTarget.style.background = PALETTE.creamMid }
+  const hoverOff = e => { e.currentTarget.style.background = 'transparent' }
+  const Card = ({ title, right, accent, children }) => (
+    <div style={{ ...boxStyle, ...(accent ? { borderColor: PALETTE.caramel } : {}) }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 8px' }}>
+        <div style={eyebrow}>{title}</div>
+        {right}
+      </div>
+      {children}
+    </div>
+  )
+  const Empty = ({ children }) => (
+    <div style={{ padding: '16px 16px 18px', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', borderTop: '0.5px solid ' + PALETTE.borderLight }}>{children}</div>
+  )
+  const linkBtn = (label, onClick) => (
+    <button onClick={onClick} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: F.body, fontSize: 11, color: PALETTE.muted, padding: 0 }}>{label}</button>
+  )
+  const smallBtn = (label, onClick, dark) => (
+    <button onClick={(e) => { e.stopPropagation(); onClick() }} style={{ flexShrink: 0, fontFamily: F.body, fontSize: 11, padding: '5px 11px', borderRadius: 6, cursor: 'pointer', border: '0.5px solid ' + PALETTE.espresso, background: dark ? PALETTE.espresso : 'transparent', color: dark ? '#F5F0E8' : PALETTE.espresso, whiteSpace: 'nowrap' }}>{label}</button>
+  )
+  const thumb = (p, size = 34) => (
+    <div style={{ width: size, height: size, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: PALETTE.creamDark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {p?.image_url && !isVideo(p.image_url)
+        ? <img src={imgSrc(p.image_url, p.status === 'published')} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <span style={{ fontFamily: F.display, fontSize: 10, color: PALETTE.caramel }}>BB</span>}
+    </div>
+  )
+  const tag = (text, bg, color) => (
+    <span style={{ fontFamily: F.body, fontSize: 10, padding: '3px 8px', borderRadius: 4, background: bg, color, whiteSpace: 'nowrap', flexShrink: 0 }}>{text}</span>
+  )
 
   return (
-    <div style={{ padding: isMobile ? '20px 16px 40px' : '26px 28px 48px', maxWidth: 1000 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div>
-          <div style={{ fontFamily: F.display, fontSize: isMobile ? 24 : 32, color: PALETTE.espresso, lineHeight: 1.1 }}>{greet}, {firstName}!</div>
-          <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, marginTop: 10, fontWeight: 300 }}>Today is {dateLong}</div>
-        </div>
+    <div style={{ padding: isMobile ? '20px 16px 40px' : '26px 28px 48px', maxWidth: 1180 }}>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontFamily: F.display, fontSize: isMobile ? 22 : 26, color: PALETTE.espresso, lineHeight: 1.15 }}>{greet}, {firstName}</div>
+        <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, marginTop: 8, fontWeight: 300 }}>{dateLong} · {summary}.</div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
-        {tiles.map(t => (
-          <button key={t.label} onClick={t.onClick} style={{ textAlign: 'left', background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '12px 14px', cursor: 'pointer' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = PALETTE.border }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = PALETTE.borderLight }}
-          >
-            <div style={{ fontFamily: F.display, fontSize: 26, color: t.color, lineHeight: 1 }}>{t.n}</div>
-            <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 6 }}>{t.label}</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+        {chips.map(t => (
+          <button key={t.label} onClick={t.onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderRadius: 999, border: '0.5px solid ' + PALETTE.borderLight, background: '#fff', cursor: 'pointer', fontFamily: F.body, fontSize: 12, color: t.n === 0 ? PALETTE.mutedLight : (t.hot ? '#C0392B' : PALETTE.espresso) }}>
+            <span style={{ fontWeight: 500 }}>{t.n}</span>{t.label}
           </button>
         ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
-        <div style={box}>
-          <div style={eyebrow}>Needs you today</div>
-          {needsYou.length === 0 ? (
-            <div style={{ padding: '18px 16px 20px', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', borderTop: '0.5px solid ' + PALETTE.borderLight }}>Nothing assigned to you needs attention right now.</div>
-          ) : needsYou.map(p => {
-            const cl = clients.find(c => c.id === p.client_id)
-            return (
-              <div key={p.id} onClick={() => onSelectPost(p)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderTop: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer' }}
-                onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-              >
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: cl?.brand_color || PALETTE.caramel, flexShrink: 0 }} />
+        {/* ── Main column ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+
+          {reminderRows.length > 0 && (
+            <Card title="Reminders" accent right={<span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>Repeats</span>}>
+              {reminderRows.map(({ r, status, key, daysLate, daysToNext }) => {
+                const done = status === 'done'
+                const tagEl = status === 'overdue' ? tag(daysLate === 1 ? 'Overdue, 1 day' : 'Overdue, ' + daysLate + ' days', '#F6D9D5', '#7A2018')
+                  : status === 'today' ? tag('Today', '#F3E3C6', '#6B4A12')
+                  : status === 'done' ? tag('Done', '#DDEBDD', '#2F5A34')
+                  : tag(daysToNext === 1 ? 'Tomorrow' : 'In ' + daysToNext + ' days', '#E8E1D3', '#5C4A30')
+                const canTick = status !== 'soon'
+                return (
+                  <div key={r.id} style={{ ...rowBase, opacity: status === 'soon' ? 0.75 : 1 }}>
+                    <button onClick={() => canTick && onToggleReminder(r, key, done)} aria-label={done ? 'Mark as not done' : 'Mark as done'} style={{ width: 18, height: 18, borderRadius: 5, border: '1px solid ' + (done ? '#2A7D4F' : PALETTE.muted), background: done ? '#2A7D4F' : 'transparent', cursor: canTick ? 'pointer' : 'default', flexShrink: 0, padding: 0, color: '#fff', fontSize: 11, lineHeight: '16px' }}>{done ? '✓' : ''}</button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, fontWeight: 500, textDecoration: done ? 'line-through' : 'none' }}>{r.title}</div>
+                      <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginTop: 2 }}>{reminderSchedule(r)} · {Array.isArray(r.audience) && r.audience.length ? 'Limited access' : 'Everyone'}</div>
+                    </div>
+                    {tagEl}
+                    {r.link_view && !done && smallBtn(r.link_label || 'Open', () => onOpenReminderLink(r.link_view))}
+                  </div>
+                )
+              })}
+            </Card>
+          )}
+
+          <Card title="On your plate" right={plate.length > 0 && linkBtn('Show all ' + plate.length, () => onGo('queue', 'active', { mine: true }))}>
+            {plateShown.length === 0 ? (
+              <Empty>Nothing assigned to you right now. Posts with your name as designer show up here.</Empty>
+            ) : plateShown.map(p => {
+              const cl = clientOf(p.client_id)
+              return (
+                <div key={p.id} onClick={() => onSelectPost(p)} style={{ ...rowBase, cursor: 'pointer' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                  {thumb(p)}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.caption || 'Untitled post'}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{cl?.name}{p.scheduled_at ? ' · ' + fmt(p.scheduled_at) : ' · Not scheduled'}</div>
+                  </div>
+                  <Badge status={p.status} />
+                </div>
+              )
+            })}
+          </Card>
+
+          <Card title="This week" right={linkBtn('Open calendar', () => onGo('calendar'))}>
+            <div style={{ display: 'flex', gap: 4, padding: '4px 12px 12px' }}>
+              {weekDays.map(d => {
+                const items = countOn(d)
+                const isToday = d.getTime() === today.getTime()
+                return (
+                  <button key={d.getTime()} onClick={() => onGo('calendar')} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '8px 0 6px', borderRadius: 8, border: 'none', cursor: 'pointer', background: isToday ? PALETTE.espresso : 'transparent', color: isToday ? '#F5F0E8' : PALETTE.espresso }}>
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: isToday ? '#CDBFA6' : PALETTE.muted }}>{d.toLocaleDateString('en-PH', { weekday: 'short' })}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 14, fontWeight: 500, margin: '2px 0 4px' }}>{d.getDate()}</div>
+                    <div style={{ height: 12, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
+                      {items.slice(0, 3).map((p, i) => <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: PALETTE.caramel }} />)}
+                      {items.length > 3 && <span style={{ fontFamily: F.body, fontSize: 9 }}>+{items.length - 3}</span>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ ...eyebrow, padding: '10px 16px 6px', borderTop: '0.5px solid ' + PALETTE.borderLight }}>Next up</div>
+            {nextUp.length === 0 ? (
+              <Empty>Nothing scheduled ahead. Plan something in the calendar.</Empty>
+            ) : nextUp.map(p => (
+              <div key={p.id} onClick={() => onSelectPost(p)} style={{ ...rowBase, cursor: 'pointer' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                {thumb(p, 30)}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.caption || 'Untitled post'}</div>
-                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{cl?.name}{p.scheduled_at ? ' · ' + fmt(p.scheduled_at) : ''}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.caption || 'Untitled post'}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{clientOf(p.client_id)?.name} · {fmt(p.scheduled_at)}</div>
                 </div>
                 <Badge status={p.status} />
               </div>
-            )
-          })}
+            ))}
+          </Card>
+
+          <Card title="Recent activity">
+            {feedShown.length === 0 ? (
+              <Empty>Comments, approvals, and requests from clients show up here.</Empty>
+            ) : feedShown.map((a, i) => (
+              <div key={i} onClick={() => a.post ? onSelectPost(a.post) : onGo('requests')} style={{ ...rowBase, cursor: 'pointer', alignItems: 'flex-start' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: a.client_side ? PALETTE.caramel : PALETTE.mutedLight, flexShrink: 0, marginTop: 5 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso }}><span style={{ fontWeight: 500 }}>{a.who}</span> {a.action}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 300 }}>{a.detail}{a.client ? ' · ' + a.client : ''}</div>
+                </div>
+                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, flexShrink: 0 }}>{agoShort(a.ts)}</div>
+              </div>
+            ))}
+          </Card>
         </div>
 
-        <div style={box}>
-          <div style={eyebrow}>Client health</div>
-          {health.length === 0 ? (
-            <div style={{ padding: '18px 16px 20px', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', borderTop: '0.5px solid ' + PALETTE.borderLight }}>No clients yet.</div>
-          ) : health.map(h => (
-            <div key={h.c.id} onClick={() => onPickClient(h.c.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderTop: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-            >
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: h.dot, flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0, fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.c.name}</div>
-              <div style={{ fontFamily: F.body, fontSize: 11, color: h.color, flexShrink: 0 }}>{h.text}{h.req > 0 ? ' · ' + h.req + ' request' + (h.req !== 1 ? 's' : '') : ''}</div>
-            </div>
-          ))}
+        {/* ── Side column ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+
+          <Card title="Waiting on clients">
+            {waiting.length === 0 ? (
+              <Empty>No approvals pending. Nothing to chase.</Empty>
+            ) : waiting.map(w => (
+              <div key={w.c.id} onClick={() => onPickClient(w.c.id)} style={{ ...rowBase, cursor: 'pointer' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{w.c.name}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: w.days >= 3 ? '#8A5A00' : PALETTE.mutedLight, marginTop: 2 }}>{w.n} post{w.n !== 1 ? 's' : ''} · {w.days === 0 ? 'since today' : w.days + ' day' + (w.days !== 1 ? 's' : '')}</div>
+                </div>
+                {w.nudgedToday
+                  ? <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>Nudged today</span>
+                  : smallBtn('Nudge', () => nudge(w.c))}
+              </div>
+            ))}
+          </Card>
+
+          <Card title="Open requests" right={openReqList.length > 0 && linkBtn('View all', () => onGo('requests'))}>
+            {openReqList.length === 0 ? (
+              <Empty>No open requests.</Empty>
+            ) : openReqList.slice(0, 5).map(r => {
+              const replies = requestReplies.filter(x => x.request_id === r.id)
+              const lastClient = replies.length && replies[replies.length - 1].author_type === 'client'
+              return (
+                <div key={r.id} onClick={() => onGo('requests')} style={{ ...rowBase, cursor: 'pointer' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{clientOf(r.client_id)?.name} · {agoShort(new Date(r.created_at).getTime())}</div>
+                  </div>
+                  {lastClient ? tag('Client replied', '#F3E3C6', '#6B4A12') : r.status === 'new' ? tag('New', '#E8E1D3', '#5C4A30') : null}
+                </div>
+              )
+            })}
+          </Card>
+
+          <Card title="Client coverage" right={coverage.length > 7 && linkBtn(showAllCoverage ? 'Show less' : 'Show all ' + coverage.length, () => setShowAllCoverage(o => !o))}>
+            {coverage.length === 0 ? (
+              <Empty>No clients yet.</Empty>
+            ) : coverageShown.map(h => (
+              <div key={h.c.id} onClick={() => onPickClient(h.c.id)} style={{ ...rowBase, cursor: 'pointer' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor[h.level], flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0, fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.c.name}</div>
+                <div style={{ fontFamily: F.body, fontSize: 11, color: textColor[h.level], flexShrink: 0 }}>{h.text}</div>
+              </div>
+            ))}
+          </Card>
+
+          <Card title="Recently published">
+            {published.length === 0 ? (
+              <Empty>Published posts show up here.</Empty>
+            ) : published.map(p => (
+              <div key={p.id} onClick={() => onSelectPost(p)} style={{ ...rowBase, cursor: 'pointer' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                {thumb(p, 30)}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.caption || 'Untitled post'}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{clientOf(p.client_id)?.name} · {fmtShort(p.scheduled_at)}</div>
+                </div>
+              </div>
+            ))}
+          </Card>
         </div>
       </div>
     </div>
@@ -3230,6 +3526,8 @@ export default function Dashboard() {
   const [showClientMenu, setShowClientMenu] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [requestReplies, setRequestReplies] = useState([])
+  const [reminders, setReminders] = useState([])
+  const [reminderCompletions, setReminderCompletions] = useState([])
   const [mineOnly, setMineOnly] = useState(() => {
     try { return localStorage.getItem('bb_mine_only') === '1' } catch { return false }
   })
@@ -3246,7 +3544,7 @@ export default function Dashboard() {
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
-    const [c, p, cm, v, rq, sc, dop, tm, rr] = await Promise.all([
+    const [c, p, cm, v, rq, sc, dop, tm, rr, rem, remc] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('posts').select('*').neq('status', 'archived').order('scheduled_at').limit(150),
       supabase.from('comments').select('*').order('created_at'),
@@ -3255,7 +3553,9 @@ export default function Dashboard() {
       supabase.from('status_changes').select('*').order('created_at'),
       supabase.from('design_options').select('*').order('created_at'),
       supabase.from('team_members').select('*').order('name'),
-      supabase.from('request_replies').select('*').order('created_at')
+      supabase.from('request_replies').select('*').order('created_at'),
+      supabase.from('recurring_reminders').select('*').order('created_at'),
+      supabase.from('reminder_completions').select('*')
     ])
     if (c.data) setClients(c.data)
     if (p.data) setPosts(p.data)
@@ -3266,6 +3566,8 @@ export default function Dashboard() {
     if (dop.data) setDesignOptions(dop.data)
     if (tm.data) setTeamMembers(tm.data)
     if (rr.data) setRequestReplies(rr.data)
+    if (rem.data) setReminders(rem.data)
+    if (remc.data) setReminderCompletions(remc.data)
     setLoading(false)
   }
 
@@ -3321,8 +3623,43 @@ export default function Dashboard() {
           .then(({ data }) => { if (data) setRequestReplies(data) })
       }).subscribe()
 
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe() }
+    const s9 = supabase.channel('dash-reminders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_reminders' }, () => {
+        supabase.from('recurring_reminders').select('*').order('created_at')
+          .then(({ data }) => { if (data) setReminders(data) })
+      }).subscribe()
+
+    const s10 = supabase.channel('dash-reminder-completions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminder_completions' }, () => {
+        supabase.from('reminder_completions').select('*')
+          .then(({ data }) => { if (data) setReminderCompletions(data) })
+      }).subscribe()
+
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe() }
   }, [])
+
+  const reminderDone = useMemo(() => new Set(reminderCompletions.map(c => c.reminder_id + '|' + c.period_key)), [reminderCompletions])
+  const toggleReminder = async (r, key, isDone) => {
+    // Optimistic update so the tick feels instant; realtime confirms it
+    if (isDone) {
+      setReminderCompletions(prev => prev.filter(c => !(c.reminder_id === r.id && c.period_key === key)))
+      const { error } = await supabase.from('reminder_completions').delete().eq('reminder_id', r.id).eq('period_key', key)
+      if (error) { alert('Could not update reminder: ' + error.message); fetchAll() }
+    } else {
+      setReminderCompletions(prev => [...prev, { reminder_id: r.id, period_key: key, done_by: currentUserEmail }])
+      const { error } = await supabase.from('reminder_completions').insert({ reminder_id: r.id, period_key: key, done_by: currentUserEmail })
+      if (error) { alert('Could not update reminder: ' + error.message); fetchAll() }
+    }
+  }
+  const openReminderLink = (target) => {
+    if (target === 'billing') {
+      const cid = selectedClient !== 'all' ? selectedClient : clients[0]?.id
+      if (!cid) return
+      setSelectedClient(cid); setHubInitialTab('billing'); setHubClientId(cid); setView('hub')
+    } else {
+      setView(target)
+    }
+  }
 
   // ── SPEED FIX 3: notifications built with useMemo instead of useEffect + setState ──
   const notifications = useMemo(() => {
@@ -3557,12 +3894,12 @@ export default function Dashboard() {
 
   const reqBadgeCount = requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && (selectedClient === 'all' || r.client_id === selectedClient)).length
   const railItems = [
-    ['today', '🏠 Today'],
-    ['queue', '🗂️ Content'],
-    ['calendar', '📅 Calendar'],
-    ['grid', '🔲 Grid preview'],
-    ['requests', '📥 Requests'],
-    ['reports', '📈 Marketing reports'],
+    ['today', 'Today'],
+    ['queue', 'Content'],
+    ['calendar', 'Calendar'],
+    ['grid', 'Grid preview'],
+    ['requests', 'Requests'],
+    ['reports', 'Marketing reports'],
   ]
   const filterChips = [['active', 'Everything', counts.active], ['draft', 'Drafts', counts.draft], ['pending', 'Awaiting approval', counts.pending], ['revision', 'Revisions', counts.revision], ['approved', 'Approved', counts.approved], ['scheduled', 'Scheduled', counts.scheduled], ['published', 'Published', counts.published], ['archived', 'Archived', counts.archived]]
 
@@ -3654,7 +3991,7 @@ export default function Dashboard() {
                 onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
               >
-                <span>{l}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}><NavIcon name={k} />{l}</span>
                 {k === 'requests' && reqBadgeCount > 0 && (
                   <span style={{ fontSize: 10, color: view === k ? PALETTE.caramel : PALETTE.mutedLight, fontWeight: 500 }}>{reqBadgeCount}</span>
                 )}
@@ -3664,13 +4001,13 @@ export default function Dashboard() {
               <>
                 <div style={{ height: '0.5px', background: PALETTE.border, margin: '12px 2px 12px' }} />
                 <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 10px 8px' }}>Client hub</div>
-                {[['notes', '📝 Meeting notes'], ['links', '🔗 Important links'], ...(canAccessBilling(currentUserEmail) ? [['billing', '💳 Billing']] : [])].map(([k, l]) => {
+                {[['notes', 'Meeting notes'], ['links', 'Important links'], ...(canAccessBilling(currentUserEmail) ? [['billing', 'Billing']] : [])].map(([k, l]) => {
                   const active = view === 'hub' && hubInitialTab === k
                   return (
                     <button key={k} onClick={() => { setHubInitialTab(k); setHubClientId(selectedClient); setView('hub'); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 6, border: 'none', background: active ? PALETTE.creamDark : 'transparent', color: active ? PALETTE.espresso : PALETTE.muted, fontWeight: active ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center' }}
                       onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
-                    >{l}</button>
+                    ><span style={{ display: 'flex', alignItems: 'center', gap: 9 }}><NavIcon name={k} />{l}</span></button>
                   )
                 })}
               </>
@@ -3738,12 +4075,21 @@ export default function Dashboard() {
                   posts={posts}
                   clients={clients}
                   requests={requests}
+                  comments={comments}
+                  statusChanges={statusChanges}
+                  requestReplies={requestReplies}
+                  reminders={reminders}
+                  reminderDone={reminderDone}
                   selectedClient={selectedClient}
                   currentUserName={currentUserName}
+                  currentUserEmail={currentUserEmail}
                   isMobile={isMobile}
                   onGo={(v, f, o) => { if (f) setFilter(f); if (o && o.mine !== undefined) setMineOnly(o.mine); setView(v) }}
                   onSelectPost={setSelectedPost}
                   onPickClient={(id) => { setSelectedClient(id); setView('today') }}
+                  onToggleReminder={toggleReminder}
+                  onOpenReminderLink={openReminderLink}
+                  onRefresh={fetchAll}
                 />)
               : view === 'requests'
               ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} onRefresh={fetchAll} replies={requestReplies} currentUserName={currentUserName} />
