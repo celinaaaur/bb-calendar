@@ -283,6 +283,7 @@ const toLocalInputValue = (str) => {
 }
 
 const STATUS = {
+  draft:     { label: 'DRAFT',               color: '#5C4A30', bg: '#EFEBE4', dot: '#9A8F7E', border: '#D4C9B0' },
   pending:   { label: 'AWAITING APPROVAL',   color: '#8A5A00', bg: '#FFF6E6', dot: '#C4893A', border: '#E8C87A' },
   approved:  { label: 'APPROVED',            color: '#1E6E3E', bg: '#E8F8EE', dot: '#2A7D4F', border: '#7ECBA1' },
   scheduled: { label: 'SCHEDULED',           color: '#1E4E8A', bg: '#E8F1FC', dot: '#3B72B8', border: '#A9C6E8' },
@@ -349,7 +350,7 @@ const renderNoteBody = (body) => {
   if (!body) return ''
   return /</.test(body) ? body : body.replace(/\n/g, '<br>')
 }
-const statusLine = (s) => ({ pending: 'Awaiting client approval', approved: 'Approved — ready to schedule', scheduled: 'Scheduled — will auto-mark as published 24h after posting time', revision: 'Client requested revisions', published: 'Published', archived: 'Archived' }[s] || '')
+const statusLine = (s) => ({ draft: 'Draft: hidden from the client until you send it for review', pending: 'Awaiting client approval', approved: 'Approved — ready to schedule', scheduled: 'Scheduled — will auto-mark as published 24h after posting time', revision: 'Client requested revisions', published: 'Published', archived: 'Archived' }[s] || '')
 
 // Renders a video sized to its real aspect ratio (read from the file itself once
 // metadata loads) instead of forcing every video into a fixed 9:16 frame — a
@@ -406,7 +407,7 @@ function Badge({ status }) {
 function TodayQueue({ posts, clients, onSelect, currentUserName }) {
   const now = new Date()
   const todayPosts = posts.filter(p => {
-    if (p.status === 'archived') return false
+    if (p.status === 'archived' || p.status === 'draft') return false
     const d = new Date(p.scheduled_at)
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
   }).sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
@@ -1213,9 +1214,9 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, marginBottom: 10, textTransform: 'uppercase' }}>Update Status</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
-                  {['pending', 'approved', 'scheduled', 'revision', 'published'].map(k => {
+                  {['draft', 'pending', 'approved', 'scheduled', 'revision', 'published'].map(k => {
                     const s = STATUS[k]
-                    const labels = { pending: 'Reset to pending', approved: 'Mark as approved', scheduled: 'Mark as scheduled', revision: 'Request revisions', published: 'Mark as published' }
+                    const labels = { draft: 'Move back to draft (hide from client)', pending: post.status === 'draft' ? 'Send to client for review' : 'Reset to pending', approved: 'Mark as approved', scheduled: 'Mark as scheduled', revision: 'Request revisions', published: 'Mark as published' }
                     const isCurrent = post.status === k
                     return (
                       <button key={k} onClick={() => updateStatus(k)} style={{ padding: '8px 12px', borderRadius: 6, border: '0.5px solid ' + (isCurrent ? s.dot : PALETTE.borderLight), background: isCurrent ? s.bg : '#fff', color: isCurrent ? s.color : PALETTE.muted, fontWeight: isCurrent ? 500 : 400, fontSize: 11, fontFamily: F.body, textAlign: 'left', transition: 'all 0.15s' }}
@@ -1455,14 +1456,14 @@ function ComposeModal({ clients, teamMembers, onClose, onSaved, currentUserName 
 
   const canSave = caption.trim() && scheduledAt && clientId && designer.trim()
 
-  const handleSave = async () => {
+  const handleSave = async (status = 'pending') => {
     if (!canSave) return; setSaving(true)
     const { data: newPost, error } = await supabase.from('posts').insert({
       client_id: clientId, caption: caption.trim(), scheduled_at: new Date(scheduledAt).toISOString(),
       image_url: images[0] || null,
       images: format === 'carousel' && images.length > 1 ? images : null,
       cover_url: images[0] && isVideo(images[0]) ? (coverUrl || null) : null,
-      platforms, status: 'pending', format,
+      platforms, status, format,
       slide_count: format === 'carousel' ? (images.length || (slideCount ? parseInt(slideCount) : null)) : null,
       designer: designer.trim(), campaign: campaign.trim() || null,
       created_by: currentUserName
@@ -1563,7 +1564,8 @@ function ComposeModal({ clients, teamMembers, onClose, onSaved, currentUserName 
           </div>
           <div>{fieldLabel('Caption', true)}<textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write your caption..." rows={4} style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }} /><div style={{ fontFamily: F.body, fontSize: 9, color: caption.length > 2200 ? '#C0392B' : PALETTE.mutedLight, textAlign: 'right', marginTop: 2 }}>{caption.length} / 2,200</div></div>
           <div>{fieldLabel('Schedule date and time', true)}<input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} style={inputStyle} /></div>
-          <button onClick={handleSave} disabled={saving || !canSave} style={{ padding: '12px 0', borderRadius: 8, border: 'none', background: canSave ? PALETTE.espresso : PALETTE.creamDark, color: canSave ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: canSave ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>{saving ? 'Saving...' : 'Send to Client for Review'}</button>
+          <button onClick={() => handleSave('pending')} disabled={saving || !canSave} style={{ padding: '12px 0', borderRadius: 8, border: 'none', background: canSave ? PALETTE.espresso : PALETTE.creamDark, color: canSave ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: canSave ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>{saving ? 'Saving...' : 'Send to Client for Review'}</button>
+          <button onClick={() => handleSave('draft')} disabled={saving || !canSave} title="Saves the post for the team only. The client won't see it until you send it for review." style={{ padding: '11px 0', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', color: canSave ? PALETTE.espresso : PALETTE.mutedLight, fontFamily: F.body, fontSize: 13, fontWeight: 500, cursor: canSave ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>Save as draft (hidden from client)</button>
           {!designer.trim() && <div style={{ fontFamily: F.body, fontSize: 11, color: '#C0392B', textAlign: 'center', marginTop: -8 }}>Assigned to is required</div>}
         </div>
       </div>
@@ -3435,6 +3437,7 @@ export default function Dashboard() {
 
   const counts = {
     active: activePosts.filter(scopeOk).length,
+    draft: activePosts.filter(p => p.status === 'draft' && scopeOk(p)).length,
     pending: activePosts.filter(p => p.status === 'pending' && scopeOk(p)).length,
     approved: activePosts.filter(p => p.status === 'approved' && scopeOk(p)).length,
     scheduled: activePosts.filter(p => p.status === 'scheduled' && scopeOk(p)).length,
@@ -3443,7 +3446,7 @@ export default function Dashboard() {
     archived: archivedPosts.filter(scopeOk).length,
   }
 
-  const pageTitle = filter === 'active' ? "Today's pass" : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : filter === 'scheduled' ? 'Scheduled' : 'Published'
+  const pageTitle = filter === 'active' ? "Today's pass" : filter === 'draft' ? 'Drafts (hidden from clients)' : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : filter === 'scheduled' ? 'Scheduled' : 'Published'
 
   // "What you need to see" summary — scoped to posts assigned to the
   // logged-in user specifically (via the designer field), so it reads as a
@@ -3561,7 +3564,7 @@ export default function Dashboard() {
     ['requests', '📥 Requests'],
     ['reports', '📈 Marketing reports'],
   ]
-  const filterChips = [['active', 'Everything', counts.active], ['pending', 'Awaiting approval', counts.pending], ['revision', 'Revisions', counts.revision], ['approved', 'Approved', counts.approved], ['scheduled', 'Scheduled', counts.scheduled], ['published', 'Published', counts.published], ['archived', 'Archived', counts.archived]]
+  const filterChips = [['active', 'Everything', counts.active], ['draft', 'Drafts', counts.draft], ['pending', 'Awaiting approval', counts.pending], ['revision', 'Revisions', counts.revision], ['approved', 'Approved', counts.approved], ['scheduled', 'Scheduled', counts.scheduled], ['published', 'Published', counts.published], ['archived', 'Archived', counts.archived]]
 
   return (
     <div className="bb-app-shell" style={{ background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => { showNotifications && setShowNotifications(false); showUserMenu && setShowUserMenu(false); showClientMenu && setShowClientMenu(false) }}>
@@ -3792,6 +3795,7 @@ export default function Dashboard() {
                         if (status === 'published') return { symbol: '✦', bg: 'rgba(196,137,58,0.88)', color: '#fff' }
                         if (status === 'revision') return { symbol: '↩', bg: 'rgba(192,57,43,0.88)', color: '#fff' }
                         if (status === 'pending') return { symbol: '…', bg: 'rgba(44,31,14,0.55)', color: '#fff' }
+                        if (status === 'draft') return { symbol: '✎', bg: 'rgba(154,143,126,0.9)', color: '#fff' }
                         return { symbol: '?', bg: 'rgba(0,0,0,0.4)', color: '#fff' }
                       }
                       // Newest scheduled date first — mirrors how IG shows most recent at top-left
@@ -3890,7 +3894,7 @@ export default function Dashboard() {
                           }
                           {/* Legend */}
                           <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
-                            {[['✓','rgba(42,125,79,0.88)','Approved'],['◷','rgba(59,114,184,0.88)','Scheduled'],['✦','rgba(196,137,58,0.88)','Published'],['↩','rgba(192,57,43,0.88)','Revisions'],['…','rgba(44,31,14,0.55)','Pending']].map(([sym, bg, label]) => (
+                            {[['✓','rgba(42,125,79,0.88)','Approved'],['◷','rgba(59,114,184,0.88)','Scheduled'],['✦','rgba(196,137,58,0.88)','Published'],['↩','rgba(192,57,43,0.88)','Revisions'],['…','rgba(44,31,14,0.55)','Pending'],['✎','rgba(154,143,126,0.9)','Draft']].map(([sym, bg, label]) => (
                               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <div style={{ width: 16, height: 16, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff', fontWeight: 700 }}>{sym}</div>
                                 <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>{label}</span>
