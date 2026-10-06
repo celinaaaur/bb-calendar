@@ -2610,7 +2610,135 @@ function MarketingReportsView({ client }) {
   )
 }
 
-function RequestsView({ requests, clients, selectedClient, onRefresh }) {
+// ── Request reply thread ──────────────────────────────────────────────────────
+// Two-way conversation under each client request. Agency replies show on the
+// client's portal and the client's replies show here.
+function RequestThread({ request, replies, authorType, authorName, otherLabel, onSent }) {
+  const thread = replies.filter(r => r.request_id === request.id).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+  const last = thread[thread.length - 1]
+  const needsReply = !!last && last.author_type !== authorType
+  const [open, setOpen] = useState(needsReply)
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const send = async () => {
+    if (!text.trim() || sending) return
+    setSending(true)
+    const { error } = await supabase.from('request_replies').insert({ request_id: request.id, author_type: authorType, author: authorName, body: text.trim() })
+    setSending(false)
+    if (error) { alert('Could not send reply: ' + error.message); return }
+    setText('')
+    onSent && onSent()
+  }
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <button onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>
+        <span>{open ? '▾' : '▸'} Replies{thread.length > 0 ? ' (' + thread.length + ')' : ''}</span>
+        {needsReply && <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', background: '#FFF6E6', color: '#8A5A00', border: '0.5px solid #E8C87A', padding: '2px 7px', borderRadius: 10 }}>{otherLabel}</span>}
+      </button>
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {thread.length === 0 && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', marginBottom: 10 }}>No replies yet.</div>}
+          {thread.map(r => {
+            const fromAgency = r.author_type === 'agency'
+            return (
+              <div key={r.id} style={{ display: 'flex', justifyContent: fromAgency ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+                <div style={{ maxWidth: '85%', background: fromAgency ? PALETTE.caramelLight : PALETTE.creamMid, border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '8px 12px' }}>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted, marginBottom: 3 }}>{r.author || (fromAgency ? 'Brown Butter' : 'Client')} · {fmtAgo(r.created_at)}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{r.body}</div>
+                </div>
+              </div>
+            )
+          })}
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send() } }}
+            rows={2}
+            placeholder="Write a reply"
+            style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, lineHeight: 1.5, resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+            <button onClick={send} disabled={sending || !text.trim()} style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: text.trim() ? PALETTE.espresso : PALETTE.creamDark, color: text.trim() ? PALETTE.cream : PALETTE.mutedLight, fontFamily: F.body, fontSize: 12, fontWeight: 500, opacity: sending ? 0.6 : 1 }}>{sending ? 'Sending…' : 'Send reply'}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Global search (Cmd/Ctrl + K) ──────────────────────────────────────────────
+function SearchModal({ clients, posts, requests, onClose, onPickClient, onPickPost, onPickRequest, onPickNote, onPickLink, isMobile }) {
+  const [q, setQ] = useState('')
+  const [notes, setNotes] = useState([])
+  const [links, setLinks] = useState([])
+  const [active, setActive] = useState(0)
+  const inputRef = useRef()
+
+  useEffect(() => {
+    inputRef.current && inputRef.current.focus()
+    supabase.from('meeting_notes').select('*').then(({ data }) => { if (data) setNotes(data) })
+    supabase.from('important_links').select('*').then(({ data }) => { if (data) setLinks(data) })
+  }, [])
+
+  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean)
+  const match = (...fields) => {
+    const hay = fields.filter(Boolean).join(' ').toLowerCase()
+    return tokens.every(t => hay.includes(t))
+  }
+  const cname = (id) => clients.find(c => c.id === id)?.name || ''
+  const plain = (html) => (html || '').replace(/<[^>]*>/g, ' ')
+
+  const groups = tokens.length === 0 ? [] : [
+    { key: 'clients', label: 'Clients', items: clients.filter(c => match(c.name, c.handle, c.instagram_handle)).slice(0, 5).map(c => ({ id: 'c' + c.id, title: c.name, sub: 'Client', pick: () => onPickClient(c.id) })) },
+    { key: 'posts', label: 'Posts', items: posts.filter(p => match(p.caption, p.campaign, p.designer, cname(p.client_id))).slice(0, 6).map(p => ({ id: 'p' + p.id, title: (p.caption || 'Untitled post').slice(0, 90), sub: cname(p.client_id) + ' · ' + (STATUS[p.status]?.label || p.status), pick: () => onPickPost(p) })) },
+    { key: 'requests', label: 'Requests', items: requests.filter(r => match(r.title, r.description, cname(r.client_id))).slice(0, 5).map(r => ({ id: 'r' + r.id, title: r.title, sub: cname(r.client_id) + ' · Request', pick: () => onPickRequest(r) })) },
+    { key: 'notes', label: 'Meeting notes', items: notes.filter(n => match(n.title, plain(n.body), cname(n.client_id))).slice(0, 5).map(n => ({ id: 'n' + n.id, title: n.title || 'Meeting note', sub: cname(n.client_id) + ' · Meeting note', pick: () => onPickNote(n) })) },
+    { key: 'links', label: 'Links', items: links.filter(l => match(l.title, l.url, l.category, cname(l.client_id))).slice(0, 5).map(l => ({ id: 'l' + l.id, title: l.title, sub: cname(l.client_id) + (l.category ? ' · ' + l.category : '') + ' · ' + linkSite(l.url), pick: () => onPickLink(l) })) },
+  ].filter(g => g.items.length > 0)
+  const flat = groups.flatMap(g => g.items)
+
+  useEffect(() => { setActive(0) }, [q])
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') { onClose() }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, Math.max(flat.length - 1, 0))) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)) }
+    else if (e.key === 'Enter' && flat[active]) { e.preventDefault(); flat[active].pick(); onClose() }
+  }
+
+  let idx = -1
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.45)', zIndex: 500, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: isMobile ? 60 : '12vh' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 'min(580px, 92vw)', maxHeight: '70vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 12, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 16px 48px rgba(44,31,14,0.28)', overflow: 'hidden' }}>
+        <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} onKeyDown={onKeyDown} placeholder="Search clients, posts, requests, notes, links" style={{ border: 'none', outline: 'none', padding: '16px 18px', fontFamily: F.body, fontSize: 15, color: PALETTE.espresso, borderBottom: '0.5px solid ' + PALETTE.borderLight, background: '#fff' }} />
+        <div style={{ overflowY: 'auto', padding: '6px 0 8px' }}>
+          {tokens.length === 0 && <div style={{ padding: '18px', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight }}>Start typing to search across everything.</div>}
+          {tokens.length > 0 && flat.length === 0 && <div style={{ padding: '18px', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight }}>No results for "{q}".</div>}
+          {groups.map(g => (
+            <div key={g.key}>
+              <div style={{ padding: '10px 18px 4px', fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: PALETTE.mutedLight }}>{g.label}</div>
+              {g.items.map(it => {
+                idx += 1
+                const i = idx
+                return (
+                  <div key={it.id} onClick={() => { it.pick(); onClose() }} onMouseEnter={() => setActive(i)} style={{ padding: '9px 18px', cursor: 'pointer', background: active === i ? PALETTE.creamMid : 'transparent' }}>
+                    <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title}</div>
+                    <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.sub}</div>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+        {!isMobile && <div style={{ padding: '8px 18px', borderTop: '0.5px solid ' + PALETTE.borderLight, fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>Up and down to move, Enter to open, Esc to close</div>}
+      </div>
+    </div>
+  )
+}
+
+function RequestsView({ requests, clients, selectedClient, onRefresh, replies, currentUserName }) {
   const setRequestStatus = async (id, status) => {
     const { error } = await supabase.from('requests').update({ status }).eq('id', id)
     if (error) {
@@ -2682,6 +2810,7 @@ function RequestsView({ requests, clients, selectedClient, onRefresh }) {
             )}
             {r.description && <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.espressoLight, lineHeight: 1.65, marginBottom: 10 }}>{r.description}</div>}
             <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginBottom: 14 }}>Submitted {fmtAgo(r.created_at)}</div>
+            <RequestThread request={r} replies={replies || []} authorType="agency" authorName={currentUserName} otherLabel="Client replied" onSent={onRefresh} />
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {REQUEST_STATUS_ORDER.filter(k => k !== r.status).map(k => (
                 <button key={k} onClick={() => setRequestStatus(r.id, k)} style={{ padding: '6px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.muted, transition: 'all 0.15s' }}
@@ -2967,9 +3096,9 @@ function TodayHome({ firstName, posts, clients, requests, selectedClient, curren
   const scopeName = selectedClient === 'all' ? 'All clients' : (clients.find(c => c.id === selectedClient)?.name || '')
 
   const tiles = [
-    { n: mine.length, label: 'Assigned to you', color: PALETTE.espresso, onClick: () => onGo('queue', 'active') },
-    { n: awaiting, label: 'Awaiting clients', color: PALETTE.espresso, onClick: () => onGo('queue', 'pending') },
-    { n: revisions, label: 'Revisions needed', color: revisions > 0 ? '#C0392B' : PALETTE.espresso, onClick: () => onGo('queue', 'revision') },
+    { n: mine.length, label: 'Assigned to you', color: PALETTE.espresso, onClick: () => onGo('queue', 'active', { mine: true }) },
+    { n: awaiting, label: 'Awaiting clients', color: PALETTE.espresso, onClick: () => onGo('queue', 'pending', { mine: false }) },
+    { n: revisions, label: 'Revisions needed', color: revisions > 0 ? '#C0392B' : PALETTE.espresso, onClick: () => onGo('queue', 'revision', { mine: false }) },
     { n: openReqs, label: 'Open requests', color: PALETTE.espresso, onClick: () => onGo('requests') },
   ]
 
@@ -3097,10 +3226,25 @@ export default function Dashboard() {
   const [hubClientId, setHubClientId] = useState(null)
   const [hubInitialTab, setHubInitialTab] = useState('notes')
   const [showClientMenu, setShowClientMenu] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [requestReplies, setRequestReplies] = useState([])
+  const [mineOnly, setMineOnly] = useState(() => {
+    try { return localStorage.getItem('bb_mine_only') === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('bb_mine_only', mineOnly ? '1' : '0') } catch {}
+  }, [mineOnly])
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setShowSearch(o => !o) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
-    const [c, p, cm, v, rq, sc, dop, tm] = await Promise.all([
+    const [c, p, cm, v, rq, sc, dop, tm, rr] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('posts').select('*').neq('status', 'archived').order('scheduled_at').limit(150),
       supabase.from('comments').select('*').order('created_at'),
@@ -3108,7 +3252,8 @@ export default function Dashboard() {
       supabase.from('requests').select('*').order('created_at', { ascending: false }),
       supabase.from('status_changes').select('*').order('created_at'),
       supabase.from('design_options').select('*').order('created_at'),
-      supabase.from('team_members').select('*').order('name')
+      supabase.from('team_members').select('*').order('name'),
+      supabase.from('request_replies').select('*').order('created_at')
     ])
     if (c.data) setClients(c.data)
     if (p.data) setPosts(p.data)
@@ -3118,6 +3263,7 @@ export default function Dashboard() {
     if (sc.data) setStatusChanges(sc.data)
     if (dop.data) setDesignOptions(dop.data)
     if (tm.data) setTeamMembers(tm.data)
+    if (rr.data) setRequestReplies(rr.data)
     setLoading(false)
   }
 
@@ -3167,7 +3313,13 @@ export default function Dashboard() {
           .then(({ data }) => { if (data) setTeamMembers(data) })
       }).subscribe()
 
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe() }
+    const s8 = supabase.channel('dash-request-replies')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'request_replies' }, () => {
+        supabase.from('request_replies').select('*').order('created_at')
+          .then(({ data }) => { if (data) setRequestReplies(data) })
+      }).subscribe()
+
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe() }
   }, [])
 
   // ── SPEED FIX 3: notifications built with useMemo instead of useEffect + setState ──
@@ -3276,17 +3428,19 @@ export default function Dashboard() {
 
   const activePosts = posts
   const base = filter === 'archived' ? archivedPosts : activePosts
-  const clientFiltered = base.filter(p => selectedClient === 'all' || p.client_id === selectedClient)
+  const scopeOk = (p) => (selectedClient === 'all' || p.client_id === selectedClient) && (!mineOnly || namesMatch(p.designer, currentUserName))
+  const clientFiltered = base.filter(scopeOk)
   const filteredPosts = filter === 'archived' || filter === 'active' ? clientFiltered : clientFiltered.filter(p => p.status === filter)
+  const myActiveCount = activePosts.filter(p => (selectedClient === 'all' || p.client_id === selectedClient) && namesMatch(p.designer, currentUserName)).length
 
   const counts = {
-    active: activePosts.filter(p => selectedClient === 'all' || p.client_id === selectedClient).length,
-    pending: activePosts.filter(p => p.status === 'pending' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
-    approved: activePosts.filter(p => p.status === 'approved' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
-    scheduled: activePosts.filter(p => p.status === 'scheduled' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
-    revision: activePosts.filter(p => p.status === 'revision' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
-    published: activePosts.filter(p => p.status === 'published' && (selectedClient === 'all' || p.client_id === selectedClient)).length,
-    archived: archivedPosts.filter(p => selectedClient === 'all' || p.client_id === selectedClient).length,
+    active: activePosts.filter(scopeOk).length,
+    pending: activePosts.filter(p => p.status === 'pending' && scopeOk(p)).length,
+    approved: activePosts.filter(p => p.status === 'approved' && scopeOk(p)).length,
+    scheduled: activePosts.filter(p => p.status === 'scheduled' && scopeOk(p)).length,
+    revision: activePosts.filter(p => p.status === 'revision' && scopeOk(p)).length,
+    published: activePosts.filter(p => p.status === 'published' && scopeOk(p)).length,
+    archived: archivedPosts.filter(scopeOk).length,
   }
 
   const pageTitle = filter === 'active' ? "Today's pass" : filter === 'archived' ? 'Archived' : filter === 'pending' ? 'Awaiting Approval' : filter === 'revision' ? 'Revisions Requested' : filter === 'approved' ? 'Approved' : filter === 'scheduled' ? 'Scheduled' : 'Published'
@@ -3422,6 +3576,13 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {!isMobile && <span style={{ fontFamily: F.body, fontSize: 11, color: '#c9b89a', marginRight: 4, whiteSpace: 'nowrap' }}>{todayShort}</span>}
+          <button onClick={e => { e.stopPropagation(); setShowSearch(true) }} title="Search (Ctrl or Cmd + K)" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: '0.5px solid #4a3a28', borderRadius: 6, padding: isMobile ? '6px 9px' : '6px 10px', color: '#c9b89a', fontFamily: F.body, fontSize: 11, cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+          >
+            <span style={{ fontSize: 13, lineHeight: 1 }}>🔍</span>
+            {!isMobile && <><span>Search</span><span style={{ fontSize: 10, color: '#7a5a3a', border: '0.5px solid #4a3a28', borderRadius: 4, padding: '1px 5px' }}>⌘K</span></>}
+          </button>
           <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.cream : '#7a5a3a', fontSize: 18, lineHeight: 1, padding: '10px', margin: '-6px', borderRadius: 8, cursor: 'pointer' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
@@ -3530,7 +3691,11 @@ export default function Dashboard() {
                 <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
                   {counts[filter] || 0} post{(counts[filter] || 0) !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
                 </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
+                  <button onClick={() => setMineOnly(m => !m)} title="Show only posts assigned to you" style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (mineOnly ? PALETTE.caramel : PALETTE.border), background: mineOnly ? PALETTE.caramel : '#fff', color: mineOnly ? '#fff' : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                    Mine<span style={{ fontSize: 10, opacity: 0.8 }}>{myActiveCount}</span>
+                  </button>
+                  <span style={{ width: 1, height: 18, background: PALETTE.border, margin: '0 4px' }} />
                   {filterChips.map(([k, l, n]) => (
                     <button key={k} onClick={() => setFilter(k)} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (filter === k ? PALETTE.espresso : PALETTE.border), background: filter === k ? PALETTE.espresso : '#fff', color: filter === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: filter === k ? 500 : 400, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       {l}{n > 0 && <span style={{ fontSize: 10, opacity: 0.7 }}>{n}</span>}
@@ -3573,12 +3738,12 @@ export default function Dashboard() {
                   selectedClient={selectedClient}
                   currentUserName={currentUserName}
                   isMobile={isMobile}
-                  onGo={(v, f) => { if (f) setFilter(f); setView(v) }}
+                  onGo={(v, f, o) => { if (f) setFilter(f); if (o && o.mine !== undefined) setMineOnly(o.mine); setView(v) }}
                   onSelectPost={setSelectedPost}
                   onPickClient={(id) => { setSelectedClient(id); setView('today') }}
                 />)
               : view === 'requests'
-              ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} onRefresh={fetchAll} />
+              ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} onRefresh={fetchAll} replies={requestReplies} currentUserName={currentUserName} />
               : view === 'reports'
               ? (
                   <>
@@ -3798,6 +3963,21 @@ export default function Dashboard() {
           />
         )}
       </div>
+
+      {showSearch && (
+        <SearchModal
+          clients={clients}
+          posts={posts}
+          requests={requests}
+          isMobile={isMobile}
+          onClose={() => setShowSearch(false)}
+          onPickClient={(id) => { setSelectedClient(id); setView('today') }}
+          onPickPost={(post) => setSelectedPost(post)}
+          onPickRequest={(r) => { setSelectedClient(r.client_id); setView('requests') }}
+          onPickNote={(n) => { setSelectedClient(n.client_id); setHubInitialTab('notes'); setHubClientId(n.client_id); setView('hub') }}
+          onPickLink={(l) => { window.open(fixUrl(l.url), '_blank', 'noopener') }}
+        />
+      )}
 
       {composing && <ComposeModal clients={clients} teamMembers={teamMembers} onClose={() => setComposing(false)} onSaved={fetchAll} currentUserName={currentUserName} />}
     </div>
