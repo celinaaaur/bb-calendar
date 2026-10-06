@@ -1652,6 +1652,41 @@ function RichTextEditor({ value, onChange, placeholder }) {
   )
 }
 
+// Links helpers: tidy accidental "https://https://" URLs, label the destination
+// (Google Docs, Canva...), and group by the custom category the team typed.
+const fixUrl = (u) => (u || '').replace(/^https?:\/\/(https?:\/\/)/i, '$1')
+const linkSite = (url) => {
+  try {
+    const u = new URL(fixUrl(url))
+    const h = u.hostname.replace(/^www\./, '')
+    if (h === 'docs.google.com') {
+      if (u.pathname.startsWith('/spreadsheets')) return 'Google Sheets'
+      if (u.pathname.startsWith('/presentation')) return 'Google Slides'
+      if (u.pathname.startsWith('/forms')) return 'Google Forms'
+      return 'Google Docs'
+    }
+    if (h === 'drive.google.com') return 'Google Drive'
+    if (h.includes('canva.')) return 'Canva'
+    if (h.includes('figma.com')) return 'Figma'
+    if (h.includes('notion.')) return 'Notion'
+    if (h.includes('dropbox.com')) return 'Dropbox'
+    if (h.includes('youtube.com') || h === 'youtu.be') return 'YouTube'
+    if (h.includes('airtable.com')) return 'Airtable'
+    return h
+  } catch { return 'Open link' }
+}
+const LINK_UNCAT = 'Other'
+const groupLinks = (links) => {
+  const map = new Map()
+  links.forEach(l => {
+    const raw = (l.category || '').trim() || LINK_UNCAT
+    const key = raw.toLowerCase()
+    if (!map.has(key)) map.set(key, { name: raw, items: [] })
+    map.get(key).items.push(l)
+  })
+  return [...map.values()].sort((a, b) => a.name === LINK_UNCAT ? 1 : b.name === LINK_UNCAT ? -1 : a.name.localeCompare(b.name))
+}
+
 function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUserEmail }) {
   const canBilling = canAccessBilling(currentUserEmail)
   const [tab, setTab] = useState((initialTab === 'billing' && !canBilling) ? 'notes' : (initialTab || 'notes')) // 'notes' | 'billing' | 'links'
@@ -1690,6 +1725,8 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUs
   const [editingLinkId, setEditingLinkId] = useState(null)
   const [linkTitle, setLinkTitle] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
+  const [linkCategory, setLinkCategory] = useState('')
+  const [linkFilter, setLinkFilter] = useState('all')
 
   const fetchHub = async () => {
     setLoading(true)
@@ -1729,17 +1766,18 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUs
     fetchHub()
   }
 
-  const startNewLink = () => { setEditingLinkId('new'); setLinkTitle(''); setLinkUrl('') }
-  const startEditLink = (l) => { setEditingLinkId(l.id); setLinkTitle(l.title); setLinkUrl(l.url) }
+  const startNewLink = () => { setEditingLinkId('new'); setLinkTitle(''); setLinkUrl(''); setLinkCategory(linkFilter !== 'all' && linkFilter !== LINK_UNCAT ? linkFilter : '') }
+  const startEditLink = (l) => { setEditingLinkId(l.id); setLinkTitle(l.title); setLinkUrl(fixUrl(l.url)); setLinkCategory(l.category || '') }
 
   const saveLink = async () => {
     if (!linkTitle.trim() || !linkUrl.trim()) return
     setSaving(true)
-    const url = /^https?:\/\//i.test(linkUrl.trim()) ? linkUrl.trim() : 'https://' + linkUrl.trim()
+    const url = fixUrl(/^https?:\/\//i.test(linkUrl.trim()) ? linkUrl.trim() : 'https://' + linkUrl.trim())
+    const category = linkCategory.trim() || null
     if (editingLinkId === 'new') {
-      await supabase.from('important_links').insert({ client_id: client.id, title: linkTitle.trim(), url })
+      await supabase.from('important_links').insert({ client_id: client.id, title: linkTitle.trim(), url, category })
     } else {
-      await supabase.from('important_links').update({ title: linkTitle.trim(), url }).eq('id', editingLinkId)
+      await supabase.from('important_links').update({ title: linkTitle.trim(), url, category }).eq('id', editingLinkId)
     }
     setSaving(false); setEditingLinkId(null)
     fetchHub()
@@ -2020,6 +2058,17 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUs
                 <div style={{ background: PALETTE.creamMid, border: '0.5px solid ' + PALETTE.border, borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div><label style={labelStyle}>Title</label><input value={linkTitle} onChange={e => setLinkTitle(e.target.value)} placeholder="e.g. Canva board" style={inputStyle} /></div>
                   <div><label style={labelStyle}>URL</label><input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://..." style={inputStyle} /></div>
+                  <div>
+                    <label style={labelStyle}>Category</label>
+                    <input value={linkCategory} onChange={e => setLinkCategory(e.target.value)} placeholder="e.g. Scripts, Menu, Planning (leave blank for Other)" style={inputStyle} />
+                    {groupLinks(links).filter(g => g.name !== LINK_UNCAT).length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                        {groupLinks(links).filter(g => g.name !== LINK_UNCAT).map(g => (
+                          <button key={g.name} type="button" onClick={() => setLinkCategory(g.name)} style={{ padding: '4px 10px', borderRadius: 20, border: '0.5px solid ' + PALETTE.border, background: linkCategory.trim().toLowerCase() === g.name.toLowerCase() ? PALETTE.espresso : '#fff', color: linkCategory.trim().toLowerCase() === g.name.toLowerCase() ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 11 }}>{g.name}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setEditingLinkId(null)} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Cancel</button>
                     <button onClick={saveLink} disabled={saving || !linkTitle.trim() || !linkUrl.trim()} style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 12, color: PALETTE.cream, opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save link'}</button>
@@ -2029,24 +2078,47 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUs
                 <button onClick={startNewLink} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: '1.5px dashed ' + PALETTE.border, background: PALETTE.creamMid, fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 16 }}>+ New link</button>
               )}
 
-              {links.length === 0 && !editingLinkId ? (
-                <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No links yet</div>
-              ) : links.map(l => (
-                <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 20px', marginBottom: 12, transition: 'background 0.15s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
-                  onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                >
-                  <a href={l.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', minWidth: 0, flex: 1 }}>
-                    <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso, marginBottom: 3 }}>{l.title}</div>
-                    <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</div>
-                  </a>
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexShrink: 0 }}>
-                    <a href={l.url} target="_blank" rel="noreferrer" style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.caramel, fontWeight: 500, textDecoration: 'none' }}>Open ↗</a>
-                    <button onClick={() => startEditLink(l)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>Edit</button>
-                    <button onClick={() => deleteLink(l.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
-                  </div>
-                </div>
-              ))}
+              {(() => {
+                if (links.length === 0 && !editingLinkId) {
+                  return <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No links yet</div>
+                }
+                const groups = groupLinks(links)
+                const activeFilter = groups.some(g => g.name === linkFilter) ? linkFilter : 'all'
+                const shown = activeFilter === 'all' ? groups : groups.filter(g => g.name === activeFilter)
+                return (
+                  <>
+                    {groups.length > 1 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18 }}>
+                        {[{ name: 'all', label: 'All', n: links.length }, ...groups.map(g => ({ name: g.name, label: g.name, n: g.items.length }))].map(ch => (
+                          <button key={ch.name} onClick={() => setLinkFilter(ch.name)} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (activeFilter === ch.name ? PALETTE.espresso : PALETTE.border), background: activeFilter === ch.name ? PALETTE.espresso : '#fff', color: activeFilter === ch.name ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: activeFilter === ch.name ? 500 : 400, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                            {ch.label}<span style={{ fontSize: 10, opacity: 0.7 }}>{ch.n}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {shown.map(g => (
+                      <div key={g.name} style={{ marginBottom: 22 }}>
+                        <div style={{ fontFamily: F.body, fontSize: 10, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 10 }}>{g.name} · {g.items.length}</div>
+                        {g.items.map(l => (
+                          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 20px', marginBottom: 10, transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
+                            onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso, marginBottom: 7 }}>{l.title}</div>
+                              <a href={fixUrl(l.url)} target="_blank" rel="noreferrer" title={fixUrl(l.url)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 20, background: PALETTE.caramelLight, color: PALETTE.caramel, fontFamily: F.body, fontSize: 11, fontWeight: 500, textDecoration: 'none' }}>{linkSite(l.url)} ↗</a>
+                            </div>
+                            <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexShrink: 0 }}>
+                              <button onClick={() => startEditLink(l)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: PALETTE.muted }}>Edit</button>
+                              <button onClick={() => deleteLink(l.id)} style={{ background: 'none', border: 'none', fontFamily: F.body, fontSize: 11, color: '#C0392B' }}>Delete</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </>
+                )
+              })()}
             </div>
           )}
       </div>
