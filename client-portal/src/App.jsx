@@ -846,8 +846,47 @@ const REQUEST_STATUS = {
 }
 
 // ── Meeting Notes section ────────────────────────────────────────────────────
+// Links helpers: tidy accidental "https://https://" URLs, label the destination
+// (Google Docs, Canva...), and group by the custom category the team typed.
+const fixUrl = (u) => (u || '').replace(/^https?:\/\/(https?:\/\/)/i, '$1')
+const linkSite = (url) => {
+  try {
+    const u = new URL(fixUrl(url))
+    const h = u.hostname.replace(/^www\./, '')
+    if (h === 'docs.google.com') {
+      if (u.pathname.startsWith('/spreadsheets')) return 'Google Sheets'
+      if (u.pathname.startsWith('/presentation')) return 'Google Slides'
+      if (u.pathname.startsWith('/forms')) return 'Google Forms'
+      return 'Google Docs'
+    }
+    if (h === 'drive.google.com') return 'Google Drive'
+    if (h.includes('canva.')) return 'Canva'
+    if (h.includes('figma.com')) return 'Figma'
+    if (h.includes('notion.')) return 'Notion'
+    if (h.includes('dropbox.com')) return 'Dropbox'
+    if (h.includes('youtube.com') || h === 'youtu.be') return 'YouTube'
+    if (h.includes('airtable.com')) return 'Airtable'
+    return h
+  } catch { return 'Open link' }
+}
+const LINK_UNCAT = 'Other'
+const groupLinks = (links) => {
+  const map = new Map()
+  links.forEach(l => {
+    const raw = (l.category || '').trim() || LINK_UNCAT
+    const key = raw.toLowerCase()
+    if (!map.has(key)) map.set(key, { name: raw, items: [] })
+    map.get(key).items.push(l)
+  })
+  return [...map.values()].sort((a, b) => a.name === LINK_UNCAT ? 1 : b.name === LINK_UNCAT ? -1 : a.name.localeCompare(b.name))
+}
+
 function LinksSection({ links, isMobile }) {
+  const [filter, setFilter] = useState('all')
   const sorted = [...links].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const groups = groupLinks(sorted)
+  const activeFilter = groups.some(g => g.name === filter) ? filter : 'all'
+  const shown = activeFilter === 'all' ? groups : groups.filter(g => g.name === activeFilter)
   return (
     <div style={{ padding: isMobile ? '20px 20px 40px' : '28px 40px', maxWidth: 720 }}>
       <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, marginBottom: 4 }}>Important Links</div>
@@ -856,15 +895,32 @@ function LinksSection({ links, isMobile }) {
       </div>
       {sorted.length === 0 ? (
         <div style={{ fontFamily: F.display, fontStyle: 'italic', color: PALETTE.mutedLight, fontSize: 16, padding: '48px 0', textAlign: 'center' }}>No links yet</div>
-      ) : sorted.map(l => (
-        <a key={l.id} href={l.url} target="_blank" rel="noreferrer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '16px 20px', marginBottom: 12, textDecoration: 'none', transition: 'all 0.15s' }}
-          onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
-          onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-        >
-          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso }}>{l.title}</div>
-          <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.caramel, fontWeight: 500, flexShrink: 0 }}>Open ↗</div>
-        </a>
-      ))}
+      ) : (
+        <>
+          {groups.length > 1 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+              {[{ name: 'all', label: 'All', n: sorted.length }, ...groups.map(g => ({ name: g.name, label: g.name, n: g.items.length }))].map(ch => (
+                <button key={ch.name} onClick={() => setFilter(ch.name)} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (activeFilter === ch.name ? PALETTE.espresso : PALETTE.border), background: activeFilter === ch.name ? PALETTE.espresso : '#fff', color: activeFilter === ch.name ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: activeFilter === ch.name ? 500 : 400, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                  {ch.label}<span style={{ fontSize: 10, opacity: 0.7 }}>{ch.n}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {shown.map(g => (
+            <div key={g.name} style={{ marginBottom: 22 }}>
+              <div style={{ fontFamily: F.body, fontSize: 10, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase', marginBottom: 10 }}>{g.name} · {g.items.length}</div>
+              {g.items.map(l => (
+                <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 20px', marginBottom: 10 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 15, color: PALETTE.espresso, marginBottom: 7 }}>{l.title}</div>
+                    <a href={fixUrl(l.url)} target="_blank" rel="noreferrer" title={fixUrl(l.url)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 20, background: PALETTE.caramelLight, color: PALETTE.caramel, fontFamily: F.body, fontSize: 11, fontWeight: 500, textDecoration: 'none' }}>{linkSite(l.url)} ↗</a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }
