@@ -1892,6 +1892,18 @@ export default function ClientPortal() {
 
     if (!isUnlocked) { setLoading(false); return }
 
+    // Let the agency dashboard know this client opened the portal. Throttled to once
+    // every 10 minutes per browser, and skipped for team previews (add ?preview to the link).
+    try {
+      const preview = new URLSearchParams(window.location.search).has('preview')
+      const k = 'bb_portal_seen_' + clientData.id
+      const last = Number(localStorage.getItem(k) || 0)
+      if (!preview && Date.now() - last > 10 * 60 * 1000) {
+        localStorage.setItem(k, String(Date.now()))
+        supabase.rpc('touch_portal', { client_slug: slug }).then(() => {})
+      }
+    } catch {}
+
     const [p, cm, v, mn, bc, rb, rq, sc, dop, il, ar, adr, rr] = await Promise.all([
       supabase.from('posts').select('*').eq('client_id', clientData.id).neq('status', 'draft').order('scheduled_at'),
       supabase.from('comments').select('*').order('created_at'),
