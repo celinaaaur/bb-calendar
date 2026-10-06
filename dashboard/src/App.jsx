@@ -335,6 +335,10 @@ const namesMatch = (a, b) => normalizeName(a) === normalizeName(b) && normalizeN
 // Billing box on the Client Overview page. Add or remove emails here —
 // matching is case-insensitive.
 const BILLING_ALLOWED_EMAILS = ['celina@brown-butter.com', 'briana@brown-butter.com']
+// Where the client portal is hosted (no trailing slash). Each client's link
+// in the copy-paste approval reminder is this plus their slug, e.g.
+// www.brown-butter.com/smoove. Leave empty to leave the link line out.
+const PORTAL_BASE_URL = 'www.brown-butter.com'
 const canAccessBilling = (email) => BILLING_ALLOWED_EMAILS.includes((email || '').trim().toLowerCase())
 const fmtDateLong = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 // Notes saved before rich text existed are plain text with real newline
@@ -2677,6 +2681,43 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   }
   const openRequests = clientRequests.filter(r => r.status === 'new' || r.status === 'in_progress').length
 
+  // Approval nudge: "Nudge in portal" stamps clients.approval_nudged_at, which
+  // makes a reminder banner appear in that client's portal while posts are
+  // still awaiting approval. "Copy message" gives a ready-to-send note.
+  const [nudging, setNudging] = useState(false)
+  const [copiedNudge, setCopiedNudge] = useState(false)
+  const pendingPosts = clientPosts.filter(p => p.status === 'pending')
+  const earliestPending = pendingPosts
+    .filter(p => p.scheduled_at)
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0]
+  const nudgeMessage = (() => {
+    const n = pendingPosts.length
+    const when = earliestPending
+      ? ' The earliest is scheduled for ' + new Date(earliestPending.scheduled_at).toLocaleDateString('en-PH', { month: 'long', day: 'numeric' }) + '.'
+      : ''
+    const link = PORTAL_BASE_URL && client.slug ? PORTAL_BASE_URL + '/' + client.slug : ''
+    return 'Hi!\n\n'
+      + 'Just a quick reminder that ' + n + ' post' + (n !== 1 ? 's are' : ' is') + ' still waiting for approval.' + when + '\n\n'
+      + (link ? 'You can review here: ' + link + '\n\n' : '')
+      + 'Thank you! :)'
+  })()
+  const nudgeClient = async () => {
+    setNudging(true)
+    const { error } = await supabase.from('clients').update({ approval_nudged_at: new Date().toISOString() }).eq('id', client.id)
+    setNudging(false)
+    if (error) { alert('Could not send nudge: ' + error.message); return }
+    onClientUpdated && onClientUpdated()
+  }
+  const copyNudge = async () => {
+    try {
+      await navigator.clipboard.writeText(nudgeMessage)
+      setCopiedNudge(true)
+      setTimeout(() => setCopiedNudge(false), 2000)
+    } catch {
+      window.prompt('Copy this message:', nudgeMessage)
+    }
+  }
+
   // Merge comments + status changes + new requests into one recent-activity feed
   const activity = []
   clientComments.forEach(c => {
@@ -2746,6 +2787,21 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
         {statCard('Scheduled', counts.scheduled, 'scheduled', '#3B72B8')}
         {statCard('Published', counts.published, 'published', '#888')}
       </div>
+
+      {counts.pending > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: '#FFF6E6', border: '0.5px solid #E8C87A', borderRadius: 10, padding: '12px 16px', marginBottom: 24 }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontFamily: F.body, fontSize: 12, fontWeight: 500, color: '#8A5A00' }}>{counts.pending} post{counts.pending !== 1 ? 's' : ''} awaiting {client.name}'s approval</div>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: '#8A5A00', opacity: 0.8, marginTop: 2 }}>
+              {client.approval_nudged_at
+                ? 'Last nudged ' + new Date(client.approval_nudged_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                : 'Not nudged yet'}
+            </div>
+          </div>
+          <button onClick={nudgeClient} disabled={nudging} style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500, opacity: nudging ? 0.6 : 1 }}>{nudging ? 'Sending…' : 'Nudge in portal'}</button>
+          <button onClick={copyNudge} style={{ padding: '7px 14px', borderRadius: 6, border: '0.5px solid #E8C87A', background: '#fff', color: '#8A5A00', fontFamily: F.body, fontSize: 12, fontWeight: 500 }}>{copiedNudge ? 'Copied' : 'Copy message'}</button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
 
