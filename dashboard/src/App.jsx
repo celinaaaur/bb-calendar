@@ -2878,26 +2878,6 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
 
         <div>
-          <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Client hub</div>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 22 }}>
-            {[
-              ['📥', 'Requests', openRequests > 0 ? openRequests + ' open' : 'Nothing open', onGoToRequests],
-              ['📝', 'Meeting Notes', 'View & add notes', () => onOpenHub('notes')],
-              ['🔗', 'Important Links', 'Shared with client', () => onOpenHub('links')],
-              ...(canBilling ? [['💳', 'Billing', 'Cycles & invoices', () => onOpenHub('billing')]] : []),
-              ['📈', 'Marketing Reports', reportsCount === 0 ? 'No reports yet' : (latestEngagementRate != null ? 'Latest: ' + latestEngagementRate + '% engagement' : reportsCount + ' report' + (reportsCount !== 1 ? 's' : '') + ' logged'), onGoToReports],
-            ].map(([icon, label, sub, onClick]) => (
-              <div key={label} onClick={onClick} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.background = PALETTE.creamMid}
-                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-              >
-                <div style={{ fontSize: 18, marginBottom: 6 }}>{icon}</div>
-                <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500, marginBottom: 2 }}>{label}</div>
-                <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{sub}</div>
-              </div>
-            ))}
-          </div>
-
           <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 10 }}>Feed preview</div>
           <div style={{ borderRadius: 8, overflow: 'hidden', border: '0.5px solid ' + PALETTE.borderLight }}>
             <IGGrid posts={clientPosts} onSelectPost={onSelectPost} />
@@ -3328,7 +3308,7 @@ export default function Dashboard() {
 
   const pickClient = (id) => {
     setSelectedClient(id)
-    setView(id === 'all' ? (view === 'overview' ? 'today' : view) : (view === 'hub' ? 'overview' : view))
+    setView(view === 'hub' ? 'today' : view)
     setShowClientMenu(false)
     if (isMobile) setSidebarOpen(false)
   }
@@ -3405,7 +3385,6 @@ export default function Dashboard() {
   const reqBadgeCount = requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && (selectedClient === 'all' || r.client_id === selectedClient)).length
   const railItems = [
     ['today', '🏠 Today'],
-    ...(selectedClient !== 'all' ? [['overview', '📊 Client overview']] : []),
     ['queue', '🗂️ Content'],
     ['calendar', '📅 Calendar'],
     ['grid', '🔲 Grid preview'],
@@ -3501,6 +3480,21 @@ export default function Dashboard() {
                 )}
               </button>
             ))}
+            {selectedClient !== 'all' && (
+              <>
+                <div style={{ height: '0.5px', background: PALETTE.border, margin: '12px 2px 12px' }} />
+                <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 10px 8px' }}>Client hub</div>
+                {[['notes', '📝 Meeting notes'], ['links', '🔗 Important links'], ...(canAccessBilling(currentUserEmail) ? [['billing', '💳 Billing']] : [])].map(([k, l]) => {
+                  const active = view === 'hub' && hubInitialTab === k
+                  return (
+                    <button key={k} onClick={() => { setHubInitialTab(k); setHubClientId(selectedClient); setView('hub'); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 6, border: 'none', background: active ? PALETTE.creamDark : 'transparent', color: active ? PALETTE.espresso : PALETTE.muted, fontWeight: active ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center' }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+                    >{l}</button>
+                  )
+                })}
+              </>
+            )}
           </div>
         </div>
 
@@ -3539,7 +3533,23 @@ export default function Dashboard() {
           {loading
             ? <div style={{ padding: 48, textAlign: 'center', fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight }}>Loading...</div>
             : view === 'today'
-              ? <TodayHome
+              ? (selectedClient !== 'all' && clients.find(c => c.id === selectedClient)
+                ? <ClientOverview
+                    client={clients.find(c => c.id === selectedClient)}
+                    posts={posts}
+                    comments={comments}
+                    requests={requests}
+                    statusChanges={statusChanges}
+                    onSelectPost={setSelectedPost}
+                    onOpenHub={(tab) => { setHubInitialTab(tab || 'notes'); setHubClientId(selectedClient); setView('hub') }}
+                    onGoToRequests={() => setView('requests')}
+                    onGoToReports={() => setView('reports')}
+                    onGoToFilter={(k) => { setFilter(k); setView('queue') }}
+                    onClientUpdated={fetchAll}
+                    isMobile={isMobile}
+                    currentUserEmail={currentUserEmail}
+                  />
+                : <TodayHome
                   firstName={currentUserFirstName}
                   posts={posts}
                   clients={clients}
@@ -3549,29 +3559,8 @@ export default function Dashboard() {
                   isMobile={isMobile}
                   onGo={(v, f) => { if (f) setFilter(f); setView(v) }}
                   onSelectPost={setSelectedPost}
-                  onPickClient={(id) => { setSelectedClient(id); setView('overview') }}
-                />
-            : view === 'overview'
-              ? (selectedClient === 'all'
-                  ? <div style={{ padding: 60, textAlign: 'center' }}>
-                      <div style={{ fontFamily: F.display, fontSize: 18, color: PALETTE.mutedLight }}>Pick a client from the sidebar to see their overview</div>
-                    </div>
-                  : <ClientOverview
-                      client={clients.find(c => c.id === selectedClient)}
-                      posts={posts}
-                      comments={comments}
-                      requests={requests}
-                      statusChanges={statusChanges}
-                      onSelectPost={setSelectedPost}
-                      onOpenHub={(tab) => { setHubInitialTab(tab || 'notes'); setHubClientId(selectedClient); setView('hub') }}
-                      onGoToRequests={() => setView('requests')}
-                      onGoToReports={() => setView('reports')}
-                      onGoToFilter={(k) => { setFilter(k); setView('queue') }}
-                      onClientUpdated={fetchAll}
-                      isMobile={isMobile}
-                      currentUserEmail={currentUserEmail}
-                    />
-                )
+                  onPickClient={(id) => { setSelectedClient(id); setView('today') }}
+                />)
               : view === 'requests'
               ? <RequestsView requests={requests} clients={clients} selectedClient={selectedClient} onRefresh={fetchAll} />
               : view === 'reports'
@@ -3596,10 +3585,11 @@ export default function Dashboard() {
               : view === 'hub'
               ? (clients.find(c => c.id === hubClientId)
                   ? <ClientHubView
+                      key={hubClientId + ':' + hubInitialTab}
                       client={clients.find(c => c.id === hubClientId)}
                       initialTab={hubInitialTab}
                       onClientUpdated={fetchAll}
-                      onClose={() => { setHubClientId(null); setView('overview') }}
+                      onClose={() => { setHubClientId(null); setView('today') }}
                       currentUserEmail={currentUserEmail}
                     />
                   : <div style={{ padding: 60, textAlign: 'center' }}>
