@@ -1303,6 +1303,7 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
             revision:  { icon: '↩', iconColor: '#C0392B', iconBg: '#FEECEA', action: 'requested revisions' },
             published: { icon: '✦', iconColor: PALETTE.caramel, iconBg: PALETTE.caramelLight, action: 'marked as published' },
             pending:   { icon: '○', iconColor: PALETTE.muted, iconBg: PALETTE.creamDark, action: 'reset to pending' },
+            draft:     { icon: '✎', iconColor: PALETTE.muted, iconBg: PALETTE.creamDark, action: 'saved this as a draft' },
           }
           statusChanges.forEach(sc => {
             const ev = statusEvents[sc.status]
@@ -1319,6 +1320,14 @@ function RightPanel({ post, comments, versions, statusChanges, designOptions, cl
               tag: null,
             })
           })
+
+          // Safety net: if the post's current status was set without a logged change
+          // (created as approved, changed from another screen, older posts), still show it.
+          if (statusEvents[post.status] && post.status !== 'pending' && !statusChanges.some(sc => sc.status === post.status)) {
+            const ev = statusEvents[post.status]
+            const when = post.updated_at || post.created_at
+            timeline.push({ ts: new Date(when).getTime(), date: when, icon: ev.icon, iconColor: ev.iconColor, iconBg: ev.iconBg, who: 'Brown Butter', action: ev.action, detail: null, tag: null })
+          }
 
           // Every comment, from both the agency and the client
           comments.forEach(c => {
@@ -1481,6 +1490,10 @@ function ComposeModal({ clients, teamMembers, onClose, onSaved, currentUserName 
         designOptionUrls.map((url, i) => ({ post_id: newPost.id, image_url: url, label: 'Option ' + (i + 1) }))
       )
       if (optError) console.error('Design option insert error:', optError)
+    }
+
+    if (newPost && status !== 'pending') {
+      await supabase.from('status_changes').insert({ post_id: newPost.id, status, changed_by: currentUserName })
     }
 
     setSaving(false); onSaved(); onClose()
