@@ -1533,6 +1533,19 @@ export default function ClientPortal() {
   })
   const hasNewReport = !!(latestReport && latestReport.id !== seenReportId)
 
+  // Approval nudge: the agency can ping a client from the dashboard, which
+  // stamps clients.approval_nudged_at. The banner shows while posts are still
+  // awaiting approval, and a dismissal is remembered per nudge in this
+  // browser, so sending a fresh nudge brings the banner back.
+  const nudgeKey = 'bb_portal_nudge_dismissed_' + slug
+  const [nudgeDismissedFor, setNudgeDismissedFor] = useState(() => {
+    try { return localStorage.getItem(nudgeKey) } catch { return null }
+  })
+  const dismissNudge = (stamp) => {
+    setNudgeDismissedFor(stamp)
+    try { localStorage.setItem(nudgeKey, stamp) } catch {}
+  }
+
   useEffect(() => {
     if (section === 'reports' && latestReport && latestReport.id !== seenReportId) {
       setSeenReportId(latestReport.id)
@@ -1608,7 +1621,8 @@ export default function ClientPortal() {
     const s9 = supabase.channel('cp-analytics').on('postgres_changes', { event: '*', schema: 'public', table: 'analytics_reports' }, fetchAll).subscribe()
     const s10 = supabase.channel('cp-reimbursements').on('postgres_changes', { event: '*', schema: 'public', table: 'reimbursements' }, fetchAll).subscribe()
     const s11 = supabase.channel('cp-ad-reports').on('postgres_changes', { event: '*', schema: 'public', table: 'ad_reports' }, fetchAll).subscribe()
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe(); s11.unsubscribe() }
+    const s12 = supabase.channel('cp-client-nudge').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clients' }, fetchAll).subscribe()
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe(); s11.unsubscribe(); s12.unsubscribe() }
   }, [])
 
   // Swap the browser tab's favicon + title to match whichever client's portal
@@ -1781,6 +1795,17 @@ export default function ClientPortal() {
           )}
         </div>
       </div>
+
+      {/* Approval nudge banner — only after the agency sends a nudge, and only while posts are still waiting */}
+      {client.approval_nudged_at && counts.pending > 0 && nudgeDismissedFor !== client.approval_nudged_at && (
+        <div style={{ background: '#FFF6E6', borderBottom: '0.5px solid #E8C87A', padding: isMobile ? '12px 20px' : '12px 40px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 200, fontFamily: F.body, fontSize: 13, color: '#8A5A00', lineHeight: 1.5 }}>
+            <span style={{ fontWeight: 500 }}>{counts.pending} post{counts.pending !== 1 ? 's are' : ' is'} still waiting for your approval.</span> Reviewing soon helps us keep your schedule on track.
+          </div>
+          <button onClick={() => { setSection('content'); setSelectedPost(null); setFilter('pending') }} style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: PALETTE.espresso, color: PALETTE.cream, fontFamily: F.body, fontSize: 12, fontWeight: 500, flexShrink: 0 }}>Review now</button>
+          <button onClick={() => dismissNudge(client.approval_nudged_at)} style={{ padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent', color: '#8A5A00', fontFamily: F.body, fontSize: 12, flexShrink: 0 }}>Dismiss</button>
+        </div>
+      )}
 
       {/* Body */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
