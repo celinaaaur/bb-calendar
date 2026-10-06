@@ -2869,6 +2869,119 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
   )
 }
 
+// ── Today (home) view ─────────────────────────────────────────────────────────
+// Landing page for the team: today's date, the logged-in user's workload,
+// and a quick health read on every client. Scoped to the client picked in the
+// top-bar switcher (or all clients).
+function TodayHome({ firstName, posts, clients, requests, selectedClient, currentUserName, isMobile, onGo, onSelectPost, onPickClient }) {
+  const now = new Date()
+  const inScope = (cid) => selectedClient === 'all' || cid === selectedClient
+  const scoped = posts.filter(p => inScope(p.client_id))
+  const live = (p) => p.status !== 'published' && p.status !== 'archived'
+  const sameDay = (str) => {
+    if (!str) return false
+    const d = new Date(str)
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+  }
+  const mine = scoped.filter(p => namesMatch(p.designer, currentUserName) && live(p))
+  const needsYou = mine
+    .filter(p => p.status === 'revision' || sameDay(p.scheduled_at))
+    .sort((a, b) => (a.status === 'revision' ? 0 : 1) - (b.status === 'revision' ? 0 : 1) || new Date(a.scheduled_at || 0) - new Date(b.scheduled_at || 0))
+    .slice(0, 6)
+  const awaiting = scoped.filter(p => p.status === 'pending').length
+  const revisions = scoped.filter(p => p.status === 'revision').length
+  const openReqs = requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && inScope(r.client_id)).length
+
+  const hour = now.getHours()
+  const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const dateLong = now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const scopeName = selectedClient === 'all' ? 'All clients' : (clients.find(c => c.id === selectedClient)?.name || '')
+
+  const tiles = [
+    { n: mine.length, label: 'Assigned to you', color: PALETTE.espresso, onClick: () => onGo('queue', 'active') },
+    { n: awaiting, label: 'Awaiting clients', color: PALETTE.espresso, onClick: () => onGo('queue', 'pending') },
+    { n: revisions, label: 'Revisions needed', color: revisions > 0 ? '#C0392B' : PALETTE.espresso, onClick: () => onGo('queue', 'revision') },
+    { n: openReqs, label: 'Open requests', color: PALETTE.espresso, onClick: () => onGo('requests') },
+  ]
+
+  const health = clients.map(c => {
+    const pend = posts.filter(p => p.client_id === c.id && p.status === 'pending').length
+    const rev = posts.filter(p => p.client_id === c.id && p.status === 'revision').length
+    const req = requests.filter(r => r.client_id === c.id && (r.status === 'new' || r.status === 'in_progress')).length
+    let text = 'On track', color = '#1E6E3E', dot = '#2A7D4F'
+    if (rev > 0) { text = rev + ' revision' + (rev !== 1 ? 's' : ''); color = '#7A2018'; dot = '#C0392B' }
+    else if (pend > 0) { text = pend + ' awaiting approval'; color = '#8A5A00'; dot = '#C4893A' }
+    return { c, text, color, dot, req }
+  })
+
+  const eyebrow = { fontFamily: F.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.12em', color: PALETTE.mutedLight, textTransform: 'uppercase', padding: '12px 16px 8px' }
+  const box = { background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }
+
+  return (
+    <div style={{ padding: isMobile ? '20px 16px 40px' : '26px 28px 48px', maxWidth: 1000 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div>
+          <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.caramel, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 6 }}>Today</div>
+          <div style={{ fontFamily: F.display, fontSize: isMobile ? 22 : 28, color: PALETTE.espresso, lineHeight: 1.1 }}>{dateLong}</div>
+          <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, marginTop: 8, fontWeight: 300 }}>{greet}, {firstName}. Showing {scopeName}.</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
+        {tiles.map(t => (
+          <button key={t.label} onClick={t.onClick} style={{ textAlign: 'left', background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '12px 14px', cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = PALETTE.border }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = PALETTE.borderLight }}
+          >
+            <div style={{ fontFamily: F.display, fontSize: 26, color: t.color, lineHeight: 1 }}>{t.n}</div>
+            <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 6 }}>{t.label}</div>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
+        <div style={box}>
+          <div style={eyebrow}>Needs you today</div>
+          {needsYou.length === 0 ? (
+            <div style={{ padding: '18px 16px 20px', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', borderTop: '0.5px solid ' + PALETTE.borderLight }}>Nothing assigned to you needs attention right now.</div>
+          ) : needsYou.map(p => {
+            const cl = clients.find(c => c.id === p.client_id)
+            return (
+              <div key={p.id} onClick={() => onSelectPost(p)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderTop: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: cl?.brand_color || PALETTE.caramel, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.caption || 'Untitled post'}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 2 }}>{cl?.name}{p.scheduled_at ? ' · ' + fmt(p.scheduled_at) : ''}</div>
+                </div>
+                <Badge status={p.status} />
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={box}>
+          <div style={eyebrow}>Client health</div>
+          {health.length === 0 ? (
+            <div style={{ padding: '18px 16px 20px', fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', borderTop: '0.5px solid ' + PALETTE.borderLight }}>No clients yet.</div>
+          ) : health.map(h => (
+            <div key={h.c.id} onClick={() => onPickClient(h.c.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderTop: '0.5px solid ' + PALETTE.borderLight, cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: h.dot, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0, fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.c.name}</div>
+              <div style={{ fontFamily: F.body, fontSize: 11, color: h.color, flexShrink: 0 }}>{h.text}{h.req > 0 ? ' · ' + h.req + ' request' + (h.req !== 1 ? 's' : '') : ''}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [session, setSession] = useState(undefined) // undefined = still checking, null = logged out
   useEffect(() => {
@@ -2892,7 +3005,7 @@ export default function Dashboard() {
   const [teamMembers, setTeamMembers] = useState([])
   const [selectedClient, setSelectedClient] = useState('all')
   const [filter, setFilter] = useState('pending')
-  const [view, setView] = useState('queue')
+  const [view, setView] = useState('today')
   const [selectedPost, setSelectedPost] = useState(null)
   const [composing, setComposing] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -2915,6 +3028,7 @@ export default function Dashboard() {
   const [pwSaving, setPwSaving] = useState(false)
   const [hubClientId, setHubClientId] = useState(null)
   const [hubInitialTab, setHubInitialTab] = useState('notes')
+  const [showClientMenu, setShowClientMenu] = useState(false)
 
   // ── SPEED FIX 1: fetchAll only called on mount; realtime channels do targeted single-table refreshes ──
   const fetchAll = async () => {
@@ -3138,8 +3252,98 @@ export default function Dashboard() {
     return <LoginScreen />
   }
 
+  const todayShort = new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })
+
+  const pickClient = (id) => {
+    setSelectedClient(id)
+    setView(id === 'all' ? (view === 'overview' ? 'today' : view) : (view === 'hub' ? 'overview' : view))
+    setShowClientMenu(false)
+    if (isMobile) setSidebarOpen(false)
+  }
+
+  const clientSwitcher = (light) => {
+    const cur = selectedClient === 'all' ? null : clients.find(c => c.id === selectedClient)
+    return (
+      <div style={{ position: 'relative', width: light ? '100%' : 'auto' }}>
+        <button onClick={e => { e.stopPropagation(); setShowClientMenu(o => !o) }} style={{ width: light ? '100%' : 'auto', minWidth: light ? 0 : 170, maxWidth: light ? 'none' : 240, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 6, border: '0.5px solid ' + (light ? PALETTE.border : '#4a3a28'), background: light ? '#fff' : 'transparent', color: light ? PALETTE.espresso : PALETTE.cream, fontFamily: F.body, fontSize: 12, cursor: 'pointer' }}
+          onMouseEnter={e => { if (!light) e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
+          onMouseLeave={e => { if (!light) e.currentTarget.style.background = 'transparent' }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: cur?.brand_color || PALETTE.caramel, flexShrink: 0 }} />
+          <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cur ? cur.name : 'All clients'}</span>
+          <span style={{ fontSize: 10, color: light ? PALETTE.mutedLight : '#7a5a3a' }}>▾</span>
+        </button>
+        {showClientMenu && (
+          <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 40, left: 0, width: light ? '100%' : 280, maxHeight: '70vh', overflowY: 'auto', background: '#fff', borderRadius: 10, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.16)', zIndex: 300, padding: 6 }}>
+            {[{ id: 'all', name: 'All clients', brand_color: PALETTE.caramel }, ...clients].map(c => {
+              const isAll = c.id === 'all'
+              const pend = isAll ? 0 : posts.filter(p => p.client_id === c.id && p.status === 'pending').length
+              const reqN = isAll ? 0 : (openRequestCountByClient[c.id] || 0)
+              return (
+                <div key={c.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <button onClick={() => pickClient(c.id)} style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '8px 9px', borderRadius: 6, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: PALETTE.espresso, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, display: 'flex', alignItems: 'center', gap: 8 }}
+                      onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = PALETTE.creamMid }}
+                      onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
+                    >
+                      {isAll
+                        ? <span style={{ width: 8, height: 8, borderRadius: '50%', background: PALETTE.caramel, flexShrink: 0 }} />
+                        : (
+                          <span style={{ width: 20, height: 20, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                            {c.logo_url ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (c.name || 'BB').slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                      {pend > 0 && <span style={{ fontSize: 10, color: '#8A5A00', flexShrink: 0 }}>{pend} pending</span>}
+                      {reqN > 0 && <span style={{ background: PALETTE.caramel, color: '#fff', borderRadius: 8, minWidth: 15, height: 15, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', flexShrink: 0 }}>{reqN}</span>}
+                    </button>
+                    {!isAll && (
+                      <button onClick={() => pwEditClientId === c.id ? setPwEditClientId(null) : startEditPassword(c)} title={c.portal_password ? 'Portal password set' : 'Set portal password'} style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 6px', borderRadius: 4, fontSize: 11, color: c.portal_password ? PALETTE.caramel : PALETTE.mutedLight, opacity: pwEditClientId === c.id ? 1 : 0.6 }}
+                        onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                        onMouseLeave={e => e.currentTarget.style.opacity = pwEditClientId === c.id ? 1 : 0.6}
+                      >{c.portal_password ? '🔒' : '🔓'}</button>
+                    )}
+                  </div>
+                  {pwEditClientId === c.id && (
+                    <div style={{ margin: '2px 0 8px', padding: '8px', background: PALETTE.creamDark, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <input
+                        type="text"
+                        value={pwDraft}
+                        onChange={e => setPwDraft(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && savePortalPassword()}
+                        placeholder="Portal password (blank = no lock)"
+                        autoFocus
+                        style={{ width: '100%', padding: '6px 8px', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontSize: 11, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }}
+                      />
+                      <div style={{ display: 'flex', gap: 5 }}>
+                        <button onClick={() => setPwEditClientId(null)} style={{ flex: 1, padding: '5px 0', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>Cancel</button>
+                        <button onClick={savePortalPassword} disabled={pwSaving} style={{ flex: 1, padding: '5px 0', borderRadius: 5, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 10, color: PALETTE.cream, opacity: pwSaving ? 0.6 : 1 }}>{pwSaving ? 'Saving…' : 'Save'}</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const reqBadgeCount = requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && (selectedClient === 'all' || r.client_id === selectedClient)).length
+  const railItems = [
+    ['today', '🏠 Today'],
+    ...(selectedClient !== 'all' ? [['overview', '📊 Client overview']] : []),
+    ['queue', '🗂️ Content'],
+    ['calendar', '📅 Calendar'],
+    ['grid', '🔲 Grid preview'],
+    ['requests', '📥 Requests'],
+    ['reports', '📈 Marketing reports'],
+  ]
+  const filterChips = [['active', 'Everything', counts.active], ['pending', 'Awaiting approval', counts.pending], ['revision', 'Revisions', counts.revision], ['approved', 'Approved', counts.approved], ['scheduled', 'Scheduled', counts.scheduled], ['published', 'Published', counts.published], ['archived', 'Archived', counts.archived]]
+
   return (
-    <div className="bb-app-shell" style={{ background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => { showNotifications && setShowNotifications(false); showUserMenu && setShowUserMenu(false) }}>
+    <div className="bb-app-shell" style={{ background: PALETTE.cream, fontFamily: F.body, display: 'flex', flexDirection: 'column' }} onClick={() => { showNotifications && setShowNotifications(false); showUserMenu && setShowUserMenu(false); showClientMenu && setShowClientMenu(false) }}>
       <div style={{ background: PALETTE.espresso, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {isMobile && (
@@ -3147,9 +3351,10 @@ export default function Dashboard() {
           )}
           <span style={{ fontFamily: F.display, color: PALETTE.cream, fontSize: 17 }}>Brown Butter</span>
           {!isMobile && <span style={{ color: PALETTE.espressoLight, fontSize: 12 }}>|</span>}
-          {!isMobile && <span style={{ fontFamily: F.body, fontSize: 9, color: '#7a5a3a', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Team Dashboard</span>}
+          {!isMobile && clientSwitcher(false)}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {!isMobile && <span style={{ fontFamily: F.body, fontSize: 11, color: '#c9b89a', marginRight: 4, whiteSpace: 'nowrap' }}>{todayShort}</span>}
           <button onClick={e => { e.stopPropagation(); setShowNotifications(!showNotifications) }} style={{ position: 'relative', background: 'none', border: 'none', color: unreadCount > 0 ? PALETTE.cream : '#7a5a3a', fontSize: 18, lineHeight: 1, padding: '10px', margin: '-6px', borderRadius: 8, cursor: 'pointer' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
@@ -3206,123 +3411,29 @@ export default function Dashboard() {
                 width: 200, background: PALETTE.cream, borderRight: '0.5px solid ' + PALETTE.border,
                 flexShrink: 0, overflowY: 'auto'
     }}>
-          <div style={{ padding: '18px 14px 8px' }}>
-            <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Clients</div>
-            {[{ id: 'all', name: 'All Clients', brand_color: PALETTE.caramel }, ...clients].map(c => (
-              <div key={c.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <button onClick={() => { setSelectedClient(c.id); setView(c.id === 'all' ? (view === 'overview' ? 'queue' : view) : 'overview'); if (isMobile) setSidebarOpen(false) }} style={{ flex: 1, textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: selectedClient === c.id ? PALETTE.creamDark : 'transparent', color: selectedClient === c.id ? PALETTE.espresso : PALETTE.muted, fontWeight: selectedClient === c.id ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.12s', minWidth: 0 }}
-                    onMouseEnter={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-                    onMouseLeave={e => { if (selectedClient !== c.id) e.currentTarget.style.background = 'transparent' }}
-                  ><div style={{ width: 7, height: 7, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.name}</span>
-                    {c.id !== 'all' && (
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: c.brand_color || PALETTE.caramel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', fontFamily: F.body, flexShrink: 0, overflow: 'hidden' }}>
-                        {c.logo_url ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (c.name || 'BB').slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    {c.id !== 'all' && openRequestCountByClient[c.id] > 0 && (
-                      <span style={{ flexShrink: 0, background: PALETTE.caramel, color: '#fff', borderRadius: 8, minWidth: 15, height: 15, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{openRequestCountByClient[c.id]}</span>
-                    )}
-                  </button>
-                  {c.id !== 'all' && (
-                    <button onClick={() => pwEditClientId === c.id ? setPwEditClientId(null) : startEditPassword(c)} title={c.portal_password ? 'Portal password set' : 'Set portal password'} style={{ flexShrink: 0, background: 'none', border: 'none', padding: '4px 5px', borderRadius: 4, fontSize: 11, color: c.portal_password ? PALETTE.caramel : PALETTE.mutedLight, opacity: pwEditClientId === c.id ? 1 : 0.6 }}
-                      onMouseEnter={e => e.currentTarget.style.opacity = 1}
-                      onMouseLeave={e => e.currentTarget.style.opacity = pwEditClientId === c.id ? 1 : 0.6}
-                    >{c.portal_password ? '🔒' : '🔓'}</button>
-                  )}
-                </div>
-                {pwEditClientId === c.id && (
-                  <div style={{ margin: '2px 0 8px', padding: '8px', background: PALETTE.creamDark, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <input
-                      type="text"
-                      value={pwDraft}
-                      onChange={e => setPwDraft(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && savePortalPassword()}
-                      placeholder="Portal password (blank = no lock)"
-                      autoFocus
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontSize: 11, color: PALETTE.espresso, fontFamily: F.body, boxSizing: 'border-box' }}
-                    />
-                    <div style={{ display: 'flex', gap: 5 }}>
-                      <button onClick={() => setPwEditClientId(null)} style={{ flex: 1, padding: '5px 0', borderRadius: 5, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>Cancel</button>
-                      <button onClick={savePortalPassword} disabled={pwSaving} style={{ flex: 1, padding: '5px 0', borderRadius: 5, border: 'none', background: PALETTE.espresso, fontFamily: F.body, fontSize: 10, color: PALETTE.cream, opacity: pwSaving ? 0.6 : 1 }}>{pwSaving ? 'Saving…' : 'Save'}</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
-          <div style={{ padding: '8px 14px' }}>
-            <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
-            {[['overview', '📊 Overview'], ['queue', '🗂️ Queue'], ['grid', '🔲 Grid Preview'], ['calendar', '📅 Calendar'], ['requests', '📥 Requests'], ['reports', '📈 Marketing Reports']].map(([k, l]) => (
-              <button key={k} onClick={() => { setView(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          {isMobile && (
+            <div style={{ padding: '14px 12px 0' }}>
+              <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>Client</div>
+              {clientSwitcher(true)}
+            </div>
+          )}
+          <div style={{ padding: '16px 12px 8px' }}>
+            {railItems.map(([k, l]) => (
+              <button key={k} onClick={() => { setView(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 6, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                 onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
               >
                 <span>{l}</span>
-                {k === 'requests' && requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && (selectedClient === 'all' || r.client_id === selectedClient)).length > 0 && (
-                  <span style={{ fontSize: 10, color: view === k ? PALETTE.caramel : PALETTE.mutedLight, fontWeight: 500 }}>{requests.filter(r => (r.status === 'new' || r.status === 'in_progress') && (selectedClient === 'all' || r.client_id === selectedClient)).length}</span>
+                {k === 'requests' && reqBadgeCount > 0 && (
+                  <span style={{ fontSize: 10, color: view === k ? PALETTE.caramel : PALETTE.mutedLight, fontWeight: 500 }}>{reqBadgeCount}</span>
                 )}
               </button>
             ))}
-          </div>
-          <div style={{ height: '0.5px', background: PALETTE.border, margin: '8px 14px' }} />
-          <div style={{ padding: '8px 14px' }}>
-            <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Filter</div>
-            {[['active','Everything',counts.active,PALETTE.caramel],['pending','Awaiting approval',counts.pending,'#C4893A'],['revision','Revisions requested',counts.revision,'#C0392B'],['approved','Approved',counts.approved,'#2A7D4F'],['scheduled','Scheduled',counts.scheduled,'#3B72B8'],['published','Published',counts.published,'#888'],['archived','Archived',counts.archived,'#bbb']].map(([k, l, n, dot]) => (
-              <button key={k} onClick={() => { setFilter(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 5, border: 'none', background: filter === k ? PALETTE.creamDark : 'transparent', color: filter === k ? PALETTE.espresso : PALETTE.muted, fontWeight: filter === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.12s' }}
-                onMouseEnter={e => { if (filter !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-                onMouseLeave={e => { if (filter !== k) e.currentTarget.style.background = 'transparent' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>{k !== 'active' && <div style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />}{l}</div>
-                {n > 0 && <span style={{ fontSize: 10, color: filter === k ? PALETTE.caramel : PALETTE.mutedLight, fontWeight: 500 }}>{n}</span>}
-              </button>
-            ))}
-          </div>
-          <div style={{ margin: '12px 8px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
-            <button onClick={() => setView('grid')} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', background: PALETTE.creamDark, border: 'none', cursor: 'pointer', fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              IG Grid Preview
-              <span style={{ fontSize: 9, color: PALETTE.caramel, textTransform: 'none', letterSpacing: 'normal', fontWeight: 500 }}>View all →</span>
-            </button>
-            <IGGrid posts={selectedClient === 'all' ? posts : posts.filter(p => p.client_id === selectedClient)} onSelectPost={setSelectedPost} />
           </div>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch' }}>
-          <div style={{ padding: '20px 26px 20px' }}>
-            <div style={{ fontFamily: F.display, fontSize: 15, color: PALETTE.espresso, marginBottom: 14 }}>Hello, {currentUserFirstName}!</div>
-            {(myRevisionCount > 0 || myPendingCount > 0 || todayPostsCount > 0 || openRequestsCount > 0) ? (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {myRevisionCount > 0 && (
-                  <button onClick={() => { setFilter('revision'); setView('queue') }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: '0.5px solid #F4A59F', background: '#FEECEA', fontFamily: F.body, fontSize: 11, color: '#7A2018', fontWeight: 500 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C0392B' }} />
-                    {myRevisionCount} assigned to you — revision{myRevisionCount !== 1 ? 's' : ''} needed
-                  </button>
-                )}
-                {myPendingCount > 0 && (
-                  <button onClick={() => { setFilter('pending'); setView('queue') }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: '0.5px solid #E8C87A', background: '#FFF6E6', fontFamily: F.body, fontSize: 11, color: '#8A5A00', fontWeight: 500 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C4893A' }} />
-                    {myPendingCount} assigned to you — awaiting approval
-                  </button>
-                )}
-                {todayPostsCount > 0 && (
-                  <button onClick={() => setView('queue')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + PALETTE.border, background: PALETTE.caramelLight, fontFamily: F.body, fontSize: 11, color: PALETTE.caramel, fontWeight: 500 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: PALETTE.caramel }} />
-                    {todayPostsCount} assigned to you — publishing today
-                  </button>
-                )}
-                {openRequestsCount > 0 && (
-                  <button onClick={() => setView('requests')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 20, border: '0.5px solid #A9C6E8', background: '#E8F1FC', fontFamily: F.body, fontSize: 11, color: '#1E4E8A', fontWeight: 500 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3B72B8' }} />
-                    {openRequestsCount} new client request{openRequestsCount !== 1 ? 's' : ''}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, fontStyle: 'italic', marginBottom: 4 }}>Nothing assigned to you needs attention right now.</div>
-            )}
-          </div>
-          {view !== 'overview' && view !== 'hub' && view !== 'reports' && (
+          {view !== 'today' && view !== 'overview' && view !== 'hub' && view !== 'reports' && (
           <div style={{ padding: '20px 26px 14px', borderBottom: '0.5px solid ' + PALETTE.border, background: PALETTE.creamMid }}>
             {view === 'requests' ? (
               <>
@@ -3337,6 +3448,13 @@ export default function Dashboard() {
                 <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginTop: 6, fontWeight: 300 }}>
                   {counts[filter] || 0} post{(counts[filter] || 0) !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
                 </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14 }}>
+                  {filterChips.map(([k, l, n]) => (
+                    <button key={k} onClick={() => setFilter(k)} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (filter === k ? PALETTE.espresso : PALETTE.border), background: filter === k ? PALETTE.espresso : '#fff', color: filter === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: filter === k ? 500 : 400, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                      {l}{n > 0 && <span style={{ fontSize: 10, opacity: 0.7 }}>{n}</span>}
+                    </button>
+                  ))}
+                </div>
               </>
             )}
           </div>
@@ -3348,6 +3466,19 @@ export default function Dashboard() {
 
           {loading
             ? <div style={{ padding: 48, textAlign: 'center', fontFamily: F.body, fontSize: 13, color: PALETTE.mutedLight }}>Loading...</div>
+            : view === 'today'
+              ? <TodayHome
+                  firstName={currentUserFirstName}
+                  posts={posts}
+                  clients={clients}
+                  requests={requests}
+                  selectedClient={selectedClient}
+                  currentUserName={currentUserName}
+                  isMobile={isMobile}
+                  onGo={(v, f) => { if (f) setFilter(f); setView(v) }}
+                  onSelectPost={setSelectedPost}
+                  onPickClient={(id) => { setSelectedClient(id); setView('overview') }}
+                />
             : view === 'overview'
               ? (selectedClient === 'all'
                   ? <div style={{ padding: 60, textAlign: 'center' }}>
