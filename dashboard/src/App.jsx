@@ -3027,6 +3027,11 @@ function ClientOverview({ client, posts, comments, requests, statusChanges, onSe
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: F.display, fontSize: 24, color: PALETTE.espresso, lineHeight: 1.1 }}>{client.name}</div>
           {client.ig_handle && <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, marginTop: 2 }}>@{client.ig_handle}</div>}
+          {(() => { const si = seenInfo(client.portal_last_seen_at); return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, fontFamily: F.body, fontSize: 11, color: si.color }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: si.dot }} />{si.text}
+            </div>
+          ) })()}
         </div>
         <button onClick={() => logoFileRef.current.click()} disabled={uploadingLogo} style={{ padding: '6px 12px', borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', fontFamily: F.body, fontSize: 11, color: PALETTE.espresso, flexShrink: 0 }}>
           {uploadingLogo ? 'Uploading...' : client.logo_url ? 'Change logo' : 'Upload logo'}
@@ -3179,6 +3184,14 @@ const reminderVisible = (r, email) => {
   if (r.active === false) return false
   const aud = Array.isArray(r.audience) ? r.audience.map(a => (a || '').trim().toLowerCase()) : []
   return aud.length === 0 || aud.includes((email || '').trim().toLowerCase())
+}
+
+const seenInfo = (str) => {
+  if (!str) return { text: 'Never signed in', color: PALETTE.mutedLight, dot: '#B8A898' }
+  const ts = new Date(str).getTime()
+  const hrs = (Date.now() - ts) / 3600000
+  const text = hrs > 24 * 14 ? 'Last signed in ' + new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : 'Last signed in ' + agoShort(ts)
+  return { text, color: hrs < 24 ? '#1E6E3E' : hrs < 24 * 7 ? PALETTE.muted : '#8A5A00', dot: hrs < 24 ? '#2A7D4F' : hrs < 24 * 7 ? '#B8A898' : '#C4893A' }
 }
 
 const agoShort = (ts) => {
@@ -3475,6 +3488,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, fontWeight: 500 }}>{w.c.name}</div>
                   <div style={{ fontFamily: F.body, fontSize: 11, color: w.days >= 3 ? '#8A5A00' : PALETTE.mutedLight, marginTop: 2 }}>{w.n} post{w.n !== 1 ? 's' : ''} · {w.days === 0 ? 'since today' : w.days + ' day' + (w.days !== 1 ? 's' : '')}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 10, color: seenInfo(w.c.portal_last_seen_at).color, marginTop: 1 }}>{seenInfo(w.c.portal_last_seen_at).text}</div>
                 </div>
                 {w.nudgedToday
                   ? <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>Nudged today</span>
@@ -3511,6 +3525,21 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
                 <div style={{ fontFamily: F.body, fontSize: 11, color: textColor[h.level], flexShrink: 0 }}>{h.text}</div>
               </div>
             ))}
+          </Card>
+
+          <Card title="Client portal visits">
+            {clients.length === 0 ? (
+              <Empty>No clients yet.</Empty>
+            ) : [...clients].filter(c => inScope(c.id)).sort((a, b) => new Date(b.portal_last_seen_at || 0) - new Date(a.portal_last_seen_at || 0)).map(c => {
+              const si = seenInfo(c.portal_last_seen_at)
+              return (
+                <div key={c.id} onClick={() => onPickClient(c.id)} style={{ ...rowBase, cursor: 'pointer' }} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
+                  <Avatar size={24} actor={{ kind: 'client', name: c.name, src: c.logo_url, color: c.brand_color || PALETTE.caramel }} />
+                  <div style={{ flex: 1, minWidth: 0, fontFamily: F.body, fontSize: 12, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                  <div style={{ fontFamily: F.body, fontSize: 11, color: si.color, flexShrink: 0 }}>{c.portal_last_seen_at ? agoShort(new Date(c.portal_last_seen_at).getTime()) : 'Never'}</div>
+                </div>
+              )
+            })}
           </Card>
 
           <Card title="Recently published">
@@ -3699,7 +3728,13 @@ export default function Dashboard() {
           .then(({ data }) => { if (data) setReminderCompletions(data) })
       }).subscribe()
 
-    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe() }
+    const s11 = supabase.channel('dash-clients')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clients' }, () => {
+        supabase.from('clients').select('*').order('name')
+          .then(({ data }) => { if (data) setClients(data) })
+      }).subscribe()
+
+    return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe(); s11.unsubscribe() }
   }, [])
 
   const reminderDone = useMemo(() => new Set(reminderCompletions.map(c => c.reminder_id + '|' + c.period_key)), [reminderCompletions])
