@@ -3810,6 +3810,8 @@ export default function Dashboard() {
   // ── Drag and drop rescheduling (calendar + grid) ──
   const [dragId, setDragId] = useState(null)
   const [dragOverId, setDragOverId] = useState(null)
+  const [gridRatio, setGridRatioState] = useState(() => { try { return localStorage.getItem('bb_grid_ratio') || '3 / 4' } catch { return '3 / 4' } })
+  const setGridRatio = (v) => { setGridRatioState(v); try { localStorage.setItem('bb_grid_ratio', v) } catch {} }
   const fmtWhen = (iso) => new Date(iso).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
 
   const savePostTimes = async (changes) => {
@@ -4417,122 +4419,98 @@ export default function Dashboard() {
                 : view === 'grid'
                   ? (() => {
                       const statusIcon = (status) => {
-                        if (status === 'approved') return { symbol: '✓', bg: 'rgba(42,125,79,0.88)', color: '#fff' }
-                        if (status === 'scheduled') return { symbol: '◷', bg: 'rgba(59,114,184,0.88)', color: '#fff' }
-                        if (status === 'published') return { symbol: '✦', bg: 'rgba(196,137,58,0.88)', color: '#fff' }
-                        if (status === 'revision') return { symbol: '↩', bg: 'rgba(192,57,43,0.88)', color: '#fff' }
-                        if (status === 'pending') return { symbol: '…', bg: 'rgba(44,31,14,0.55)', color: '#fff' }
-                        if (status === 'draft') return { symbol: '✎', bg: 'rgba(154,143,126,0.9)', color: '#fff' }
-                        return { symbol: '?', bg: 'rgba(0,0,0,0.4)', color: '#fff' }
+                        if (status === 'approved') return { symbol: '✓', bg: 'rgba(42,125,79,0.92)' }
+                        if (status === 'scheduled') return { symbol: '◷', bg: 'rgba(59,114,184,0.92)' }
+                        if (status === 'published') return { symbol: '✦', bg: 'rgba(196,137,58,0.92)' }
+                        if (status === 'revision') return { symbol: '↩', bg: 'rgba(192,57,43,0.92)' }
+                        if (status === 'pending') return { symbol: '…', bg: 'rgba(44,31,14,0.6)' }
+                        if (status === 'draft') return { symbol: '✎', bg: 'rgba(154,143,126,0.95)' }
+                        return { symbol: '?', bg: 'rgba(0,0,0,0.4)' }
                       }
-                      // Newest scheduled date first — mirrors how IG shows most recent at top-left
+                      // Newest scheduled date first, like Instagram (top-left is the latest post)
                       const sortedPosts = [...filteredPosts].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
-                      return (
-                        <div style={{ padding: '16px 8px' }}>
-                          <div style={{ marginBottom: 16 }}>
-                            <DragHint><b style={{ fontWeight: 500 }}>Drag a post onto another to swap their dates.</b> Each keeps its own time, so the grid order changes with the schedule. Works within one client, and published posts stay put.</DragHint>
+
+                      const renderTile = (post) => {
+                        const si = statusIcon(post.status)
+                        const isSelected = selectedPost?.id === post.id
+                        const vid = isVideo(post.image_url)
+                        const carousel = !vid && (post.format === 'carousel' || (Array.isArray(post.images) && post.images.length > 1))
+                        const cover = vid ? post.cover_url : post.image_url
+                        return (
+                          <div key={post.id} {...gridDnD(post)} onClick={() => setSelectedPost(post)}
+                            title={post.status === 'published' ? undefined : 'Drag onto another post to swap their dates'}
+                            style={{ position: 'relative', aspectRatio: gridRatio, background: PALETTE.creamDark, cursor: post.status === 'published' ? 'pointer' : 'grab', overflow: 'hidden', opacity: dragId === post.id ? 0.4 : 1, outline: dragOverId === post.id ? '2.5px dashed ' + PALETTE.caramel : isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
+                            onMouseEnter={e => { const h = e.currentTarget.querySelector('.ig-hover'); if (h) h.style.opacity = '1' }}
+                            onMouseLeave={e => { const h = e.currentTarget.querySelector('.ig-hover'); if (h) h.style.opacity = '0' }}
+                          >
+                            {cover
+                              ? <img src={imgSrc(cover, post.status === 'published')} alt="" loading="lazy" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : vid
+                                ? <div style={{ position: 'absolute', inset: 0, background: '#111' }} />
+                                : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 14 }}>BB</span></div>}
+                            {/* Instagram's own corner icon: carousel or reel */}
+                            {carousel && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" style={{ position: 'absolute', top: 7, right: 7, zIndex: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} aria-hidden="true"><rect x="3" y="7" width="13" height="13" rx="2.5" /><path d="M8 4h10a3 3 0 0 1 3 3v10" /></svg>}
+                            {vid && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" style={{ position: 'absolute', top: 7, right: 7, zIndex: 2, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M10 8.5l5 3.5-5 3.5z" fill="#fff" /></svg>}
+                            {/* Team-only overlays */}
+                            {post.status !== 'published' && <div aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, width: 18, height: 18, borderRadius: '50%', background: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: PALETTE.muted, letterSpacing: '-1px', zIndex: 2 }}>⋮⋮</div>}
+                            <div style={{ position: 'absolute', bottom: 6, right: 6, width: 20, height: 20, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700, zIndex: 2 }}>{si.symbol}</div>
+                            <div style={{ position: 'absolute', bottom: 7, left: 7, fontFamily: F.body, fontSize: 9, color: '#fff', fontWeight: 500, textShadow: '0 1px 3px rgba(0,0,0,0.7)', zIndex: 2 }}>{fmtShort(post.scheduled_at)}</div>
+                            <div className="ig-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(44,31,14,0.35)', opacity: 0, transition: 'opacity 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none' }}>
+                              <span style={{ fontFamily: F.body, fontSize: 10, color: '#fff', fontWeight: 500, letterSpacing: '0.05em' }}>View</span>
+                            </div>
                           </div>
-                          {/* Client group headers when viewing all clients */}
-                          {selectedClient === 'all'
-                            ? clients.map(cl => {
-                                const clientPosts = sortedPosts.filter(p => p.client_id === cl.id)
-                                if (clientPosts.length === 0) return null
-                                return (
-                                  <div key={cl.id} style={{ marginBottom: 28 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: cl.brand_color || PALETTE.caramel }} />
-                                      <span style={{ fontFamily: F.body, fontSize: 11, fontWeight: 500, color: PALETTE.espresso, letterSpacing: '0.04em' }}>{cl.name}</span>
-                                      <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>{clientPosts.length} post{clientPosts.length !== 1 ? 's' : ''}</span>
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
-                                      {clientPosts.map(post => {
-                                        const si = statusIcon(post.status)
-                                        const isSelected = selectedPost?.id === post.id
-                                        const hasVid = isVideo(post.image_url)
-                                        return (
-                                          <div key={post.id} {...gridDnD(post)} onClick={() => setSelectedPost(post)} title={post.status === 'published' ? undefined : 'Drag onto another post to swap their dates'} style={{ position: 'relative', aspectRatio: '1', background: PALETTE.creamDark, cursor: post.status === 'published' ? 'pointer' : 'grab', overflow: 'hidden', opacity: dragId === post.id ? 0.4 : 1, outline: dragOverId === post.id ? '2.5px dashed ' + PALETTE.caramel : isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
-                                            onMouseEnter={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '1')}
-                                            onMouseLeave={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '0')}
-                                          >
-                                            {/* Image — contain so nothing is cropped */}
-                                            {post.image_url && !hasVid && (
-                                              <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
-                                            )}
-                                            {post.image_url && hasVid && (
-                                              post.cover_url
-                                                ? <img src={imgSrc(post.cover_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
-                                                : <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M8 5v14l11-7z"/></svg>
-                                                  </div>
-                                            )}
-                                            {!post.image_url && (
-                                              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 14 }}>BB</span>
-                                              </div>
-                                            )}
-                                            {/* Status badge — top right */}
-                                            {post.status !== 'published' && <div aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: PALETTE.muted, letterSpacing: '-1px', zIndex: 2 }}>⋮⋮</div>}
-<div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
-                                            {/* Date — bottom left */}
-                                            <div style={{ position: 'absolute', bottom: 5, left: 6, fontFamily: F.body, fontSize: 8, color: 'rgba(255,255,255,0.9)', fontWeight: 500, textShadow: '0 1px 3px rgba(0,0,0,0.6)', zIndex: 2 }}>{fmtShort(post.scheduled_at)}</div>
-                                            {/* Hover overlay */}
-                                            <div className="ig-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(44,31,14,0.35)', opacity: 0, transition: 'opacity 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}>
-                                              <span style={{ fontFamily: F.body, fontSize: 10, color: '#fff', fontWeight: 500, letterSpacing: '0.05em' }}>View</span>
-                                            </div>
-                                          </div>
-                                        )
-                                      })}
-                                    </div>
-                                  </div>
-                                )
-                              })
-                            : (
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
-                                {sortedPosts.map(post => {
-                                  const si = statusIcon(post.status)
-                                  const isSelected = selectedPost?.id === post.id
-                                  const hasVid = isVideo(post.image_url)
-                                  return (
-                                    <div key={post.id} {...gridDnD(post)} onClick={() => setSelectedPost(post)} title={post.status === 'published' ? undefined : 'Drag onto another post to swap their dates'} style={{ position: 'relative', aspectRatio: '1', background: PALETTE.creamDark, cursor: post.status === 'published' ? 'pointer' : 'grab', overflow: 'hidden', opacity: dragId === post.id ? 0.4 : 1, outline: dragOverId === post.id ? '2.5px dashed ' + PALETTE.caramel : isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
-                                      onMouseEnter={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '1')}
-                                      onMouseLeave={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '0')}
-                                    >
-                                      {post.image_url && !hasVid && (
-                                        <img src={imgSrc(post.image_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
-                                      )}
-                                      {post.image_url && hasVid && (
-                                        post.cover_url
-                                          ? <img src={imgSrc(post.cover_url, post.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }} />
-                                          : <div style={{ position: 'absolute', inset: 0, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                              <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M8 5v14l11-7z"/></svg>
-                                            </div>
-                                      )}
-                                      {!post.image_url && (
-                                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                          <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 14 }}>BB</span>
-                                        </div>
-                                      )}
-                                      {post.status !== 'published' && <div aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: PALETTE.muted, letterSpacing: '-1px', zIndex: 2 }}>⋮⋮</div>}
-<div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
-                                      <div style={{ position: 'absolute', bottom: 5, left: 6, fontFamily: F.body, fontSize: 8, color: 'rgba(255,255,255,0.9)', fontWeight: 500, textShadow: '0 1px 3px rgba(0,0,0,0.6)', zIndex: 2 }}>{fmtShort(post.scheduled_at)}</div>
-                                      <div className="ig-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(44,31,14,0.35)', opacity: 0, transition: 'opacity 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}>
-                                        <span style={{ fontFamily: F.body, fontSize: 10, color: '#fff', fontWeight: 500, letterSpacing: '0.05em' }}>View</span>
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )
-                          }
+                        )
+                      }
+
+                      // A mini Instagram profile: avatar, handle, post count, then the 3-column grid
+                      const profile = (cl, list) => (
+                        <div key={cl.id} style={{ width: 'min(100%, 460px)', background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 12, overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
+                            <Avatar size={52} actor={{ name: cl.name, src: cl.logo_url, color: cl.brand_color || PALETTE.caramel }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontFamily: F.body, fontSize: 14, fontWeight: 600, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cl.ig_handle ? cl.ig_handle.replace(/^@/, '') : cl.name}</div>
+                              <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, marginTop: 2 }}>{cl.name}</div>
+                            </div>
+                            <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                              <div style={{ fontFamily: F.body, fontSize: 15, fontWeight: 600, color: PALETTE.espresso }}>{list.length}</div>
+                              <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>posts</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 2, borderTop: '0.5px solid ' + PALETTE.borderLight }}>
+                            {list.map(renderTile)}
+                          </div>
+                        </div>
+                      )
+
+                      const groups = selectedClient === 'all'
+                        ? clients.map(cl => ({ cl, list: sortedPosts.filter(p => p.client_id === cl.id) })).filter(g => g.list.length > 0)
+                        : (clients.find(c => c.id === selectedClient) ? [{ cl: clients.find(c => c.id === selectedClient), list: sortedPosts }] : [])
+
+                      return (
+                        <div style={{ padding: '16px 20px 32px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+                            <div style={{ flex: 1, minWidth: 260 }}>
+                              <DragHint><b style={{ fontWeight: 500 }}>Drag a post onto another to swap their dates.</b> Each keeps its own time, so the grid order changes with the schedule. Works within one client, and published posts stay put.</DragHint>
+                            </div>
+                            <div style={{ display: 'inline-flex', border: '0.5px solid ' + PALETTE.border, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+                              {[['3 / 4', 'Instagram 3:4'], ['1 / 1', 'Square']].map(([v, l]) => (
+                                <button key={v} onClick={() => setGridRatio(v)} title={v === '3 / 4' ? 'How profile grids look on Instagram now' : 'The classic square grid'} style={{ padding: '7px 12px', border: 'none', background: gridRatio === v ? PALETTE.espresso : '#fff', color: gridRatio === v ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>{l}</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
+                            {groups.map(g => profile(g.cl, g.list))}
+                          </div>
                           {/* Legend */}
-                          <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
-                            {[['✓','rgba(42,125,79,0.88)','Approved'],['◷','rgba(59,114,184,0.88)','Scheduled'],['✦','rgba(196,137,58,0.88)','Published'],['↩','rgba(192,57,43,0.88)','Revisions'],['…','rgba(44,31,14,0.55)','Pending'],['✎','rgba(154,143,126,0.9)','Draft']].map(([sym, bg, label]) => (
+                          <div style={{ display: 'flex', gap: 16, marginTop: 20, flexWrap: 'wrap' }}>
+                            {[['✓','rgba(42,125,79,0.92)','Approved'],['◷','rgba(59,114,184,0.92)','Scheduled'],['✦','rgba(196,137,58,0.92)','Published'],['↩','rgba(192,57,43,0.92)','Revisions'],['…','rgba(44,31,14,0.6)','Pending'],['✎','rgba(154,143,126,0.95)','Draft']].map(([sym, bg, label]) => (
                               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <div style={{ width: 16, height: 16, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff', fontWeight: 700 }}>{sym}</div>
                                 <span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.muted }}>{label}</span>
                               </div>
                             ))}
                           </div>
+                          <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginTop: 10 }}>Status badges, dates, and drag handles are for the team only. They are not part of how the post looks on Instagram.</div>
                         </div>
                       )
                     })()
