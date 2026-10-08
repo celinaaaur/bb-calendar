@@ -535,8 +535,10 @@ function IGGrid({ posts, onSelectPost }) {
   )
 }
 
-function CalendarView({ posts, onSelect }) {
+function CalendarView({ posts, onSelect, onMove }) {
   const now = new Date()
+  const [dragId, setDragId] = useState(null)
+  const [overDay, setOverDay] = useState(null)
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const firstDay = new Date(year, month, 1).getDay()
@@ -560,10 +562,24 @@ function CalendarView({ posts, onSelect }) {
           const dayPosts = day ? posts.filter(p => { const d = new Date(p.scheduled_at); return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day }) : []
           const isToday = day && now.getFullYear() === year && now.getMonth() === month && now.getDate() === day
           return (
-            <div key={i} style={{ background: '#fff', minHeight: 80, padding: 5, borderTop: isToday ? '2px solid ' + PALETTE.caramel : 'none' }}>
+            <div key={i}
+              onDragOver={e => { if (day && dragId) { e.preventDefault(); if (overDay !== day) setOverDay(day) } }}
+              onDragLeave={() => { if (overDay === day) setOverDay(null) }}
+              onDrop={e => {
+                e.preventDefault()
+                const post = posts.find(p => p.id === dragId)
+                setOverDay(null); setDragId(null)
+                if (post && day) onMove && onMove(post, new Date(year, month, day))
+              }}
+              style={{ background: day && overDay === day && dragId ? '#FBF1DF' : '#fff', minHeight: 80, padding: 5, borderTop: isToday ? '2px solid ' + PALETTE.caramel : 'none', outline: day && overDay === day && dragId ? '1.5px dashed ' + PALETTE.caramel : 'none', outlineOffset: '-2px', transition: 'background 0.1s' }}>
               {day && <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: isToday ? 500 : 400, color: isToday ? PALETTE.caramel : PALETTE.mutedLight, marginBottom: 3 }}>{day}</div>}
               {dayPosts.map(p => (
-                <div key={p.id} onClick={() => onSelect(p)} style={{ background: STATUS[p.status]?.bg || PALETTE.cream, borderLeft: '2px solid ' + (STATUS[p.status]?.dot || '#ccc'), padding: '2px 4px', marginBottom: 2, borderRadius: 2, cursor: 'pointer', fontFamily: F.body, fontSize: 9, color: PALETTE.espresso, lineHeight: 1.4 }}>
+                <div key={p.id} onClick={() => onSelect(p)}
+                  draggable={p.status !== 'published'}
+                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', p.id); setDragId(p.id) }}
+                  onDragEnd={() => { setDragId(null); setOverDay(null) }}
+                  title={p.status === 'published' ? 'Published posts can\'t be moved' : 'Drag to another day to reschedule (keeps the same time)'}
+                  style={{ background: STATUS[p.status]?.bg || PALETTE.cream, borderLeft: '2px solid ' + (STATUS[p.status]?.dot || '#ccc'), padding: '2px 4px', marginBottom: 2, borderRadius: 2, cursor: p.status === 'published' ? 'pointer' : 'grab', opacity: dragId === p.id ? 0.4 : 1, fontFamily: F.body, fontSize: 9, color: PALETTE.espresso, lineHeight: 1.4 }}>
                   {fmtTime(p.scheduled_at)} — {p.caption?.slice(0, 18)}...
                 </div>
               ))}
@@ -3737,6 +3753,74 @@ export default function Dashboard() {
     return () => { s1.unsubscribe(); s2.unsubscribe(); s3.unsubscribe(); s4.unsubscribe(); s5.unsubscribe(); s6.unsubscribe(); s7.unsubscribe(); s8.unsubscribe(); s9.unsubscribe(); s10.unsubscribe(); s11.unsubscribe() }
   }, [])
 
+  // ── Drag and drop rescheduling (calendar + grid) ──
+  const [dragId, setDragId] = useState(null)
+  const [dragOverId, setDragOverId] = useState(null)
+  const fmtWhen = (iso) => new Date(iso).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + new Date(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+
+  const savePostTimes = async (changes) => {
+    // changes: [{ post, iso }]. Optimistic update, rolled back if the save fails.
+    const prevPosts = posts
+    setPosts(ps => ps.map(p => { const c = changes.find(x => x.post.id === p.id); return c ? { ...p, scheduled_at: c.iso } : p }))
+    setSelectedPost(sp => { const c = sp && changes.find(x => x.post.id === sp.id); return c ? { ...sp, scheduled_at: c.iso } : sp })
+    const results = await Promise.all(changes.map(c => supabase.from('posts').update({ scheduled_at: c.iso }).eq('id', c.post.id)))
+    const failed = results.find(r => r.error)
+    if (failed) {
+      setPosts(prevPosts)
+      setSelectedPost(sp => { const c = sp && changes.find(x => x.post.id === sp.id); return c ? { ...sp, scheduled_at: c.post.scheduled_at } : sp })
+      alert('Could not reschedule: ' + failed.error.message)
+      return
+    }
+    await supabase.from('versions').insert(changes.map(c => ({
+      post_id: c.post.id,
+      version_number: versions.filter(v => v.post_id === c.post.id).length + 1,
+      note: 'rescheduled to ' + fmtWhen(c.iso),
+      author: currentUserName,
+    })))
+  }
+
+  // Calendar: same time, different day
+  const movePostToDay = (post, day) => {
+    if (!post.scheduled_at || post.status === 'published') return
+    const old = new Date(post.scheduled_at)
+    const next = new Date(day.getFullYear(), day.getMonth(), day.getDate(), old.getHours(), old.getMinutes(), old.getSeconds())
+    if (next.getTime() === old.getTime()) return
+    savePostTimes([{ post, iso: next.toISOString() }])
+  }
+
+  // Grid: dropping one tile on another swaps their dates, each keeping its own time
+  // (same-day posts swap times instead, so the order still changes)
+  const swapPostDates = (a, b) => {
+    if (!a || !b || a.id === b.id || a.client_id !== b.client_id || a.status === 'published' || b.status === 'published') return
+    const da = new Date(a.scheduled_at), db = new Date(b.scheduled_at)
+    const sameDate = da.toDateString() === db.toDateString()
+    const withDate = (time, date) => new Date(date.getFullYear(), date.getMonth(), date.getDate(), time.getHours(), time.getMinutes(), time.getSeconds()).toISOString()
+    savePostTimes(sameDate
+      ? [{ post: a, iso: db.toISOString() }, { post: b, iso: da.toISOString() }]
+      : [{ post: a, iso: withDate(da, db) }, { post: b, iso: withDate(db, da) }])
+  }
+
+  const gridDnD = (post) => {
+    const movable = post.status !== 'published'
+    return {
+      draggable: movable,
+      onDragStart: (e) => { if (!movable) { e.preventDefault(); return } e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', post.id); setDragId(post.id) },
+      onDragEnd: () => { setDragId(null); setDragOverId(null) },
+      onDragOver: (e) => {
+        if (!dragId || dragId === post.id || !movable) return
+        const src = posts.find(p => p.id === dragId)
+        if (src && src.client_id === post.client_id) { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }
+      },
+      onDragLeave: () => { if (dragOverId === post.id) setDragOverId(null) },
+      onDrop: (e) => {
+        e.preventDefault()
+        const src = posts.find(p => p.id === dragId)
+        setDragId(null); setDragOverId(null)
+        swapPostDates(src, post)
+      },
+    }
+  }
+
   const reminderDone = useMemo(() => new Set(reminderCompletions.map(c => c.reminder_id + '|' + c.period_key)), [reminderCompletions])
   const toggleReminder = async (r, key, isDone) => {
     // Optimistic update so the tick feels instant; realtime confirms it
@@ -4270,7 +4354,7 @@ export default function Dashboard() {
                     </div>
                 )
               : view === 'calendar'
-              ? <CalendarView posts={filteredPosts} onSelect={setSelectedPost} />
+              ? <CalendarView posts={filteredPosts} onSelect={setSelectedPost} onMove={movePostToDay} />
               : filteredPosts.length === 0
                 ? <div style={{ padding: 60, textAlign: 'center' }}>
                     <div style={{ fontFamily: F.display, color: PALETTE.mutedLight, fontSize: 18, marginBottom: 18 }}>No posts here yet</div>
@@ -4309,7 +4393,7 @@ export default function Dashboard() {
                                         const isSelected = selectedPost?.id === post.id
                                         const hasVid = isVideo(post.image_url)
                                         return (
-                                          <div key={post.id} onClick={() => setSelectedPost(post)} style={{ position: 'relative', aspectRatio: '1', background: PALETTE.creamDark, cursor: 'pointer', overflow: 'hidden', outline: isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
+                                          <div key={post.id} {...gridDnD(post)} onClick={() => setSelectedPost(post)} title={post.status === 'published' ? undefined : 'Drag onto another post to swap their dates'} style={{ position: 'relative', aspectRatio: '1', background: PALETTE.creamDark, cursor: post.status === 'published' ? 'pointer' : 'grab', overflow: 'hidden', opacity: dragId === post.id ? 0.4 : 1, outline: dragOverId === post.id ? '2.5px dashed ' + PALETTE.caramel : isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
                                             onMouseEnter={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '1')}
                                             onMouseLeave={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '0')}
                                           >
@@ -4351,7 +4435,7 @@ export default function Dashboard() {
                                   const isSelected = selectedPost?.id === post.id
                                   const hasVid = isVideo(post.image_url)
                                   return (
-                                    <div key={post.id} onClick={() => setSelectedPost(post)} style={{ position: 'relative', aspectRatio: '1', background: PALETTE.creamDark, cursor: 'pointer', overflow: 'hidden', outline: isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
+                                    <div key={post.id} {...gridDnD(post)} onClick={() => setSelectedPost(post)} title={post.status === 'published' ? undefined : 'Drag onto another post to swap their dates'} style={{ position: 'relative', aspectRatio: '1', background: PALETTE.creamDark, cursor: post.status === 'published' ? 'pointer' : 'grab', overflow: 'hidden', opacity: dragId === post.id ? 0.4 : 1, outline: dragOverId === post.id ? '2.5px dashed ' + PALETTE.caramel : isSelected ? '2.5px solid ' + PALETTE.caramel : 'none', outlineOffset: '-2px' }}
                                       onMouseEnter={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '1')}
                                       onMouseLeave={e => e.currentTarget.querySelector('.ig-hover')?.style && (e.currentTarget.querySelector('.ig-hover').style.opacity = '0')}
                                     >
