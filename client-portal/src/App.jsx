@@ -253,24 +253,27 @@ function AdaptiveVideo({ src, style }) {
   )
 }
 
-function IGGrid({ posts, onSelectPost, client }) {
-  const live = [...posts].filter(p => p.status !== 'archived')
+function IGGrid({ posts, onSelectPost, client, large = false }) {
+  const live = [...posts].filter(p => p.status !== 'archived' && p.status !== 'draft')
     .sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
-  const grid = live.slice(0, 9)
-  while (grid.length < 9) grid.push(null)
+  const grid = large ? [...live] : live.slice(0, 9)
+  const minCells = large ? Math.max(9, Math.ceil(grid.length / 3) * 3) : 9
+  while (grid.length < minCells) grid.push(null)
+  const ic = large ? 16 : 11
+  const edge = large ? 7 : 4
   const name = client?.name || 'Brown Butter'
   const handle = client?.ig_handle ? client.ig_handle.replace(/^@/, '') : name
   const initials = name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
   return (
     <div style={{ background: '#fff' }}>
       {/* Mini Instagram profile header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderBottom: '0.5px solid ' + PALETTE.borderLight }}>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, color: '#fff', fontFamily: F.body, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: large ? '16px 18px' : '9px 10px', gap: large ? 14 : 8, borderBottom: '0.5px solid ' + PALETTE.borderLight }}>
+        <div style={{ width: large ? 56 : 28, height: large ? 56 : 28, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, color: '#fff', fontFamily: F.body, fontSize: large ? 14 : 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
           {client?.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{handle}</div>
-          <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted }}>{live.length} post{live.length !== 1 ? 's' : ''}</div>
+          <div style={{ fontFamily: F.body, fontSize: large ? 15 : 11, fontWeight: 600, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{handle}</div>
+          <div style={{ fontFamily: F.body, fontSize: large ? 12 : 9, color: PALETTE.muted }}>{live.length} post{live.length !== 1 ? 's' : ''}</div>
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1 }}>
@@ -287,15 +290,31 @@ function IGGrid({ posts, onSelectPost, client }) {
               onMouseEnter={e => { if (p && onSelectPost) e.currentTarget.style.opacity = 0.75 }}
               onMouseLeave={e => { e.currentTarget.style.opacity = 1 }}
             >
-              {cover && <img src={imgSrc(cover, p.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+              {cover && <img src={imgSrc(cover, p.status === 'published')} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
               {p && vid && !cover && <div style={{ position: 'absolute', inset: 0, background: '#1A1A1A' }} />}
               {p && !p.image_url && <div style={{ padding: 4, fontSize: 6, color: PALETTE.muted, lineHeight: 1.3 }}>{p.caption?.slice(0, 30)}</div>}
-              {carousel && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round" style={{ position: 'absolute', top: 4, right: 4, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} aria-hidden="true"><rect x="3" y="7" width="13" height="13" rx="2.5" /><path d="M8 4h10a3 3 0 0 1 3 3v10" /></svg>}
-              {vid && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" style={{ position: 'absolute', top: 4, right: 4, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M10 8.5l5 3.5-5 3.5z" fill="#fff" /></svg>}
-              {p && p.status !== 'published' && <div title={STATUS[p.status]?.label} style={{ position: 'absolute', bottom: 4, left: 4, width: 6, height: 6, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.9)' }} />}
+              {carousel && <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round" style={{ position: 'absolute', top: edge, right: edge, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} aria-hidden="true"><rect x="3" y="7" width="13" height="13" rx="2.5" /><path d="M8 4h10a3 3 0 0 1 3 3v10" /></svg>}
+              {vid && <svg width={ic} height={ic} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" style={{ position: 'absolute', top: edge, right: edge, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M10 8.5l5 3.5-5 3.5z" fill="#fff" /></svg>}
+              {p && p.status !== 'published' && <div title={STATUS[p.status]?.label} style={{ position: 'absolute', bottom: edge, left: edge, width: large ? 9 : 6, height: large ? 9 : 6, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.9)' }} />}
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// Full-size grid view: the "View > Grid" option
+function GridView({ posts, client, onSelectPost, isMobile }) {
+  return (
+    <div style={{ padding: isMobile ? '16px 12px 32px' : '26px 28px 40px' }}>
+      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+        <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontWeight: 300, marginBottom: 12, lineHeight: 1.5 }}>
+          How your feed will look on Instagram. Newest posts sit top left. A small dot marks anything not yet published.
+        </div>
+        <div style={{ borderRadius: 10, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
+          <IGGrid posts={posts} onSelectPost={onSelectPost} client={client} large />
+        </div>
       </div>
     </div>
   )
@@ -1876,7 +1895,7 @@ export default function ClientPortal() {
   const [designOptions, setDesignOptions] = useState([])
   const [selectedPost, setSelectedPost] = useState(null)
   const [filter, setFilter] = useState('all')
-  const [view, setView] = useState('list') // 'list' | 'calendar'
+  const [view, setView] = useState('list') // 'list' | 'calendar' | 'grid'
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -2263,7 +2282,7 @@ export default function ClientPortal() {
                 {/* View toggle */}
                 <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>View</div>
                 <div style={{ display: 'flex', gap: 4, marginBottom: 18 }}>
-                  {[['list', 'List'], ['calendar', 'Calendar']].map(([k, l]) => (
+                  {[['list', 'List'], ['calendar', 'Calendar'], ['grid', 'Grid']].map(([k, l]) => (
                     <button key={k} onClick={() => setView(k)} style={{
                       flex: 1, padding: '6px 0', borderRadius: 5, border: '0.5px solid ' + (view === k ? PALETTE.caramel : PALETTE.border),
                       background: view === k ? PALETTE.caramel : 'transparent',
@@ -2299,12 +2318,6 @@ export default function ClientPortal() {
               </div>
             )}
             {section === 'content' && <div style={{ height: '0.5px', background: PALETTE.border, margin: '0 16px' }} />}
-            {section === 'content' && (
-              <div style={{ margin: '18px 10px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
-                <div style={{ padding: '8px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
-                <IGGrid posts={posts} onSelectPost={setSelectedPost} client={client} />
-              </div>
-            )}
             <div style={{ padding: '20px 16px', marginTop: 'auto' }}>
               <a href={MEETING_URL} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', padding: '8px 0', marginBottom: 16, borderRadius: 6, border: '0.5px solid ' + PALETTE.border, background: '#fff', color: PALETTE.espresso, fontFamily: F.body, fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>Book a meeting</a>
               <div style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight, marginBottom: 3, fontWeight: 300 }}>Managed by</div>
@@ -2328,6 +2341,7 @@ export default function ClientPortal() {
               {/* View toggles */}
               <button onClick={() => setView('list')} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (view === 'list' ? brandColor : PALETTE.border), background: view === 'list' ? PALETTE.espresso : '#fff', color: view === 'list' ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, whiteSpace: 'nowrap' }}>List</button>
               <button onClick={() => setView('calendar')} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (view === 'calendar' ? brandColor : PALETTE.border), background: view === 'calendar' ? PALETTE.espresso : '#fff', color: view === 'calendar' ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, whiteSpace: 'nowrap' }}>Calendar</button>
+              <button onClick={() => setView('grid')} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '0.5px solid ' + (view === 'grid' ? brandColor : PALETTE.border), background: view === 'grid' ? PALETTE.espresso : '#fff', color: view === 'grid' ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 12, whiteSpace: 'nowrap' }}>Grid</button>
               <div style={{ width: 1, background: PALETTE.border, flexShrink: 0, alignSelf: 'stretch', margin: '6px 4px' }} />
               {filterOptions.map(([k, l, n]) => (
                 <button key={k} onClick={() => { setFilter(k); setSelectedPost(null) }} style={{
@@ -2370,6 +2384,16 @@ export default function ClientPortal() {
               posts={posts.filter(p => p.status !== 'archived')}
               onSelectPost={(p) => { setSelectedPost(p); setView('list') }}
               isMobile={isMobile}
+            />
+          )}
+
+          {/* Grid view */}
+          {view === 'grid' && (
+            <GridView
+              posts={posts}
+              client={client}
+              isMobile={isMobile}
+              onSelectPost={(p) => { setSelectedPost(p); setView('list') }}
             />
           )}
 
