@@ -4285,7 +4285,7 @@ export default function Dashboard() {
           )}
 
           {!loading && view === 'queue' && (
-            <TodayQueue posts={posts} clients={clients} onSelect={setSelectedPost} currentUserName={currentUserName} />
+            <TodayQueue posts={selectedClient === 'all' ? posts : posts.filter(p => p.client_id === selectedClient)} clients={clients} onSelect={setSelectedPost} currentUserName={currentUserName} />
           )}
 
           {loading
