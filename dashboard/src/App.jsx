@@ -3166,6 +3166,40 @@ const NavIcon = ({ name }) => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true"><path d={NAV_ICONS[name]} /></svg>
 )
 
+// Hover (or tap) the small "i" next to a card title to see what the card means
+function InfoTip({ text }) {
+  const [pos, setPos] = useState(null)
+  const show = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const flip = r.bottom + 130 > window.innerHeight
+    setPos({ x: Math.min(Math.max(12, r.left - 14), window.innerWidth - 276), y: flip ? r.top - 8 : r.bottom + 8, flip })
+  }
+  return (
+    <span tabIndex={0} role="button" aria-label={'What is this? ' + text}
+      onMouseEnter={show} onMouseLeave={() => setPos(null)}
+      onFocus={show} onBlur={() => setPos(null)}
+      onClick={(e) => { e.stopPropagation(); pos ? setPos(null) : show(e) }}
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 15, height: 15, borderRadius: '50%', border: '1px solid ' + PALETTE.mutedLight, color: PALETTE.muted, fontFamily: F.body, fontSize: 9, fontWeight: 600, fontStyle: 'italic', cursor: 'help', flexShrink: 0, lineHeight: 1, textTransform: 'none', letterSpacing: 0 }}>
+      i
+      {pos && (
+        <span role="tooltip" style={{ position: 'fixed', left: pos.x, top: pos.y, transform: pos.flip ? 'translateY(-100%)' : 'none', width: 260, background: PALETTE.espresso, color: '#F5F0E8', borderRadius: 8, padding: '10px 12px', fontFamily: F.body, fontSize: 11, fontWeight: 400, fontStyle: 'normal', lineHeight: 1.5, textAlign: 'left', zIndex: 600, pointerEvents: 'none', boxShadow: '0 8px 24px rgba(44,31,14,0.25)' }}>{text}</span>
+      )}
+    </span>
+  )
+}
+
+const CARD_ICONS = {
+  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
+  list: 'M4 6h2M4 12h2M4 18h2M9 6h11M9 12h11M9 18h11',
+  calendar: NAV_ICONS.calendar,
+  pulse: 'M3 12h4l3-8 4 16 3-8h4',
+  clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
+  inbox: NAV_ICONS.requests,
+  shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6',
+  check: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M8 12l3 3 5-6',
+}
+
 // ── Recurring reminders ───────────────────────────────────────────────────────
 // Reminders live in recurring_reminders (weekly or monthly, optional audience of
 // emails). Completions live in reminder_completions, one row per occurrence, so
@@ -3370,10 +3404,18 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
   const rowBase = { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderTop: '0.5px solid ' + PALETTE.borderLight }
   const hoverOn = e => { e.currentTarget.style.background = PALETTE.creamMid }
   const hoverOff = e => { e.currentTarget.style.background = 'transparent' }
-  const Card = ({ title, right, accent, children }) => (
+  const Card = ({ title, icon, color = PALETTE.espresso, info, right, accent, children }) => (
     <div style={{ ...boxStyle, marginBottom: 14, breakInside: 'avoid', ...(accent ? { borderColor: PALETTE.caramel } : {}) }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 8px' }}>
-        <div style={eyebrow}>{title}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 14px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+          {icon && (
+            <span style={{ width: 24, height: 24, borderRadius: 7, background: color + '1F', color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={CARD_ICONS[icon]} /></svg>
+            </span>
+          )}
+          <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: PALETTE.espresso, whiteSpace: 'nowrap' }}>{title}</span>
+          {info && <InfoTip text={info} />}
+        </div>
         {right}
       </div>
       {children}
@@ -3419,7 +3461,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
         <>
 
           {reminderRows.length > 0 && (
-            <Card title="Reminders" accent right={<span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>Repeats</span>}>
+            <Card title="Reminders" icon="bell" color="#C4893A" info="Recurring tasks for the team, like updating reports every Tuesday. Tick one off when it is done and it returns on its next date. Some reminders only show for certain people." accent right={<span style={{ fontFamily: F.body, fontSize: 10, color: PALETTE.mutedLight }}>Repeats</span>}>
               {reminderRows.map(({ r, status, key, daysLate, daysToNext }) => {
                 const done = status === 'done'
                 const tagEl = status === 'overdue' ? tag(daysLate === 1 ? 'Overdue, 1 day' : 'Overdue, ' + daysLate + ' days', '#F6D9D5', '#7A2018')
@@ -3442,7 +3484,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
             </Card>
           )}
 
-          <Card title="On your plate" right={plate.length > 0 && linkBtn('Show all ' + plate.length, () => onGo('queue', 'active', { mine: true }))}>
+          <Card title="On your plate" icon="list" color="#2C1F0E" info="Posts assigned to you that are not published yet. Revisions come first, then anything going out today, then drafts and everything else by date." right={plate.length > 0 && linkBtn('Show all ' + plate.length, () => onGo('queue', 'active', { mine: true }))}>
             {plateShown.length === 0 ? (
               <Empty>Nothing assigned to you right now. Posts with your name as designer show up here.</Empty>
             ) : plateShown.map(p => {
@@ -3460,7 +3502,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
             })}
           </Card>
 
-          <Card title="This week" right={linkBtn('Open calendar', () => onGo('calendar'))}>
+          <Card title="This week" icon="calendar" color="#3B72B8" info="Everything scheduled Monday to Sunday, one dot per post. Click a day to open the calendar. Next up lists the posts going out soonest." right={linkBtn('Open calendar', () => onGo('calendar'))}>
             <div style={{ display: 'flex', gap: 4, padding: '4px 12px 12px' }}>
               {weekDays.map(d => {
                 const items = countOn(d)
@@ -3492,7 +3534,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
             ))}
           </Card>
 
-          <Card title="Recent activity">
+          <Card title="Recent activity" icon="pulse" color="#7A5C8A" info="The latest comments, approvals, revision requests, and client requests. Team members show as avatars and clients as their logos.">
             {feedShown.length === 0 ? (
               <Empty>Comments, approvals, and requests from clients show up here.</Empty>
             ) : feedShown.map((a, i) => (
@@ -3508,7 +3550,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
           </Card>
 
 
-          <Card title="Waiting on clients">
+          <Card title="Waiting on clients" icon="clock" color="#C4893A" info="Clients with posts waiting for their approval, longest wait first. Nudge records that you reminded them and shows a banner in their portal.">
             {waiting.length === 0 ? (
               <Empty>No approvals pending. Nothing to chase.</Empty>
             ) : waiting.map(w => (
@@ -3525,7 +3567,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
             ))}
           </Card>
 
-          <Card title="Open requests" right={openReqList.length > 0 && linkBtn('View all', () => onGo('requests'))}>
+          <Card title="Open requests" icon="inbox" color="#B5532F" info="Requests clients sent from their portal that are still new or in progress. Client replied means the client wrote last and is waiting on you." right={openReqList.length > 0 && linkBtn('View all', () => onGo('requests'))}>
             {openReqList.length === 0 ? (
               <Empty>No open requests.</Empty>
             ) : openReqList.slice(0, 5).map(r => {
@@ -3543,7 +3585,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
             })}
           </Card>
 
-          <Card title="Client coverage" right={coverage.length > 7 && linkBtn(showAllCoverage ? 'Show less' : 'Show all ' + coverage.length, () => setShowAllCoverage(o => !o))}>
+          <Card title="Client coverage" icon="shield" color="#2A7D4F" info="When the next post goes out for each client. Red means nothing is scheduled or revisions are open. Amber means the next post is more than 5 days away, or only drafts exist. Green means they are covered." right={coverage.length > 7 && linkBtn(showAllCoverage ? 'Show less' : 'Show all ' + coverage.length, () => setShowAllCoverage(o => !o))}>
             {coverage.length === 0 ? (
               <Empty>No clients yet.</Empty>
             ) : coverageShown.map(h => (
@@ -3555,7 +3597,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
             ))}
           </Card>
 
-          <Card title="Client portal visits">
+          <Card title="Client portal visits" icon="eye" color="#3B72B8" info="When each client last opened their portal. Green is within a day, grey within a week, amber after that. Team previews using ?preview in the link are not counted.">
             {clients.length === 0 ? (
               <Empty>No clients yet.</Empty>
             ) : [...clients].filter(c => inScope(c.id)).sort((a, b) => new Date(b.portal_last_seen_at || 0) - new Date(a.portal_last_seen_at || 0)).map(c => {
@@ -3570,7 +3612,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
             })}
           </Card>
 
-          <Card title="Recently published">
+          <Card title="Recently published" icon="check" color="#2A7D4F" info="The latest posts marked as published, newest first.">
             {published.length === 0 ? (
               <Empty>Published posts show up here.</Empty>
             ) : published.map(p => (
