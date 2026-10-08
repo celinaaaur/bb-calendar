@@ -535,6 +535,15 @@ function IGGrid({ posts, onSelectPost }) {
   )
 }
 
+function DragHint({ children }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FBF1DF', border: '0.5px solid #E8C87A', borderRadius: 8, padding: '8px 12px', fontFamily: F.body, fontSize: 12, color: '#6B4A12' }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20" /></svg>
+      <span>{children}</span>
+    </div>
+  )
+}
+
 function CalendarView({ posts, onSelect, onMove }) {
   const now = new Date()
   const [dragId, setDragId] = useState(null)
@@ -553,6 +562,9 @@ function CalendarView({ posts, onSelect, onMove }) {
         <button onClick={() => { if (month === 0) { setMonth(11); setYear(year - 1) } else setMonth(month - 1) }} style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 6, padding: '6px 14px', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Prev</button>
         <span style={{ fontFamily: F.display, fontSize: 18, color: PALETTE.espresso, flex: 1, textAlign: 'center' }}>{MONTHS[month]} {year}</span>
         <button onClick={() => { if (month === 11) { setMonth(0); setYear(year + 1) } else setMonth(month + 1) }} style={{ background: 'none', border: '0.5px solid ' + PALETTE.border, borderRadius: 6, padding: '6px 14px', fontFamily: F.body, fontSize: 12, color: PALETTE.muted }}>Next</button>
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <DragHint><b style={{ fontWeight: 500 }}>Drag a post to another day to reschedule it.</b> The time stays the same and the move is logged in the post's History. Published posts can't be moved.</DragHint>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1, background: PALETTE.border }}>
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
@@ -580,7 +592,7 @@ function CalendarView({ posts, onSelect, onMove }) {
                   onDragEnd={() => { setDragId(null); setOverDay(null) }}
                   title={p.status === 'published' ? 'Published posts can\'t be moved' : 'Drag to another day to reschedule (keeps the same time)'}
                   style={{ background: STATUS[p.status]?.bg || PALETTE.cream, borderLeft: '2px solid ' + (STATUS[p.status]?.dot || '#ccc'), padding: '2px 4px', marginBottom: 2, borderRadius: 2, cursor: p.status === 'published' ? 'pointer' : 'grab', opacity: dragId === p.id ? 0.4 : 1, fontFamily: F.body, fontSize: 9, color: PALETTE.espresso, lineHeight: 1.4 }}>
-                  {fmtTime(p.scheduled_at)} — {p.caption?.slice(0, 18)}...
+                  {p.status !== 'published' && <span aria-hidden="true" style={{ color: PALETTE.mutedLight, marginRight: 3, letterSpacing: '-1px' }}>⋮⋮</span>}{fmtTime(p.scheduled_at)} — {p.caption?.slice(0, 18)}...
                 </div>
               ))}
             </div>
@@ -4375,6 +4387,9 @@ export default function Dashboard() {
                       const sortedPosts = [...filteredPosts].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
                       return (
                         <div style={{ padding: '16px 8px' }}>
+                          <div style={{ marginBottom: 16 }}>
+                            <DragHint><b style={{ fontWeight: 500 }}>Drag a post onto another to swap their dates.</b> Each keeps its own time, so the grid order changes with the schedule. Works within one client, and published posts stay put.</DragHint>
+                          </div>
                           {/* Client group headers when viewing all clients */}
                           {selectedClient === 'all'
                             ? clients.map(cl => {
@@ -4414,7 +4429,8 @@ export default function Dashboard() {
                                               </div>
                                             )}
                                             {/* Status badge — top right */}
-                                            <div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
+                                            {post.status !== 'published' && <div aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: PALETTE.muted, letterSpacing: '-1px', zIndex: 2 }}>⋮⋮</div>}
+<div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
                                             {/* Date — bottom left */}
                                             <div style={{ position: 'absolute', bottom: 5, left: 6, fontFamily: F.body, fontSize: 8, color: 'rgba(255,255,255,0.9)', fontWeight: 500, textShadow: '0 1px 3px rgba(0,0,0,0.6)', zIndex: 2 }}>{fmtShort(post.scheduled_at)}</div>
                                             {/* Hover overlay */}
@@ -4454,7 +4470,8 @@ export default function Dashboard() {
                                           <span style={{ fontFamily: F.display, color: PALETTE.caramel, fontSize: 14 }}>BB</span>
                                         </div>
                                       )}
-                                      <div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
+                                      {post.status !== 'published' && <div aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: PALETTE.muted, letterSpacing: '-1px', zIndex: 2 }}>⋮⋮</div>}
+<div style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', background: si.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: si.color, fontWeight: 700, backdropFilter: 'blur(4px)', zIndex: 2 }}>{si.symbol}</div>
                                       <div style={{ position: 'absolute', bottom: 5, left: 6, fontFamily: F.body, fontSize: 8, color: 'rgba(255,255,255,0.9)', fontWeight: 500, textShadow: '0 1px 3px rgba(0,0,0,0.6)', zIndex: 2 }}>{fmtShort(post.scheduled_at)}</div>
                                       <div className="ig-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(44,31,14,0.35)', opacity: 0, transition: 'opacity 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}>
                                         <span style={{ fontFamily: F.body, fontSize: 10, color: '#fff', fontWeight: 500, letterSpacing: '0.05em' }}>View</span>
