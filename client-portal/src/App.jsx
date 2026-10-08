@@ -1633,6 +1633,47 @@ function RequestsSection({ requests, clientId, isMobile, onRefresh, replies, cli
 // ── Home section ──────────────────────────────────────────────────────────────
 // Landing page: what needs the client's attention, what is in progress on the
 // agency side, and what is coming up. Content lives behind its own tab.
+// Hover (or tap) the small "i" next to a card title to see what the card means
+function InfoTip({ text }) {
+  const [pos, setPos] = useState(null)
+  const show = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const flip = r.bottom + 130 > window.innerHeight
+    setPos({ x: Math.min(Math.max(12, r.left - 14), window.innerWidth - 272), y: flip ? r.top - 8 : r.bottom + 8, flip })
+  }
+  return (
+    <span tabIndex={0} role="button" aria-label={'What is this? ' + text}
+      onMouseEnter={show} onMouseLeave={() => setPos(null)}
+      onFocus={show} onBlur={() => setPos(null)}
+      onClick={(e) => { e.stopPropagation(); pos ? setPos(null) : show(e) }}
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 15, height: 15, borderRadius: '50%', border: '1px solid ' + PALETTE.mutedLight, color: PALETTE.muted, fontFamily: F.body, fontSize: 9, fontWeight: 600, fontStyle: 'italic', cursor: 'help', flexShrink: 0, lineHeight: 1 }}>
+      i
+      {pos && (
+        <span role="tooltip" style={{ position: 'fixed', left: pos.x, top: pos.y, transform: pos.flip ? 'translateY(-100%)' : 'none', width: 256, background: PALETTE.espresso, color: '#F5F0E8', borderRadius: 8, padding: '10px 12px', fontFamily: F.body, fontSize: 11, fontWeight: 400, fontStyle: 'normal', lineHeight: 1.5, textAlign: 'left', zIndex: 600, pointerEvents: 'none', boxShadow: '0 8px 24px rgba(44,31,14,0.25)' }}>{text}</span>
+      )}
+    </span>
+  )
+}
+
+const HOME_ICONS = {
+  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
+  progress: 'M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1',
+  calendar: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
+}
+
+function HomeCardHeader({ icon, color, title, info, tag }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', background: PALETTE.creamMid, borderBottom: '0.5px solid ' + PALETTE.borderLight }}>
+      <span style={{ width: 24, height: 24, borderRadius: 7, background: color + '1F', color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={HOME_ICONS[icon]} /></svg>
+      </span>
+      <span style={{ fontFamily: F.body, fontSize: 13, fontWeight: 600, color: PALETTE.espresso }}>{title}</span>
+      <InfoTip text={info} />
+      {tag && <span style={{ marginLeft: 'auto', fontFamily: F.body, fontSize: 10, padding: '3px 8px', borderRadius: 4, background: PALETTE.caramelLight, color: '#6B4A12', whiteSpace: 'nowrap' }}>{tag}</span>}
+    </div>
+  )
+}
+
 function HomeSection({ posts, billingCycles, hasNewReport, requests, requestReplies, isMobile, onGo }) {
   const now = new Date()
   const byDate = (a, b) => new Date(a.scheduled_at || 0) - new Date(b.scheduled_at || 0)
@@ -1722,16 +1763,17 @@ function HomeSection({ posts, billingCycles, hasNewReport, requests, requestRepl
       <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 20 : 24, color: PALETTE.espresso, marginBottom: 4 }}>Home</div>
       <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, marginBottom: 24, fontWeight: 300 }}>What needs your attention, and what we are working on</div>
 
-      <div style={eyebrow}>Needs you</div>
-      {todo.length === 0 ? (
-        <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, padding: '28px 24px', marginBottom: 28 }}>
-          <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 18, color: PALETTE.espresso, marginBottom: 6 }}>You are all caught up.</div>
-          <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.6 }}>Nothing needs your attention right now. We will let you know when there is something new to review.</div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
-          {todo.map(item => (
-            <div key={item.key} style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderLeft: '3px solid ' + item.accent, borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden', marginBottom: 28 }}>
+        <HomeCardHeader icon="bell" color="#C4893A" title="Needs you" tag={todo.length > 0 ? todo.length + (todo.length === 1 ? ' item' : ' items') : null}
+          info="Things waiting on a decision from you, like posts to approve or a billing statement to review. They clear from here once you act on them." />
+        {todo.length === 0 ? (
+          <div style={{ padding: '24px 22px' }}>
+            <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: 18, color: PALETTE.espresso, marginBottom: 6 }}>You are all caught up.</div>
+            <div style={{ fontFamily: F.body, fontSize: 13, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.6 }}>Nothing needs your attention right now. We will let you know when there is something new to review.</div>
+          </div>
+        ) : (
+          todo.map((item, idx) => (
+            <div key={item.key} style={{ borderLeft: '3px solid ' + item.accent, borderTop: idx > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: isMobile ? '16px 16px' : '18px 22px', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <div style={{ fontFamily: F.body, fontSize: 15, fontWeight: 500, color: PALETTE.espresso, marginBottom: 3 }}>{item.title}</div>
@@ -1756,14 +1798,15 @@ function HomeSection({ posts, billingCycles, hasNewReport, requests, requestRepl
                 <div style={{ padding: '8px 22px 12px', fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, borderTop: '0.5px solid ' + PALETTE.borderLight }}>+ {pending.length - item.posts.length} more</div>
               )}
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
       {waiting.length > 0 && (
         <>
-          <div style={eyebrow}>In progress with us</div>
           <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden', marginBottom: 28 }}>
+            <HomeCardHeader icon="progress" color="#7A5C8A" title="In progress with us"
+              info="Work our team is doing right now: posts being revised from your feedback and requests we are handling." />
             {waiting.map((w, i) => (
               <div key={w.key} onClick={w.onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', borderBottom: i < waiting.length - 1 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
@@ -1780,8 +1823,9 @@ function HomeSection({ posts, billingCycles, hasNewReport, requests, requestRepl
 
       {upcoming.length > 0 && (
         <>
-          <div style={eyebrow}>Coming up</div>
           <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
+            <HomeCardHeader icon="calendar" color="#3B72B8" title="Coming up"
+              info="Your next scheduled posts, in the order they will go out." />
             {upcoming.map((p, i) => (
               <div key={p.id} onClick={() => onGo('content', 'all', p)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < upcoming.length - 1 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background = PALETTE.creamMid }}
