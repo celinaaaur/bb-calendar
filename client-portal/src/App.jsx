@@ -253,37 +253,50 @@ function AdaptiveVideo({ src, style }) {
   )
 }
 
-function IGGrid({ posts, onSelectPost }) {
-  const grid = [...posts].filter(p => p.status !== 'archived')
+function IGGrid({ posts, onSelectPost, client }) {
+  const live = [...posts].filter(p => p.status !== 'archived')
     .sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
-    .slice(0, 9)
+  const grid = live.slice(0, 9)
   while (grid.length < 9) grid.push(null)
+  const name = client?.name || 'Brown Butter'
+  const handle = client?.ig_handle ? client.ig_handle.replace(/^@/, '') : name
+  const initials = name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2 }}>
-      {grid.map((p, i) => (
-        <div key={i} onClick={() => p && onSelectPost && onSelectPost(p)} style={{
-          aspectRatio: '1', overflow: 'hidden', borderRadius: 2, position: 'relative',
-          background: p ? (p.image_url ? 'transparent' : `hsl(${28 + i * 8},20%,${86 - i * 2}%)`) : '#E8E0D0',
-          cursor: p && onSelectPost ? 'pointer' : 'default', transition: 'opacity 0.12s'
-        }}
-          onMouseEnter={e => { if (p && onSelectPost) e.currentTarget.style.opacity = 0.75 }}
-          onMouseLeave={e => { e.currentTarget.style.opacity = 1 }}
-        >
-          {p?.image_url && !isVideo(p.image_url) && <img src={imgSrc(p.image_url, p.status === 'published')} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-          {p?.image_url && isVideo(p.image_url) && (
-            p.cover_url
-              ? <>
-                  <img src={imgSrc(p.cover_url, p.status === 'published')} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{ position: 'absolute', bottom: 3, left: 3, width: 14, height: 14, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="7" height="7" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>
-                </>
-              : <div style={{ width: '100%', height: '100%', background: '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
-                </div>
-          )}
-          {p && !p.image_url && <div style={{ padding: 3, fontSize: 6, color: PALETTE.muted, lineHeight: 1.3 }}>{p.caption?.slice(0, 30)}</div>}
-          {p && <div style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.8)' }} />}
+    <div style={{ background: '#fff' }}>
+      {/* Mini Instagram profile header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderBottom: '0.5px solid ' + PALETTE.borderLight }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', background: client?.brand_color || PALETTE.caramel, color: '#fff', fontFamily: F.body, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+          {client?.logo_url ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
         </div>
-      ))}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: F.body, fontSize: 11, fontWeight: 600, color: PALETTE.espresso, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{handle}</div>
+          <div style={{ fontFamily: F.body, fontSize: 9, color: PALETTE.muted }}>{live.length} post{live.length !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1 }}>
+        {grid.map((p, i) => {
+          const vid = p && isVideo(p.image_url)
+          const carousel = p && !vid && (p.format === 'carousel' || (Array.isArray(p.images) && p.images.length > 1))
+          const cover = p ? (vid ? p.cover_url : p.image_url) : null
+          return (
+            <div key={i} onClick={() => p && onSelectPost && onSelectPost(p)} style={{
+              aspectRatio: '3 / 4', overflow: 'hidden', position: 'relative',
+              background: p ? '#E8E0D0' : '#F1ECE2',
+              cursor: p && onSelectPost ? 'pointer' : 'default', transition: 'opacity 0.12s'
+            }}
+              onMouseEnter={e => { if (p && onSelectPost) e.currentTarget.style.opacity = 0.75 }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = 1 }}
+            >
+              {cover && <img src={imgSrc(cover, p.status === 'published')} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+              {p && vid && !cover && <div style={{ position: 'absolute', inset: 0, background: '#1A1A1A' }} />}
+              {p && !p.image_url && <div style={{ padding: 4, fontSize: 6, color: PALETTE.muted, lineHeight: 1.3 }}>{p.caption?.slice(0, 30)}</div>}
+              {carousel && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round" style={{ position: 'absolute', top: 4, right: 4, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} aria-hidden="true"><rect x="3" y="7" width="13" height="13" rx="2.5" /><path d="M8 4h10a3 3 0 0 1 3 3v10" /></svg>}
+              {vid && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" style={{ position: 'absolute', top: 4, right: 4, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M10 8.5l5 3.5-5 3.5z" fill="#fff" /></svg>}
+              {p && p.status !== 'published' && <div title={STATUS[p.status]?.label} style={{ position: 'absolute', bottom: 4, left: 4, width: 6, height: 6, borderRadius: '50%', background: STATUS[p.status]?.dot || '#ccc', border: '1px solid rgba(255,255,255,0.9)' }} />}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -2289,7 +2302,7 @@ export default function ClientPortal() {
             {section === 'content' && (
               <div style={{ margin: '18px 10px 0', borderRadius: 6, overflow: 'hidden', border: '0.5px solid ' + PALETTE.border }}>
                 <div style={{ padding: '8px 10px', background: PALETTE.creamDark, fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Feed Preview</div>
-                <IGGrid posts={posts} onSelectPost={setSelectedPost} />
+                <IGGrid posts={posts} onSelectPost={setSelectedPost} client={client} />
               </div>
             )}
             <div style={{ padding: '20px 16px', marginTop: 'auto' }}>
