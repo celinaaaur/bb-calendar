@@ -509,7 +509,7 @@ function TodayQueue({ posts, clients, onSelect, currentUserName }) {
 }
 
 function IGGrid({ posts, onSelectPost }) {
-  const grid = [...posts].filter(p => p.status !== 'archived' && p.status !== 'draft').sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at)).slice(0, 9)
+  const grid = [...posts].filter(p => p.status !== 'archived' && p.status !== 'draft' && (p.format || '').toLowerCase() !== 'story').sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at)).slice(0, 9)
   while (grid.length < 9) grid.push(null)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2 }}>
@@ -3703,6 +3703,7 @@ export default function Dashboard() {
   const [teamMembers, setTeamMembers] = useState([])
   const [selectedClient, setSelectedClient] = useState('all')
   const [filter, setFilter] = useState('pending')
+  const [storiesOnly, setStoriesOnly] = useState(false)
   const [view, setView] = useState('today')
   const [selectedPost, setSelectedPost] = useState(null)
   const [composing, setComposing] = useState(false)
@@ -4055,7 +4056,7 @@ export default function Dashboard() {
 
   const activePosts = posts
   const base = filter === 'archived' ? archivedPosts : activePosts
-  const scopeOk = (p) => (selectedClient === 'all' || p.client_id === selectedClient) && (!mineOnly || namesMatch(p.designer, currentUserName))
+  const scopeOk = (p) => (selectedClient === 'all' || p.client_id === selectedClient) && (!mineOnly || namesMatch(p.designer, currentUserName)) && (!storiesOnly || (p.format || '').toLowerCase() === 'story')
   const clientFiltered = base.filter(scopeOk)
   const filteredPosts = filter === 'archived' || filter === 'active' ? clientFiltered : clientFiltered.filter(p => p.status === filter)
   const myActiveCount = activePosts.filter(p => (selectedClient === 'all' || p.client_id === selectedClient) && namesMatch(p.designer, currentUserName)).length
@@ -4274,32 +4275,38 @@ export default function Dashboard() {
             </div>
           )}
           <div style={{ padding: '16px 12px 8px' }}>
-            {railItems.map(([k, l]) => (
-              <button key={k} onClick={() => { setView(k); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 6, border: 'none', background: view === k ? PALETTE.creamDark : 'transparent', color: view === k ? PALETTE.espresso : PALETTE.muted, fontWeight: view === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                onMouseEnter={e => { if (view !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-                onMouseLeave={e => { if (view !== k) e.currentTarget.style.background = 'transparent' }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}><NavIcon name={k} />{l}</span>
-                {k === 'requests' && reqBadgeCount > 0 && (
-                  <span style={{ fontSize: 10, color: view === k ? PALETTE.caramel : PALETTE.mutedLight, fontWeight: 500 }}>{reqBadgeCount}</span>
-                )}
-              </button>
-            ))}
-            {selectedClient !== 'all' && (
-              <>
-                <div style={{ height: '0.5px', background: PALETTE.border, margin: '12px 2px 12px' }} />
-                <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 10px 8px' }}>Client hub</div>
-                {[['notes', 'Meeting notes'], ['links', 'Important links'], ...(canAccessBilling(currentUserEmail) ? [['billing', 'Billing']] : [])].map(([k, l]) => {
-                  const active = view === 'hub' && hubInitialTab === k
-                  return (
-                    <button key={k} onClick={() => { setHubInitialTab(k); setHubClientId(selectedClient); setView('hub'); if (isMobile) setSidebarOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 6, border: 'none', background: active ? PALETTE.creamDark : 'transparent', color: active ? PALETTE.espresso : PALETTE.muted, fontWeight: active ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center' }}
-                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-                      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
-                    ><span style={{ display: 'flex', alignItems: 'center', gap: 9 }}><NavIcon name={k} />{l}</span></button>
-                  )
-                })}
-              </>
-            )}
+            {(() => {
+              const navBtn = ({ key, icon, label, active, onClick, indent, disabled, badge, title }) => (
+                <button key={key} onClick={disabled ? undefined : onClick} title={title} style={{ width: '100%', textAlign: 'left', padding: indent ? '7px 10px 7px 34px' : '9px 10px', borderRadius: 6, border: 'none', background: active ? PALETTE.creamDark : 'transparent', color: active ? PALETTE.espresso : PALETTE.muted, opacity: disabled ? 0.45 : 1, cursor: disabled ? 'default' : 'pointer', fontWeight: active ? 500 : 400, fontSize: indent ? 11.5 : 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  onMouseEnter={e => { if (!active && !disabled) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{icon && <NavIcon name={icon} />}{label}</span>
+                  {badge > 0 && <span style={{ fontSize: 10, color: active ? PALETTE.caramel : PALETTE.mutedLight, fontWeight: 500 }}>{badge}</span>}
+                </button>
+              )
+              const goView = (v) => () => { setView(v); if (isMobile) setSidebarOpen(false) }
+              const goHub = (k) => () => { setHubInitialTab(k); setHubClientId(selectedClient); setView('hub'); if (isMobile) setSidebarOpen(false) }
+              const hasClient = selectedClient !== 'all'
+              const sectionLabel = { fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.caramel, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 10px 8px' }
+              const needClient = hasClient ? undefined : 'Pick a client first'
+              return (
+                <>
+                  {navBtn({ key: 'today', icon: 'today', label: 'Today', active: view === 'today', onClick: goView('today') })}
+                  {navBtn({ key: 'queue', icon: 'queue', label: 'Content', active: view === 'queue', onClick: goView('queue') })}
+                  {navBtn({ key: 'calendar', label: 'Calendar', indent: true, active: view === 'calendar', onClick: goView('calendar') })}
+                  {navBtn({ key: 'grid', label: 'Grid preview', indent: true, active: view === 'grid', onClick: goView('grid') })}
+
+                  <div style={{ height: '0.5px', background: PALETTE.border, margin: '12px 2px 12px' }} />
+                  <div style={sectionLabel}>Client hub</div>
+                  {navBtn({ key: 'notes', icon: 'notes', label: 'Meeting notes', disabled: !hasClient, title: needClient, active: view === 'hub' && hubInitialTab === 'notes', onClick: goHub('notes') })}
+                  {navBtn({ key: 'links', icon: 'links', label: 'Important links', disabled: !hasClient, title: needClient, active: view === 'hub' && hubInitialTab === 'links', onClick: goHub('links') })}
+                  {navBtn({ key: 'requests', icon: 'requests', label: 'Requests', badge: reqBadgeCount, active: view === 'requests', onClick: goView('requests') })}
+                  {canAccessBilling(currentUserEmail) && navBtn({ key: 'billing', icon: 'billing', label: 'Billing', disabled: !hasClient, title: needClient, active: view === 'hub' && hubInitialTab === 'billing', onClick: goHub('billing') })}
+                  {navBtn({ key: 'reports', icon: 'reports', label: 'Marketing reports', active: view === 'reports', onClick: goView('reports') })}
+                </>
+              )
+            })()}
           </div>
 
           <div style={{ padding: '6px 12px 8px' }}>
@@ -4364,6 +4371,9 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
                   <button onClick={() => setMineOnly(m => !m)} title="Show only posts assigned to you" style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (mineOnly ? PALETTE.caramel : PALETTE.border), background: mineOnly ? PALETTE.caramel : '#fff', color: mineOnly ? '#fff' : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                     Mine<span style={{ fontSize: 10, opacity: 0.8 }}>{myActiveCount}</span>
+                  </button>
+                  <button onClick={() => setStoriesOnly(v => !v)} title="Show only Instagram stories" style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (storiesOnly ? PALETTE.caramel : PALETTE.border), background: storiesOnly ? PALETTE.caramel : '#fff', color: storiesOnly ? '#fff' : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: storiesOnly ? 500 : 400, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                    Stories<span style={{ fontSize: 10, opacity: 0.8 }}>{activePosts.filter(p => (p.format || '').toLowerCase() === 'story' && p.status !== 'published' && (selectedClient === 'all' || p.client_id === selectedClient)).length}</span>
                   </button>
                   <span style={{ width: 1, height: 18, background: PALETTE.border, margin: '0 4px' }} />
                   {filterChips.map(([k, l, n]) => (
@@ -4477,7 +4487,7 @@ export default function Dashboard() {
                         return { symbol: '?', bg: 'rgba(0,0,0,0.4)' }
                       }
                       // Newest scheduled date first, like Instagram (top-left is the latest post)
-                      const sortedPosts = [...filteredPosts].sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
+                      const sortedPosts = [...filteredPosts].filter(p => (p.format || '').toLowerCase() !== 'story').sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))
 
                       const renderTile = (post) => {
                         const si = statusIcon(post.status)
