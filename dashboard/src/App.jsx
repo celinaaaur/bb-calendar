@@ -3703,7 +3703,6 @@ export default function Dashboard() {
   const [teamMembers, setTeamMembers] = useState([])
   const [selectedClient, setSelectedClient] = useState('all')
   const [filter, setFilter] = useState('pending')
-  const [storiesOnly, setStoriesOnly] = useState(false)
   const [view, setView] = useState('today')
   const [selectedPost, setSelectedPost] = useState(null)
   const [composing, setComposing] = useState(false)
@@ -4056,7 +4055,7 @@ export default function Dashboard() {
 
   const activePosts = posts
   const base = filter === 'archived' ? archivedPosts : activePosts
-  const scopeOk = (p) => (selectedClient === 'all' || p.client_id === selectedClient) && (!mineOnly || namesMatch(p.designer, currentUserName)) && (!storiesOnly || (p.format || '').toLowerCase() === 'story')
+  const scopeOk = (p) => (selectedClient === 'all' || p.client_id === selectedClient)
   const clientFiltered = base.filter(scopeOk)
   const filteredPosts = filter === 'archived' || filter === 'active' ? clientFiltered : clientFiltered.filter(p => p.status === filter)
   const myActiveCount = activePosts.filter(p => (selectedClient === 'all' || p.client_id === selectedClient) && namesMatch(p.designer, currentUserName)).length
@@ -4369,13 +4368,6 @@ export default function Dashboard() {
                   {counts[filter] || 0} post{(counts[filter] || 0) !== 1 ? 's' : ''} · {selectedClient === 'all' ? 'All clients' : clients.find(c => c.id === selectedClient)?.name}
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
-                  <button onClick={() => setMineOnly(m => !m)} title="Show only posts assigned to you" style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (mineOnly ? PALETTE.caramel : PALETTE.border), background: mineOnly ? PALETTE.caramel : '#fff', color: mineOnly ? '#fff' : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-                    Mine<span style={{ fontSize: 10, opacity: 0.8 }}>{myActiveCount}</span>
-                  </button>
-                  <button onClick={() => setStoriesOnly(v => !v)} title="Show only Instagram stories" style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (storiesOnly ? PALETTE.caramel : PALETTE.border), background: storiesOnly ? PALETTE.caramel : '#fff', color: storiesOnly ? '#fff' : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: storiesOnly ? 500 : 400, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-                    Stories<span style={{ fontSize: 10, opacity: 0.8 }}>{activePosts.filter(p => (p.format || '').toLowerCase() === 'story' && p.status !== 'published' && (selectedClient === 'all' || p.client_id === selectedClient)).length}</span>
-                  </button>
-                  <span style={{ width: 1, height: 18, background: PALETTE.border, margin: '0 4px' }} />
                   {filterChips.map(([k, l, n]) => (
                     <button key={k} onClick={() => setFilter(k)} style={{ padding: '6px 12px', borderRadius: 20, border: '0.5px solid ' + (filter === k ? PALETTE.espresso : PALETTE.border), background: filter === k ? PALETTE.espresso : '#fff', color: filter === k ? PALETTE.cream : PALETTE.muted, fontFamily: F.body, fontSize: 11, fontWeight: filter === k ? 500 : 400, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
                       {l}{n > 0 && <span style={{ fontSize: 10, opacity: 0.7 }}>{n}</span>}
