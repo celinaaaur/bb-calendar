@@ -1779,6 +1779,29 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUs
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  // Which portal sections this client can see (null in the DB means all)
+  const PORTAL_OPTIONS = [
+    ['content', 'Content', 'Posts to review and approve, calendar and feed grid'],
+    ['notes', 'Meeting Notes', 'Notes from your calls'],
+    ['billing', 'Billing', 'Invoices and reimbursements'],
+    ['reports', 'Marketing Reports', 'Analytics and ad reports'],
+    ['links', 'Links', 'Shared folders and important links'],
+    ['requests', 'Requests', 'Where they send work requests'],
+  ]
+  const [portalOn, setPortalOn] = useState(() => Array.isArray(client.portal_sections) ? client.portal_sections : PORTAL_OPTIONS.map(o => o[0]))
+  const [portalSaving, setPortalSaving] = useState(false)
+  const togglePortal = async (key) => {
+    const next = portalOn.includes(key) ? portalOn.filter(k => k !== key) : [...portalOn, key]
+    const prev = portalOn
+    setPortalOn(next)
+    setPortalSaving(true)
+    const allOn = PORTAL_OPTIONS.every(o => next.includes(o[0]))
+    const { error } = await supabase.from('clients').update({ portal_sections: allOn ? null : next }).eq('id', client.id)
+    setPortalSaving(false)
+    if (error) { setPortalOn(prev); alert('Could not save: ' + error.message); return }
+    onClientUpdated && onClientUpdated()
+  }
+
   const [editingNoteId, setEditingNoteId] = useState(null) // null = closed, 'new' = new note, else note id
   const [noteTitle, setNoteTitle] = useState('')
   const [noteDate, setNoteDate] = useState('')
@@ -1967,7 +1990,7 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUs
       </div>
 
       <div style={{ display: 'flex', borderBottom: '0.5px solid ' + PALETTE.borderLight, flexShrink: 0, background: '#fff' }}>
-        {[['notes', 'Meeting Notes'], ...(canBilling ? [['billing', 'Billing']] : []), ['links', 'Links']].map(([k, l]) => (
+        {[['notes', 'Meeting Notes'], ...(canBilling ? [['billing', 'Billing']] : []), ['links', 'Links'], ['portal', 'Portal access']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '12px 0', border: 'none', background: 'transparent', fontFamily: F.body, fontSize: 12, fontWeight: tab === k ? 500 : 400, color: tab === k ? PALETTE.espresso : PALETTE.muted, borderBottom: tab === k ? '1.5px solid ' + PALETTE.caramel : '1.5px solid transparent' }}>{l}</button>
         ))}
       </div>
@@ -1975,6 +1998,32 @@ function ClientHubView({ client, onClose, initialTab, onClientUpdated, currentUs
       <div style={{ flex: 1, padding: '28px 40px', maxWidth: 760, WebkitOverflowScrolling: 'touch' }}>
           {loading ? (
             <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.mutedLight, textAlign: 'center', padding: 30 }}>Loading…</div>
+          ) : tab === 'portal' ? (
+            <div>
+              <div style={{ fontFamily: F.display, fontSize: 16, color: PALETTE.espresso, marginBottom: 4 }}>What {client.name} can see</div>
+              <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.6, marginBottom: 18 }}>
+                Switch off anything that does not apply to this client. Their portal hides those sections, and Home only shows what is left. Nothing is deleted, so you can switch a section back on any time.
+              </div>
+              <div style={{ background: '#fff', border: '0.5px solid ' + PALETTE.borderLight, borderRadius: 10, overflow: 'hidden' }}>
+                {PORTAL_OPTIONS.map(([k, l, d], i) => {
+                  const on = portalOn.includes(k)
+                  return (
+                    <div key={k} onClick={() => !portalSaving && togglePortal(k)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderTop: i > 0 ? '0.5px solid ' + PALETTE.borderLight : 'none', cursor: 'pointer' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: F.body, fontSize: 13, fontWeight: 500, color: PALETTE.espresso }}>{l}</div>
+                        <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.muted, fontWeight: 300, marginTop: 2 }}>{d}</div>
+                      </div>
+                      <div role="switch" aria-checked={on} style={{ width: 38, height: 22, borderRadius: 11, background: on ? '#2A7D4F' : PALETTE.border, position: 'relative', flexShrink: 0, transition: 'background 0.15s' }}>
+                        <div style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ fontFamily: F.body, fontSize: 11, color: PALETTE.mutedLight, marginTop: 12, lineHeight: 1.6 }}>
+                Home is always on. {portalOn.includes('content') ? '' : 'With Content off, this client also drops out of the Client coverage card on your Today page.'}
+              </div>
+            </div>
           ) : tab === 'notes' ? (
             <div>
               {editingNoteId ? (
@@ -3347,7 +3396,7 @@ function TodayHome({ teamMembers = [], currentUserAvatarUrl, firstName, posts, c
   }
 
   // Coverage: when is each client's next post going out?
-  const coverage = clients.filter(c => inScope(c.id)).map(c => {
+  const coverage = clients.filter(c => inScope(c.id) && (!Array.isArray(c.portal_sections) || c.portal_sections.includes('content'))).map(c => {
     const up = posts.filter(p => p.client_id === c.id && p.scheduled_at && ['pending', 'approved', 'scheduled', 'revision'].includes(p.status) && new Date(p.scheduled_at) >= today)
       .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
     const nextPost = up[0]
