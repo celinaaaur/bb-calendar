@@ -2069,6 +2069,11 @@ export default function ClientPortal() {
     document.title = (client.name ? client.name + ' | ' : '') + 'Client Portal'
   }, [client])
 
+  // If a section gets switched off while someone is on it, send them home
+  useEffect(() => {
+    if (client && !sectionsFor(client).includes(section)) setSection('home')
+  }, [client, section])
+
   if (loading) return (
     <div style={{ minHeight: '100vh', background: PALETTE.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
@@ -2165,11 +2170,6 @@ export default function ClientPortal() {
     setSelectedPost(post || null)
     if (sec === 'content') setView('list')
   }
-
-  // If a section gets switched off while someone is on it, send them home
-  useEffect(() => {
-    if (client && !sectionsFor(client).includes(section)) setSection('home')
-  }, [client, section])
 
   const filterOptions = [
     ['all', 'All Posts', counts.all],
