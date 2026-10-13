@@ -1444,8 +1444,17 @@ function RequestThread({ request, replies, authorName, onSent }) {
   )
 }
 
+// Which sections this client can see. clients.portal_sections is null for
+// "everything"; Home is always on.
+const PORTAL_SECTIONS = ['home', 'content', 'notes', 'billing', 'reports', 'links', 'requests']
+const sectionsFor = (client) => {
+  const raw = client && Array.isArray(client.portal_sections) ? client.portal_sections : null
+  if (!raw) return PORTAL_SECTIONS
+  return PORTAL_SECTIONS.filter(k => k === 'home' || raw.includes(k))
+}
+
 // ── Mobile bottom tab bar ─────────────────────────────────────────────────────
-function MobileTabBar({ section, setSection, counts, openRequestCount, hasNewReport, moreOpen, setMoreOpen }) {
+function MobileTabBar({ section, setSection, counts, openRequestCount, hasNewReport, moreOpen, setMoreOpen, enabled = PORTAL_SECTIONS }) {
   const icons = {
     home: <path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V11z" />,
     content: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></>,
@@ -1459,7 +1468,7 @@ function MobileTabBar({ section, setSection, counts, openRequestCount, hasNewRep
     { k: 'requests', label: 'Requests', badge: openRequestCount },
     { k: 'reports', label: 'Reports', badge: 0, dot: hasNewReport },
     { k: 'more', label: 'More', badge: 0 },
-  ]
+  ].filter(t => t.k === 'more' || enabled.includes(t.k))
   const moreActive = ['notes', 'billing', 'links'].includes(section) || moreOpen
   return (
     <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 90, background: PALETTE.cream, borderTop: '0.5px solid ' + PALETTE.border, display: 'flex', paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -1706,8 +1715,10 @@ function HomeCardHeader({ icon, color, title, info, tag }) {
   )
 }
 
-function HomeSection({ posts, billingCycles, hasNewReport, requests, requestReplies, isMobile, onGo }) {
+function HomeSection({ posts: allPosts, billingCycles, hasNewReport, requests, requestReplies, isMobile, onGo, enabled = PORTAL_SECTIONS }) {
   const now = new Date()
+  const has = (k) => enabled.includes(k)
+  const posts = has('content') ? allPosts : []
   const byDate = (a, b) => new Date(a.scheduled_at || 0) - new Date(b.scheduled_at || 0)
   const pending = posts.filter(p => p.status === 'pending').sort(byDate)
   const revision = posts.filter(p => p.status === 'revision')
@@ -1715,11 +1726,11 @@ function HomeSection({ posts, billingCycles, hasNewReport, requests, requestRepl
     .filter(p => ['approved', 'scheduled'].includes(p.status) && p.scheduled_at && new Date(p.scheduled_at) >= now)
     .sort(byDate)
     .slice(0, 4)
-  const openRequests = requests.filter(r => r.status === 'new' || r.status === 'in_progress')
+  const openRequests = has('requests') ? requests.filter(r => r.status === 'new' || r.status === 'in_progress') : []
 
   const sortedCycles = [...billingCycles].sort((a, b) => new Date(b.cycle_start) - new Date(a.cycle_start))
   const currentCycle = sortedCycles.find(c => new Date(c.cycle_start) <= now && now <= new Date(c.cycle_end)) || sortedCycles[0]
-  const billingDue = currentCycle && currentCycle.status !== 'paid' ? currentCycle : null
+  const billingDue = has('billing') && currentCycle && currentCycle.status !== 'paid' ? currentCycle : null
 
   const dayLabel = (str) => new Date(str).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })
 
@@ -1747,7 +1758,7 @@ function HomeSection({ posts, billingCycles, hasNewReport, requests, requestRepl
       onClick: () => onGo('billing'),
     })
   }
-  const repliedRequests = requests.filter(r => {
+  const repliedRequests = !has('requests') ? [] : requests.filter(r => {
     const t = (requestReplies || []).filter(x => x.request_id === r.id).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     return t.length > 0 && t[t.length - 1].author_type === 'agency'
   })
@@ -1761,7 +1772,7 @@ function HomeSection({ posts, billingCycles, hasNewReport, requests, requestRepl
       onClick: () => onGo('requests'),
     })
   }
-  if (hasNewReport) {
+  if (hasNewReport && has('reports')) {
     todo.push({
       key: 'report',
       title: 'A new marketing report is ready',
@@ -2140,12 +2151,21 @@ export default function ClientPortal() {
 
   const firstName = (client?.contact_name || client?.name || '').split(' ')[0]
 
+  const enabled = sectionsFor(client)
+  const has = (k) => enabled.includes(k)
+
   const goTo = (sec, filt, post) => {
+    if (!enabled.includes(sec)) return
     setSection(sec)
     if (filt) setFilter(filt)
     setSelectedPost(post || null)
     if (sec === 'content') setView('list')
   }
+
+  // If a section gets switched off while someone is on it, send them home
+  useEffect(() => {
+    if (client && !sectionsFor(client).includes(section)) setSection('home')
+  }, [client, section])
 
   const filterOptions = [
     ['all', 'All Posts', counts.all],
@@ -2197,19 +2217,26 @@ export default function ClientPortal() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div style={{ maxWidth: isMobile ? '100%' : 540, flex: 1 }}>
             <div style={{ fontFamily: F.display, fontSize: isMobile ? 36 : 52, lineHeight: 1.05, color: PALETTE.espresso, marginBottom: isMobile ? 10 : 16 }}>
-              {counts.pending > 0
+              {!has('content')
+                ? <>Welcome back,<br />{firstName}.</>
+                : counts.pending > 0
                 ? <><span style={{ color: PALETTE.caramel }}>{counts.pending}</span> post{counts.pending !== 1 ? 's' : ''} waiting<br />on your approval.</>
                 : <>You are all<br />caught up.</>}
             </div>
             {!isMobile && (
               <div style={{ fontFamily: F.body, fontSize: 14, color: PALETTE.muted, fontWeight: 300, lineHeight: 1.65, marginBottom: 28, maxWidth: 400 }}>
-                {counts.pending > 0
+                {!has('content')
+                  ? <>Your billing, reports and requests with Brown Butter, all in one place.</>
+                  : counts.pending > 0
                   ? <>Brown Butter has {counts.pending} post{counts.pending !== 1 ? 's' : ''} ready for you to review. Take your time — nothing goes live until you say so.</>
                   : <>Nothing needs your approval right now. We will let you know when new posts are ready.</>}
               </div>
             )}
             <div style={{ display: 'flex', gap: isMobile ? 24 : 40, marginTop: isMobile ? 12 : 0 }}>
-              {[[counts.pending, 'Awaiting you'], [counts.revision, 'Revising'], [counts.published, 'Published']].map(([num, label]) => (
+              {(has('content')
+                ? [[counts.pending, 'Awaiting you'], [counts.revision, 'Revising'], [counts.published, 'Published']]
+                : [has('requests') && [openRequestCount, 'Open requests'], has('reports') && [analyticsReports.length, 'Reports']].filter(Boolean)
+              ).map(([num, label]) => (
                 <div key={label}>
                   <div style={{ fontFamily: F.display, fontStyle: 'italic', fontSize: isMobile ? 26 : 34, color: PALETTE.espresso, lineHeight: 1 }}>{num}</div>
                   <div style={{ fontFamily: F.body, fontSize: 8, color: PALETTE.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4, fontWeight: 500 }}>{label}</div>
@@ -2218,7 +2245,7 @@ export default function ClientPortal() {
             </div>
           </div>
 
-          {!isMobile && (
+          {!isMobile && has('content') && (
             <div style={{ flexShrink: 0, position: 'relative', width: 210, height: 210, marginBottom: 8 }}>
               {[
                 { rotate: '-5deg', bottom: '14px', right: '8px', opacity: 0.3, z: 1 },
@@ -2242,7 +2269,7 @@ export default function ClientPortal() {
       )}
 
       {/* Approval nudge banner — only after the agency sends a nudge, and only while posts are still waiting */}
-      {client.approval_nudged_at && counts.pending > 0 && nudgeDismissedFor !== client.approval_nudged_at && (
+      {has('content') && client.approval_nudged_at && counts.pending > 0 && nudgeDismissedFor !== client.approval_nudged_at && (
         <div style={{ background: '#C0392B', borderBottom: '0.5px solid #A93226', padding: isMobile ? '12px 20px' : '12px 40px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
           <div style={{ flex: 1, minWidth: 200, fontFamily: F.body, fontSize: 13, color: '#fff', lineHeight: 1.5 }}>
             <span style={{ fontWeight: 600 }}>{counts.pending} post{counts.pending !== 1 ? 's are' : ' is'} still waiting for your approval.</span> Reviewing soon helps us keep your schedule on track.
@@ -2261,7 +2288,7 @@ export default function ClientPortal() {
             <div style={{ padding: '22px 16px 0' }}>
               <div style={{ fontFamily: F.body, fontSize: 12, color: PALETTE.muted, fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>This is your space to review, approve, and stay in the loop.</div>
               <div style={{ fontFamily: F.body, fontSize: 9, fontWeight: 500, color: PALETTE.mutedLight, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Portal</div>
-              {[['home', '🏠 Home'], ['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports'], ['links', '🔗 Links'], ['requests', '📥 Requests']].map(([k, l]) => (
+              {[['home', '🏠 Home'], ['content', '📸 Content'], ['notes', '📝 Meeting Notes'], ['billing', '💳 Billing'], ['reports', '📈 Marketing Reports'], ['links', '🔗 Links'], ['requests', '📥 Requests']].filter(([k]) => has(k)).map(([k, l]) => (
                 <button key={k} onClick={() => { setSection(k); setSelectedPost(null) }} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 5, border: 'none', background: section === k ? PALETTE.espresso : 'transparent', color: section === k ? PALETTE.cream : PALETTE.muted, fontWeight: section === k ? 500 : 400, fontSize: 12, fontFamily: F.body, marginBottom: 2, transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                   onMouseEnter={e => { if (section !== k) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                   onMouseLeave={e => { if (section !== k) e.currentTarget.style.background = 'transparent' }}
@@ -2361,7 +2388,7 @@ export default function ClientPortal() {
             </div>
           )}
 
-          {section === 'home' && <HomeSection posts={activePosts} billingCycles={billingCycles} hasNewReport={hasNewReport} requests={requests} requestReplies={requestReplies} isMobile={isMobile} onGo={goTo} />}
+          {section === 'home' && <HomeSection posts={activePosts} billingCycles={billingCycles} hasNewReport={hasNewReport} requests={requests} requestReplies={requestReplies} isMobile={isMobile} onGo={goTo} enabled={enabled} />}
 
           {/* Meeting Notes section */}
           {section === 'notes' && <NotesSection notes={notes} isMobile={isMobile} />}
@@ -2517,14 +2544,14 @@ export default function ClientPortal() {
             <>
               <div onClick={() => setMoreOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(44,31,14,0.35)', zIndex: 80 }} />
               <div style={{ position: 'fixed', left: 12, right: 12, bottom: 'calc(64px + env(safe-area-inset-bottom))', zIndex: 85, background: '#fff', borderRadius: 14, border: '0.5px solid ' + PALETTE.border, boxShadow: '0 8px 32px rgba(44,31,14,0.2)', overflow: 'hidden' }}>
-                {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].map(([k, l]) => (
+                {[['notes', 'Meeting Notes'], ['billing', 'Billing'], ['links', 'Links']].filter(([k]) => has(k)).map(([k, l]) => (
                   <button key={k} onClick={() => { setSection(k); setSelectedPost(null); setMoreOpen(false) }} style={{ width: '100%', textAlign: 'left', padding: '15px 18px', background: section === k ? PALETTE.creamMid : '#fff', border: 'none', borderBottom: '0.5px solid ' + PALETTE.borderLight, fontFamily: F.body, fontSize: 14, color: PALETTE.espresso, fontWeight: section === k ? 500 : 400 }}>{l}</button>
                 ))}
                 <a href={MEETING_URL} target="_blank" rel="noreferrer" onClick={() => setMoreOpen(false)} style={{ display: 'block', padding: '15px 18px', fontFamily: F.body, fontSize: 14, color: PALETTE.caramel, fontWeight: 500, textDecoration: 'none' }}>Book a meeting ↗</a>
               </div>
             </>
           )}
-          <MobileTabBar section={section} setSection={(k) => { setSection(k); setSelectedPost(null) }} counts={counts} openRequestCount={openRequestCount} hasNewReport={hasNewReport} moreOpen={moreOpen} setMoreOpen={setMoreOpen} />
+          <MobileTabBar enabled={enabled} section={section} setSection={(k) => { setSection(k); setSelectedPost(null) }} counts={counts} openRequestCount={openRequestCount} hasNewReport={hasNewReport} moreOpen={moreOpen} setMoreOpen={setMoreOpen} />
         </>
       )}
     </div>
